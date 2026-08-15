@@ -49,6 +49,31 @@
       this.fightBouncers = [];
       this.fightLion = null;
       this.purrText = null;
+
+      this.maxHp = 100;
+      this.hp = 100;
+      this.hpBarFill = null;
+      this.playerDying = false;
+
+      this.ticketHitbox = null;
+
+      this.itemsButton = null;
+      this.itemsModal = null;
+      this.itemsTicketBadge = null;
+      this.hotbarContainer = null;
+      this.hotbarTicketIcon = null;
+
+      this.lootModal = null;
+      this.bouncerTipStolen = false;
+
+      this.lionChoiceModal = null;
+      this.lionQuestionBubble = null;
+      this.lionChoiceShown = false;
+      this.lionExitActive = false;
+      this.lionCombatActive = false;
+      this.nextLionHitAt = 0;
+
+      this.danceOverlay = null;
     }
 
     preload() {
@@ -381,12 +406,13 @@
         .setOrigin(0.5)
         .setDepth(7);
 
-      const ticketHitbox = this.add.zone(740, 265, 58, 106)
-        .setDepth(8)
+      this.ticketHitbox = this.add.zone(740, 254, 66, 78)
+        .setDepth(150)
         .setInteractive({ useHandCursor: true });
 
-      ticketHitbox.on("pointerdown", (pointer) => {
+      this.ticketHitbox.on("pointerdown", (pointer) => {
         pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
         this.openTicketModal();
       });
 
@@ -683,21 +709,22 @@
     }
 
     createHUD() {
-      const hud = this.add.container(20, 19)
+      const hud = this.add.container(0, 0)
         .setScrollFactor(0)
-        .setDepth(100);
+        .setDepth(300);
 
+      // Coins oben links.
       const coin = this.add.graphics();
       coin.fillStyle(0xe2aa28, 1);
-      coin.fillCircle(0, 0, 12);
+      coin.fillCircle(20, 19, 12);
       coin.fillStyle(0xffdf65, 1);
-      coin.fillCircle(0, 0, 8);
+      coin.fillCircle(20, 19, 8);
       coin.fillStyle(0xa66c15, 1);
-      coin.fillRect(-2, -6, 4, 12);
+      coin.fillRect(18, 13, 4, 12);
       coin.lineStyle(2, 0xfff0a0, 0.85);
-      coin.strokeCircle(0, 0, 11);
+      coin.strokeCircle(20, 19, 11);
 
-      this.coinText = this.add.text(20, 0, "0", {
+      this.coinText = this.add.text(40, 19, "0", {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: "12px",
         color: "#fff4cf",
@@ -705,12 +732,312 @@
         strokeThickness: 4
       }).setOrigin(0, 0.5);
 
-      hud.add([coin, this.coinText]);
+      // HP-Leiste ohne Zahlen.
+      const heart = this.add.graphics();
+      heart.fillStyle(0xb93642, 1);
+      heart.fillRect(83, 14, 10, 10);
+      heart.fillRect(92, 14, 10, 10);
+      heart.fillTriangle(83, 23, 102, 23, 92, 32);
+      heart.fillStyle(0xf16b72, 1);
+      heart.fillRect(85, 15, 5, 4);
+
+      const hpFrame = this.add.graphics();
+      hpFrame.fillStyle(0x15171c, 0.9);
+      hpFrame.fillRoundedRect(108, 12, 104, 16, 5);
+      hpFrame.lineStyle(2, 0xffe3d1, 0.8);
+      hpFrame.strokeRoundedRect(108, 12, 104, 16, 5);
+
+      this.hpBarFill = this.add.rectangle(112, 20, 96, 10, 0xd84e57)
+        .setOrigin(0, 0.5);
+
+      hud.add([coin, this.coinText, heart, hpFrame, this.hpBarFill]);
+
+      // ITEMS-Menü oben rechts.
+      this.itemsButton = this.add.text(GAME_WIDTH - 18, 18, "ITEMS", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "9px",
+        color: "#fff5d6",
+        backgroundColor: "#182333",
+        padding: { x: 11, y: 8 }
+      })
+        .setOrigin(1, 0.5)
+        .setScrollFactor(0)
+        .setDepth(305)
+        .setInteractive({ useHandCursor: true });
+
+      this.itemsButton.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openItemsModal();
+      });
+
+      this.itemsTicketBadge = this.add.text(GAME_WIDTH - 14, 38, "TICKET", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "5px",
+        color: "#2b2115",
+        backgroundColor: "#ffe3a2",
+        padding: { x: 4, y: 3 }
+      })
+        .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(305)
+        .setVisible(false);
+
+      this.createHotbar();
+      this.updateHpBar();
+      this.updateInventoryUI();
     }
 
     updateCoinHUD() {
       if (this.coinText) {
         this.coinText.setText(String(this.coins));
+      }
+    }
+
+    updateHpBar() {
+      if (!this.hpBarFill) return;
+
+      const ratio = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
+      this.hpBarFill.displayWidth = 96 * ratio;
+
+      if (ratio > 0.6) {
+        this.hpBarFill.setFillStyle(0xd84e57);
+      } else if (ratio > 0.25) {
+        this.hpBarFill.setFillStyle(0xe68a45);
+      } else {
+        this.hpBarFill.setFillStyle(0xc33131);
+      }
+    }
+
+    createTicketIcon(x = 0, y = 0, scale = 1) {
+      const icon = this.add.container(x, y);
+      const g = this.add.graphics();
+
+      g.fillStyle(0xffe1a1, 1);
+      g.fillRoundedRect(-15, -10, 30, 20, 4);
+      g.lineStyle(2, 0x6c5230, 1);
+      g.strokeRoundedRect(-15, -10, 30, 20, 4);
+      g.lineStyle(1, 0xb68b48, 1);
+      g.lineBetween(-4, -8, -4, 8);
+      g.lineBetween(5, -8, 5, 8);
+
+      const t = this.add.text(10, 0, "T", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "7px",
+        color: "#513d25"
+      }).setOrigin(0.5);
+
+      icon.add([g, t]);
+      icon.setScale(scale);
+      return icon;
+    }
+
+    createHotbar() {
+      this.hotbarContainer = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 25)
+        .setScrollFactor(0)
+        .setDepth(290);
+
+      const bar = this.add.graphics();
+      const slotCount = 6;
+      const slotSize = 38;
+      const gap = 3;
+      const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
+      const startX = -totalWidth / 2;
+
+      bar.fillStyle(0x15171a, 0.78);
+      bar.fillRoundedRect(startX - 6, -24, totalWidth + 12, 48, 5);
+
+      for (let i = 0; i < slotCount; i += 1) {
+        const x = startX + i * (slotSize + gap);
+        bar.fillStyle(i === 0 ? 0x3b3b35 : 0x292b2d, 0.94);
+        bar.fillRect(x, -19, slotSize, slotSize);
+        bar.lineStyle(i === 0 ? 3 : 2, i === 0 ? 0xf3e3a5 : 0x858585, 0.9);
+        bar.strokeRect(x, -19, slotSize, slotSize);
+      }
+
+      this.hotbarContainer.add(bar);
+
+      this.hotbarTicketIcon = this.createTicketIcon(startX + slotSize / 2, 0, 0.8)
+        .setVisible(false);
+      this.hotbarContainer.add(this.hotbarTicketIcon);
+    }
+
+    updateInventoryUI() {
+      const hasTicket = Boolean(this.hasCityTicket);
+
+      this.itemsTicketBadge?.setVisible(hasTicket);
+      this.hotbarTicketIcon?.setVisible(hasTicket);
+    }
+
+    equipTicketToHotbar() {
+      if (!this.hasCityTicket) return;
+      this.hotbarTicketIcon?.setVisible(true);
+    }
+
+    openItemsModal() {
+      if (this.itemsModal || this.ticketModal || this.lootModal || this.lionChoiceModal) {
+        return;
+      }
+      if (this.playerDying || this.danceOverlay) return;
+
+      this.setUILocked(true);
+
+      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2)
+        .setScrollFactor(0)
+        .setDepth(420);
+
+      const shade = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060b, 0.72)
+        .setInteractive();
+
+      const panel = this.add.graphics();
+      panel.fillStyle(0x20252b, 1);
+      panel.fillRoundedRect(-235, -125, 470, 250, 16);
+      panel.lineStyle(4, 0xd7c892, 1);
+      panel.strokeRoundedRect(-235, -125, 470, 250, 16);
+
+      const title = this.add.text(-195, -94, "ITEMS", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "15px",
+        color: "#fff0bd"
+      });
+
+      const back = this.add.text(193, -94, "X", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "13px",
+        color: "#fff0bd",
+        backgroundColor: "#443a30",
+        padding: { x: 9, y: 7 }
+      })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+
+      back.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.closeItemsModal();
+      });
+
+      const slotXs = [-150, -75, 0, 75, 150];
+      const slots = slotXs.map((x) => {
+        const slot = this.add.graphics();
+        slot.fillStyle(0x111418, 1);
+        slot.fillRect(x - 25, -45, 50, 50);
+        slot.lineStyle(2, 0x7d8387, 1);
+        slot.strokeRect(x - 25, -45, 50, 50);
+        return slot;
+      });
+
+      const hint = this.add.text(0, 77, this.hasCityTicket
+        ? "TICKET IST IN DER HOTBAR"
+        : "NOCH KEINE ITEMS", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "7px",
+        color: "#aeb7b7"
+      }).setOrigin(0.5);
+
+      modal.add([shade, panel, title, back, ...slots, hint]);
+
+      if (this.hasCityTicket) {
+        const ticket = this.createTicketIcon(-150, -20, 1.05)
+          .setInteractive(new Phaser.Geom.Rectangle(-18, -13, 36, 26), Phaser.Geom.Rectangle.Contains);
+
+        ticket.on("pointerdown", (pointer) => {
+          pointer.event?.preventDefault?.();
+          pointer.event?.stopPropagation?.();
+          this.equipTicketToHotbar();
+
+          const pulse = this.add.text(-150, 18, "AUSGERÜSTET", {
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "5px",
+            color: "#ffe399"
+          }).setOrigin(0.5);
+          modal.add(pulse);
+          this.tweens.add({
+            targets: pulse,
+            alpha: 0,
+            y: 8,
+            duration: 650,
+            onComplete: () => pulse.destroy()
+          });
+        });
+
+        const label = this.add.text(-150, 23, "TICKET", {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "6px",
+          color: "#f0e1b8"
+        }).setOrigin(0.5);
+
+        modal.add([ticket, label]);
+      }
+
+      this.itemsModal = modal;
+    }
+
+    closeItemsModal() {
+      if (!this.itemsModal) return;
+      this.itemsModal.destroy(true);
+      this.itemsModal = null;
+      this.refreshUILock();
+      this.ensureTicketMachineInteractive();
+    }
+
+    refreshUILock() {
+      const locked = Boolean(
+        this.ticketModal ||
+        this.itemsModal ||
+        this.lootModal ||
+        this.lionChoiceModal ||
+        this.danceOverlay ||
+        this.bouncerDialogueActive ||
+        this.fightActive ||
+        this.lionExitActive ||
+        this.playerDying
+      );
+
+      this.setUILocked(locked);
+    }
+
+    ensureTicketMachineInteractive() {
+      if (!this.ticketHitbox) return;
+
+      if (!this.ticketHitbox.input) {
+        this.ticketHitbox.setInteractive({ useHandCursor: true });
+      }
+
+      this.ticketHitbox.input.enabled = true;
+      this.ticketHitbox.setDepth(150);
+    }
+
+    animateCoinGain(amount) {
+      const gain = this.add.text(44, 46, `+${amount}`, {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "10px",
+        color: "#ffdf65",
+        stroke: "#5c3c11",
+        strokeThickness: 4
+      })
+        .setScrollFactor(0)
+        .setDepth(390)
+        .setOrigin(0.5);
+
+      this.tweens.add({
+        targets: gain,
+        y: 25,
+        scale: 1.25,
+        alpha: 0,
+        duration: 900,
+        ease: "Quad.easeOut",
+        onComplete: () => gain.destroy()
+      });
+
+      if (this.coinText) {
+        this.tweens.add({
+          targets: this.coinText,
+          scale: 1.45,
+          duration: 140,
+          yoyo: true,
+          repeat: 2
+        });
       }
     }
 
@@ -740,13 +1067,17 @@
     }
 
     openTicketModal() {
-      if (this.ticketModal || this.bouncerDialogueActive || this.fightActive) return;
+      if (this.ticketModal || this.playerDying || this.danceOverlay) return;
 
+      if (this.itemsModal) this.closeItemsModal();
+      if (this.lootModal) this.closeLootModal();
+
+      this.ensureTicketMachineInteractive();
       this.setUILocked(true);
 
       const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2)
         .setScrollFactor(0)
-        .setDepth(210);
+        .setDepth(440);
 
       const shade = this.add.rectangle(
         0,
@@ -866,6 +1197,8 @@
       this.coins -= 10;
       this.hasCityTicket = true;
       this.updateCoinHUD();
+      this.updateInventoryUI();
+      this.equipTicketToHotbar();
 
       this.ticketStatusText
         ?.setColor("#315d43")
@@ -878,7 +1211,139 @@
       this.ticketModal.destroy(true);
       this.ticketModal = null;
       this.ticketStatusText = null;
-      this.setUILocked(this.bouncerDialogueActive || this.fightActive);
+      this.refreshUILock();
+      this.ensureTicketMachineInteractive();
+    }
+
+    makeDeadBouncersLootable() {
+      this.fightBouncers.forEach((guard) => {
+        if (!guard?.active) return;
+
+        guard.removeAllListeners("pointerdown");
+        guard.removeAllListeners("pointerover");
+        guard.removeAllListeners("pointerout");
+        guard.setSize(118, 82);
+        guard.setInteractive({ useHandCursor: true });
+        guard.setDepth(18);
+
+        guard.on("pointerdown", (pointer) => {
+          pointer.event?.preventDefault?.();
+          pointer.event?.stopPropagation?.();
+          this.openLootModal();
+        });
+      });
+    }
+
+    openLootModal() {
+      if (
+        this.lootModal ||
+        this.ticketModal ||
+        this.itemsModal ||
+        this.lionChoiceModal ||
+        this.playerDying
+      ) return;
+      if (this.danceOverlay) return;
+
+      this.setUILocked(true);
+
+      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2)
+        .setScrollFactor(0)
+        .setDepth(430);
+
+      const shade = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060b, 0.68)
+        .setInteractive();
+
+      const panel = this.add.graphics();
+      panel.fillStyle(0xffedc0, 1);
+      panel.fillRoundedRect(-260, -100, 520, 200, 17);
+      panel.lineStyle(4, 0x5a402a, 1);
+      panel.strokeRoundedRect(-260, -100, 520, 200, 17);
+
+      const question = this.add.text(
+        0,
+        -42,
+        this.bouncerTipStolen
+          ? "Da isch nüt meh z hole."
+          : "Das Trinkgeld der Türsteher klauen?",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "10px",
+          color: "#302319",
+          align: "center",
+          wordWrap: { width: 450 }
+        }
+      ).setOrigin(0.5);
+
+      const no = this.add.text(this.bouncerTipStolen ? 0 : 78, 40, this.bouncerTipStolen ? "ZURÜCK" : "NEIN", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "10px",
+        color: "#382b21",
+        backgroundColor: "#d5c6a6",
+        padding: { x: 18, y: 12 }
+      })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+
+      no.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.closeLootModal();
+      });
+
+      const children = [shade, panel, question, no];
+
+      if (!this.bouncerTipStolen) {
+        const yes = this.add.text(-78, 40, "JA", {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "10px",
+          color: "#245135",
+          backgroundColor: "#b8d7b5",
+          padding: { x: 22, y: 12 }
+        })
+          .setOrigin(0.5)
+          .setInteractive({ useHandCursor: true });
+
+        yes.on("pointerdown", (pointer) => {
+          pointer.event?.preventDefault?.();
+          pointer.event?.stopPropagation?.();
+          this.stealBouncerTips();
+        });
+
+        children.push(yes);
+      }
+
+      modal.add(children);
+      this.lootModal = modal;
+    }
+
+    stealBouncerTips() {
+      if (this.bouncerTipStolen) return;
+
+      this.bouncerTipStolen = true;
+      this.coins += 100;
+      this.updateCoinHUD();
+      this.animateCoinGain(100);
+
+      if (this.lootModal) {
+        const success = this.add.text(0, 78, "+100 COINS", {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "9px",
+          color: "#856015",
+          stroke: "#fff0b8",
+          strokeThickness: 3
+        }).setOrigin(0.5);
+        this.lootModal.add(success);
+      }
+
+      this.time.delayedCall(850, () => this.closeLootModal());
+    }
+
+    closeLootModal() {
+      if (!this.lootModal) return;
+      this.lootModal.destroy(true);
+      this.lootModal = null;
+      this.refreshUILock();
+      this.ensureTicketMachineInteractive();
     }
 
     createSpeechBubble(x, y, text, tailOffset = 0) {
@@ -1332,7 +1797,9 @@
       if (!this.fightLion) {
         this.fightActive = false;
         this.fightFinished = true;
-        this.setUILocked(false);
+        this.makeDeadBouncersLootable();
+        this.ensureTicketMachineInteractive();
+        this.showLionChoiceQuestion();
         return;
       }
 
@@ -1384,12 +1851,315 @@
 
           this.fightActive = false;
           this.fightFinished = true;
-          this.setUILocked(false);
+          this.makeDeadBouncersLootable();
+          this.ensureTicketMachineInteractive();
 
-          // Wieder normale Kamera-Steuerung.
+          // Wieder normale Kamera-Steuerung, bevor der Löwe Simon anspricht.
           this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
           this.cameras.main.setDeadzone(240, 80);
+
+          this.time.delayedCall(650, () => this.showLionChoiceQuestion());
         }
+      });
+    }
+
+    clearLionQuestion() {
+      if (this.lionQuestionBubble) {
+        this.lionQuestionBubble.destroy(true);
+        this.lionQuestionBubble = null;
+      }
+
+      if (this.lionChoiceModal) {
+        this.lionChoiceModal.destroy(true);
+        this.lionChoiceModal = null;
+      }
+    }
+
+    showLionChoiceQuestion() {
+      if (this.lionChoiceShown || !this.fightLion || this.playerDying) return;
+
+      this.lionChoiceShown = true;
+      this.setUILocked(true);
+
+      this.lionQuestionBubble = this.createSpeechBubble(
+        this.fightLion.x - 15,
+        this.fightLion.y - 105,
+        "Willsch go tanze Gah?",
+        0
+      );
+
+      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 92)
+        .setScrollFactor(0)
+        .setDepth(460);
+
+      const panel = this.add.graphics();
+      panel.fillStyle(0x12151d, 0.9);
+      panel.fillRoundedRect(-210, -35, 420, 70, 13);
+      panel.lineStyle(3, 0xffe6a8, 0.85);
+      panel.strokeRoundedRect(-210, -35, 420, 70, 13);
+
+      const makeChoice = (x, label, color, callback) => {
+        const button = this.add.text(x, 0, label, {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "9px",
+          color,
+          backgroundColor: "#302d34",
+          padding: { x: 15, y: 11 }
+        })
+          .setOrigin(0.5)
+          .setInteractive({ useHandCursor: true });
+
+        button.on("pointerdown", (pointer) => {
+          pointer.event?.preventDefault?.();
+          pointer.event?.stopPropagation?.();
+          callback();
+        });
+
+        return button;
+      };
+
+      const yes = makeChoice(-126, "JA", "#bff3bd", () => this.chooseDanceWithLion());
+      const no = makeChoice(0, "NEIN", "#f3ddbd", () => this.chooseNoDance());
+      const fight = makeChoice(130, "KÄMPFEN", "#ffaaa6", () => this.startLionCombat());
+
+      modal.add([panel, yes, no, fight]);
+      this.lionChoiceModal = modal;
+      this.refreshUILock();
+    }
+
+    stopLionPurring() {
+      if (this.purrText) {
+        this.tweens.killTweensOf(this.purrText);
+        this.purrText.destroy();
+        this.purrText = null;
+      }
+
+      if (this.fightLion) {
+        this.tweens.killTweensOf(this.fightLion);
+        this.fightLion.setScale(1);
+        this.fightLion.setAngle(0);
+      }
+    }
+
+    chooseDanceWithLion() {
+      if (!this.fightLion || this.playerDying) return;
+
+      this.clearLionQuestion();
+      this.stopLionPurring();
+      this.enterHiveDance();
+    }
+
+    enterHiveDance() {
+      this.setUILocked(true);
+
+      this.player.setVisible(false);
+      this.fightLion?.setVisible(false);
+
+      const overlay = this.add.container(0, 0)
+        .setScrollFactor(0)
+        .setDepth(600);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0x080711, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      bg.fillStyle(0x171125, 1);
+      bg.fillRect(0, 80, GAME_WIDTH, 260);
+      bg.fillStyle(0x2c2038, 1);
+      for (let x = 0; x < GAME_WIDTH; x += 62) {
+        bg.fillRect(x, 310, 45, 12);
+      }
+
+      const hive = this.add.text(GAME_WIDTH / 2, 42, "HIVE", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "27px",
+        color: "#fff4b8",
+        stroke: "#7c2eb4",
+        strokeThickness: 8
+      }).setOrigin(0.5);
+
+      const disco = this.add.graphics();
+      disco.fillStyle(0xdbe5ed, 1);
+      disco.fillCircle(GAME_WIDTH / 2, 112, 25);
+      disco.lineStyle(2, 0x6c7180, 1);
+      disco.strokeCircle(GAME_WIDTH / 2, 112, 25);
+      for (let i = -18; i <= 18; i += 9) {
+        disco.lineBetween(GAME_WIDTH / 2 - 20, 112 + i, GAME_WIDTH / 2 + 20, 112 + i);
+        disco.lineBetween(GAME_WIDTH / 2 + i, 92, GAME_WIDTH / 2 + i, 132);
+      }
+
+      const lights = this.add.graphics();
+      lights.fillStyle(0xff4f9a, 0.14);
+      lights.fillTriangle(GAME_WIDTH / 2, 120, 110, 330, 305, 330);
+      lights.fillStyle(0x45d8ff, 0.14);
+      lights.fillTriangle(GAME_WIDTH / 2, 120, 510, 330, 745, 330);
+      lights.fillStyle(0xc876ff, 0.12);
+      lights.fillTriangle(GAME_WIDTH / 2, 120, 310, 330, 555, 330);
+
+      const danceSimon = this.add.sprite(330, 252, "simon", 0)
+        .setScale(0.36)
+        .setDepth(620);
+      danceSimon.play("simon-run", true);
+
+      const danceLion = this.createLion(500, 278)
+        .setScrollFactor(0)
+        .setDepth(620);
+
+      const caption = this.add.text(GAME_WIDTH / 2, 355, "SIMON & LEU", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "10px",
+        color: "#ffe6a1"
+      }).setOrigin(0.5);
+
+      overlay.add([bg, lights, disco, hive, caption]);
+
+      this.tweens.add({
+        targets: danceSimon,
+        angle: { from: -7, to: 7 },
+        y: "-=8",
+        duration: 330,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
+      this.tweens.add({
+        targets: danceLion,
+        angle: { from: -5, to: 6 },
+        x: "+=14",
+        duration: 390,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
+      this.tweens.add({
+        targets: hive,
+        alpha: { from: 0.65, to: 1 },
+        duration: 480,
+        yoyo: true,
+        repeat: -1
+      });
+
+      this.danceOverlay = overlay;
+      this.refreshUILock();
+    }
+
+    chooseNoDance() {
+      if (!this.fightLion || this.playerDying) return;
+
+      this.clearLionQuestion();
+      this.stopLionPurring();
+      this.lionExitActive = true;
+      this.refreshUILock();
+
+      const lion = this.fightLion;
+      lion.setScale(1);
+
+      this.tweens.add({
+        targets: lion,
+        x: 1700,
+        y: 255,
+        scale: 0.55,
+        alpha: 0,
+        duration: 1300,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          lion.destroy(true);
+          this.fightLion = null;
+          this.lionExitActive = false;
+          this.refreshUILock();
+          this.ensureTicketMachineInteractive();
+        }
+      });
+    }
+
+    startLionCombat() {
+      if (!this.fightLion || this.playerDying) return;
+
+      this.clearLionQuestion();
+      this.stopLionPurring();
+
+      this.lionCombatActive = true;
+      this.nextLionHitAt = this.time.now + 500;
+
+      this.fightLion.setVisible(true);
+      this.fightLion.setAlpha(1);
+      this.fightLion.setScale(1);
+      this.fightLion.y = GROUND_TOP - 44;
+
+      this.refreshUILock();
+      this.ensureTicketMachineInteractive();
+    }
+
+    updateLionCombat(time, delta) {
+      if (!this.lionCombatActive || !this.fightLion || this.playerDying) return;
+      if (this.uiLocked) return;
+
+      const lion = this.fightLion;
+      const dx = this.player.x - lion.x;
+      const direction = Math.sign(dx) || 1;
+      const speed = 132;
+
+      lion.x += direction * speed * (delta / 1000);
+      lion.y = GROUND_TOP - 44 + Math.sin(time / 115) * 2;
+      lion.scaleX = direction < 0 ? 1 : -1;
+      lion.scaleY = 1;
+
+      const closeEnough = Math.abs(dx) < 76 && Math.abs(this.player.y - lion.y) < 95;
+
+      if (closeEnough && time >= this.nextLionHitAt) {
+        this.nextLionHitAt = time + 950;
+        this.applyPlayerDamage(40);
+      }
+    }
+
+    applyPlayerDamage(amount) {
+      if (this.playerDying) return;
+
+      this.hp = Math.max(0, this.hp - amount);
+      this.updateHpBar();
+      this.showImpact(this.player.x + 8, this.player.y - 55, "HIT!");
+      this.cameras.main.shake(130, 0.008);
+
+      this.player.setTint(0xff6767);
+      this.time.delayedCall(170, () => {
+        if (!this.playerDying) this.player.clearTint();
+      });
+
+      if (this.hp <= 0) {
+        this.killSimonAndRestart();
+      }
+    }
+
+    killSimonAndRestart() {
+      if (this.playerDying) return;
+
+      this.playerDying = true;
+      this.lionCombatActive = false;
+      this.setUILocked(true);
+      this.player.setVelocity(0, 0);
+      this.player.clearTint();
+      this.player.play("simon-death", true);
+
+      const gameOver = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 45, "SIMON ISCH K.O.", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "18px",
+        color: "#ffd0c8",
+        stroke: "#541c22",
+        strokeThickness: 7
+      })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(800);
+
+      this.tweens.add({
+        targets: gameOver,
+        alpha: { from: 0, to: 1 },
+        duration: 350
+      });
+
+      this.time.delayedCall(1600, () => {
+        window.location.reload();
       });
     }
 
@@ -1423,6 +2193,7 @@
       makeAnim("simon-shoot", 4, 7, 10, 0);
       makeAnim("simon-run", 8, 17, 12);
       makeAnim("simon-jump", 18, 25, 10, 0);
+      makeAnim("simon-death", 26, 31, 8, 0);
     }
 
     createPlayer() {
@@ -1529,8 +2300,10 @@
       );
     }
 
-    update(time) {
+    update(time, delta) {
       if (!this.player?.body) return;
+
+      this.updateLionCombat(time, delta);
 
       const body = this.player.body;
       const onGround = body.blocked.down || body.touching.down;
