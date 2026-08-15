@@ -90,6 +90,9 @@
     create() {
       this.input.addPointer(3);
 
+      const domRoot = document.getElementById("phaser-game");
+      domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
+
       this.physics.world.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
       this.cameras.main.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
       this.cameras.main.setBackgroundColor("#7fc7dd");
@@ -874,6 +877,205 @@
       this.hotbarTicketIcon?.setVisible(true);
     }
 
+    getDOMUIRoot() {
+      const root = document.getElementById("phaser-game");
+      if (!root) {
+        console.error("DOM-UI: #phaser-game wurde nicht gefunden.");
+        return null;
+      }
+
+      // Absolute DOM overlays need a positioned containing block.
+      const computed = window.getComputedStyle(root);
+      if (computed.position === "static") {
+        root.style.position = "relative";
+      }
+
+      return root;
+    }
+
+    destroyDOMModal(modal) {
+      if (!modal) return;
+
+      const node = modal.overlay || modal;
+      if (node && typeof node.remove === "function") {
+        node.remove();
+      }
+    }
+
+    createDOMModal({
+      key,
+      width = "min(92%, 520px)",
+      placement = "center",
+      shade = "rgba(5, 6, 11, 0.75)",
+      background = "#f2e5bf",
+      border = "#253a4b",
+      padding = "18px"
+    }) {
+      const root = this.getDOMUIRoot();
+      if (!root) return null;
+
+      root.querySelectorAll(`[data-simon-ui="${key}"]`).forEach((node) => node.remove());
+
+      const overlay = document.createElement("div");
+      overlay.dataset.simonUi = key;
+
+      Object.assign(overlay.style, {
+        position: "absolute",
+        inset: "0",
+        zIndex: "100000",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: placement === "bottom" ? "flex-end" : "center",
+        padding: placement === "bottom" ? "0 10px 14px" : "12px",
+        background: shade,
+        boxSizing: "border-box",
+        pointerEvents: "auto",
+        touchAction: "manipulation",
+        WebkitTapHighlightColor: "transparent"
+      });
+
+      const panel = document.createElement("div");
+      Object.assign(panel.style, {
+        width,
+        maxWidth: "calc(100% - 4px)",
+        maxHeight: "calc(100% - 4px)",
+        overflow: "auto",
+        boxSizing: "border-box",
+        padding,
+        background,
+        border: `4px solid ${border}`,
+        borderRadius: "14px",
+        boxShadow: "0 5px 0 rgba(35, 30, 26, 0.7)",
+        fontFamily: '"Press Start 2P", monospace',
+        textAlign: "center",
+        color: "#2d2a25",
+        pointerEvents: "auto",
+        touchAction: "manipulation"
+      });
+
+      // Do not let taps leak through to Phaser.
+      const stop = (event) => event.stopPropagation();
+      ["pointerdown", "pointerup", "touchstart", "touchend", "click"].forEach((type) => {
+        overlay.addEventListener(type, stop, { passive: type === "touchstart" });
+        panel.addEventListener(type, stop, { passive: type === "touchstart" });
+      });
+
+      overlay.appendChild(panel);
+      root.appendChild(overlay);
+
+      return { overlay, panel };
+    }
+
+    createDOMText(text, {
+      fontSize = "10px",
+      color = "#2d2a25",
+      margin = "0",
+      lineHeight = "1.55",
+      weight = "normal"
+    } = {}) {
+      const element = document.createElement("div");
+      element.textContent = text;
+
+      Object.assign(element.style, {
+        margin,
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize,
+        color,
+        lineHeight,
+        fontWeight: weight,
+        textAlign: "center",
+        overflowWrap: "anywhere"
+      });
+
+      return element;
+    }
+
+    createDOMButton(label, onActivate, {
+      color = "#fff5d6",
+      background = "#302d34",
+      border = "rgba(255, 230, 168, 0.7)",
+      minHeight = "44px",
+      fontSize = "9px",
+      padding = "8px 10px",
+      width = "100%"
+    } = {}) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+
+      Object.assign(button.style, {
+        appearance: "none",
+        WebkitAppearance: "none",
+        width,
+        minWidth: "0",
+        minHeight,
+        padding,
+        boxSizing: "border-box",
+        border: `2px solid ${border}`,
+        borderRadius: "5px",
+        background,
+        color,
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize,
+        lineHeight: "1.2",
+        textAlign: "center",
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
+        cursor: "pointer",
+        touchAction: "manipulation",
+        WebkitTapHighlightColor: "transparent",
+        userSelect: "none"
+      });
+
+      // iOS/PWA can emit touchend -> pointerup -> click for one tap.
+      // A short debounce makes that one logical activation while still
+      // allowing the same button to be used again afterwards.
+      let lastActivation = -Infinity;
+
+      const activate = (event) => {
+        const now = performance.now();
+        if (now - lastActivation < 350) {
+          event?.preventDefault?.();
+          event?.stopPropagation?.();
+          return;
+        }
+        lastActivation = now;
+
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+
+        const previousBackground = button.style.background;
+        button.style.background = "#5a5360";
+        button.style.transform = "translateY(2px)";
+
+        window.setTimeout(() => {
+          button.style.background = previousBackground;
+          button.style.transform = "";
+        }, 110);
+
+        try {
+          onActivate();
+        } catch (error) {
+          console.error(`DOM-Button "${label}" ist fehlgeschlagen:`, error);
+        }
+      };
+
+      // All three are deliberate. The debounce above collapses duplicates.
+      button.addEventListener("touchend", activate, { passive: false });
+      button.addEventListener("pointerup", activate, { passive: false });
+      button.addEventListener("click", activate, { passive: false });
+
+      button.addEventListener("touchstart", (event) => {
+        event.stopPropagation();
+      }, { passive: true });
+
+      button.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+      });
+
+      return button;
+    }
+
     openItemsModal() {
       if (this.itemsModal || this.ticketModal || this.lootModal || this.lionChoiceModal) {
         return;
@@ -882,100 +1084,109 @@
 
       this.setUILocked(true);
 
-      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2)
-        .setScrollFactor(0)
-        .setDepth(420);
-
-      const shade = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060b, 0.72)
-        .setInteractive();
-
-      const panel = this.add.graphics();
-      panel.fillStyle(0x20252b, 1);
-      panel.fillRoundedRect(-235, -125, 470, 250, 16);
-      panel.lineStyle(4, 0xd7c892, 1);
-      panel.strokeRoundedRect(-235, -125, 470, 250, 16);
-
-      const title = this.add.text(-195, -94, "ITEMS", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "15px",
-        color: "#fff0bd"
+      const modal = this.createDOMModal({
+        key: "items",
+        width: "min(90%, 470px)",
+        background: "#20252b",
+        border: "#d7c892",
+        shade: "rgba(5, 6, 11, 0.72)",
+        padding: "17px"
       });
 
-      const back = this.add.text(193, -94, "X", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "13px",
-        color: "#fff0bd",
-        backgroundColor: "#443a30",
-        padding: { x: 9, y: 7 }
-      })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-
-      back.on("pointerdown", (pointer) => {
-        pointer.event?.preventDefault?.();
-        pointer.event?.stopPropagation?.();
-        this.closeItemsModal();
-      });
-
-      const slotXs = [-150, -75, 0, 75, 150];
-      const slots = slotXs.map((x) => {
-        const slot = this.add.graphics();
-        slot.fillStyle(0x111418, 1);
-        slot.fillRect(x - 25, -45, 50, 50);
-        slot.lineStyle(2, 0x7d8387, 1);
-        slot.strokeRect(x - 25, -45, 50, 50);
-        return slot;
-      });
-
-      const hint = this.add.text(0, 77, this.hasCityTicket
-        ? "TICKET IST IN DER HOTBAR"
-        : "NOCH KEINE ITEMS", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "7px",
-        color: "#aeb7b7"
-      }).setOrigin(0.5);
-
-      modal.add([shade, panel, title, back, ...slots, hint]);
-
-      if (this.hasCityTicket) {
-        const ticket = this.createTicketIcon(-150, -20, 1.05)
-          .setInteractive(new Phaser.Geom.Rectangle(-18, -13, 36, 26), Phaser.Geom.Rectangle.Contains);
-
-        ticket.on("pointerdown", (pointer) => {
-          pointer.event?.preventDefault?.();
-          pointer.event?.stopPropagation?.();
-          this.equipTicketToHotbar();
-
-          const pulse = this.add.text(-150, 18, "AUSGERÜSTET", {
-            fontFamily: '"Press Start 2P", monospace',
-            fontSize: "5px",
-            color: "#ffe399"
-          }).setOrigin(0.5);
-          modal.add(pulse);
-          this.tweens.add({
-            targets: pulse,
-            alpha: 0,
-            y: 8,
-            duration: 650,
-            onComplete: () => pulse.destroy()
-          });
-        });
-
-        const label = this.add.text(-150, 23, "TICKET", {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "6px",
-          color: "#f0e1b8"
-        }).setOrigin(0.5);
-
-        modal.add([ticket, label]);
+      if (!modal) {
+        this.setUILocked(false);
+        return;
       }
 
       this.itemsModal = modal;
+
+      const top = document.createElement("div");
+      Object.assign(top.style, {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+        marginBottom: "18px"
+      });
+
+      const title = this.createDOMText("ITEMS", {
+        fontSize: "15px",
+        color: "#fff0bd"
+      });
+      title.style.textAlign = "left";
+
+      const close = this.createDOMButton("X", () => this.closeItemsModal(), {
+        color: "#fff0bd",
+        background: "#443a30",
+        border: "#8c795e",
+        width: "48px",
+        minHeight: "40px",
+        padding: "6px",
+        fontSize: "12px"
+      });
+
+      top.append(title, close);
+
+      const slots = document.createElement("div");
+      Object.assign(slots.style, {
+        display: "grid",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        gap: "8px",
+        margin: "0 auto 16px",
+        width: "100%"
+      });
+
+      for (let i = 0; i < 5; i += 1) {
+        const slot = document.createElement("div");
+        Object.assign(slot.style, {
+          height: "58px",
+          border: "2px solid #7d8387",
+          background: "#111418",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxSizing: "border-box"
+        });
+
+        if (i === 0 && this.hasCityTicket) {
+          const ticket = this.createDOMButton("🎟", () => {
+            this.equipTicketToHotbar();
+
+            const hint = modal.panel.querySelector("[data-items-hint]");
+            if (hint) hint.textContent = "TICKET IST IN DER HOTBAR";
+          }, {
+            background: "#ffe1a1",
+            border: "#6c5230",
+            color: "#513d25",
+            minHeight: "42px",
+            padding: "4px",
+            fontSize: "18px"
+          });
+          ticket.setAttribute("aria-label", "Ticket ausrüsten");
+          slot.appendChild(ticket);
+        }
+
+        slots.appendChild(slot);
+      }
+
+      const hint = this.createDOMText(
+        this.hasCityTicket ? "TICKET IST IN DER HOTBAR" : "NOCH KEINE ITEMS",
+        {
+          fontSize: "7px",
+          color: "#aeb7b7",
+          margin: "2px 0 0"
+        }
+      );
+      hint.dataset.itemsHint = "true";
+
+      modal.panel.append(top, slots, hint);
+      this.refreshUILock();
     }
 
     closeItemsModal() {
       if (!this.itemsModal) return;
-      this.itemsModal.destroy(true);
+
+      this.destroyDOMModal(this.itemsModal);
       this.itemsModal = null;
       this.refreshUILock();
       this.ensureTicketMachineInteractive();
@@ -1075,122 +1286,103 @@
       this.ensureTicketMachineInteractive();
       this.setUILocked(true);
 
-      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2)
-        .setScrollFactor(0)
-        .setDepth(440);
-
-      const shade = this.add.rectangle(
-        0,
-        0,
-        GAME_WIDTH,
-        GAME_HEIGHT,
-        0x05060b,
-        0.78
-      ).setInteractive();
-
-      const panel = this.add.graphics();
-      panel.fillStyle(0xf2e5bf, 1);
-      panel.fillRoundedRect(-265, -135, 530, 270, 18);
-      panel.lineStyle(5, 0x253a4b, 1);
-      panel.strokeRoundedRect(-265, -135, 530, 270, 18);
-      panel.lineStyle(3, 0x6b95aa, 0.9);
-      panel.strokeRoundedRect(-251, -121, 502, 242, 13);
-
-      const backHitbox = this.add.zone(-188, -100, 185, 48)
-        .setInteractive({ useHandCursor: true });
-
-      const back = this.add.text(-228, -103, "← ZURÜCK", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "9px",
-        color: "#23485d",
-        backgroundColor: "#d5e7e6",
-        padding: { x: 12, y: 10 }
+      const modal = this.createDOMModal({
+        key: "ticket",
+        width: "min(92%, 530px)",
+        background: "#f2e5bf",
+        border: "#253a4b",
+        shade: "rgba(5, 6, 11, 0.78)",
+        padding: "15px 18px 18px"
       });
 
-      const closeFromBack = (pointer) => {
-        pointer.event?.preventDefault?.();
-        pointer.event?.stopPropagation?.();
-        this.closeTicketModal();
-      };
-
-      backHitbox.on("pointerdown", closeFromBack);
-      back.setInteractive({ useHandCursor: true });
-      back.on("pointerdown", closeFromBack);
-
-      const title = this.add.text(0, -72, "TICKETAUTOMAT", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "16px",
-        color: "#253a4b"
-      }).setOrigin(0.5);
-
-      const ticketLine = this.add.text(0, -18, "1 TICKET IN DIE STADT", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "11px",
-        color: "#2d2a25"
-      }).setOrigin(0.5);
-
-      const price = this.add.text(0, 13, "10.-", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "18px",
-        color: "#2d2a25"
-      }).setOrigin(0.5);
-
-      const buyColor = this.coins >= 10 ? "#215f3f" : "#73706a";
-      const buyBg = this.coins >= 10 ? "#bfe0c6" : "#cbc5b8";
-
-      const buy = this.add.text(0, 59, "KAUFEN", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "12px",
-        color: buyColor,
-        backgroundColor: buyBg,
-        padding: { x: 22, y: 12 }
-      })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-
-      buy.on("pointerdown", (pointer) => {
-        pointer.event?.preventDefault?.();
-        this.tryBuyTicket();
-      });
-
-      this.ticketStatusText = this.add.text(
-        0,
-        105,
-        this.coins < 10 ? "0 COINS · DU HÄSCH NO Z'WENIG" : `${this.coins} COINS`,
-        {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "7px",
-          color: this.coins < 10 ? "#8b3a36" : "#315d43"
-        }
-      ).setOrigin(0.5);
-
-      modal.add([
-        shade,
-        panel,
-        backHitbox,
-        back,
-        title,
-        ticketLine,
-        price,
-        buy,
-        this.ticketStatusText
-      ]);
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
 
       this.ticketModal = modal;
+
+      const top = document.createElement("div");
+      Object.assign(top.style, {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        marginBottom: "8px"
+      });
+
+      const back = this.createDOMButton("← ZURÜCK", () => this.closeTicketModal(), {
+        color: "#23485d",
+        background: "#d5e7e6",
+        border: "#6b95aa",
+        width: "165px",
+        minHeight: "42px",
+        fontSize: "8px",
+        padding: "7px 9px"
+      });
+
+      top.appendChild(back);
+
+      const title = this.createDOMText("TICKETAUTOMAT", {
+        fontSize: "15px",
+        color: "#253a4b",
+        margin: "4px 0 18px"
+      });
+
+      const line = this.createDOMText("1 TICKET IN DIE STADT", {
+        fontSize: "10px",
+        color: "#2d2a25",
+        margin: "0 0 8px"
+      });
+
+      const price = this.createDOMText("10.-", {
+        fontSize: "18px",
+        color: "#2d2a25",
+        margin: "0 0 15px"
+      });
+
+      const buy = this.createDOMButton("KAUFEN", () => this.tryBuyTicket(), {
+        color: this.coins >= 10 ? "#215f3f" : "#73706a",
+        background: this.coins >= 10 ? "#bfe0c6" : "#cbc5b8",
+        border: "#6b705f",
+        width: "180px",
+        minHeight: "46px",
+        fontSize: "11px",
+        padding: "9px 12px"
+      });
+      buy.style.margin = "0 auto";
+      buy.dataset.ticketBuy = "true";
+
+      this.ticketStatusText = this.createDOMText(
+        this.hasCityTicket
+          ? "TICKET BEREITS GEKAUFT"
+          : (this.coins < 10 ? `${this.coins} COINS · DU HÄSCH NO Z'WENIG` : `${this.coins} COINS`),
+        {
+          fontSize: "7px",
+          color: this.hasCityTicket || this.coins >= 10 ? "#315d43" : "#8b3a36",
+          margin: "15px 0 0"
+        }
+      );
+
+      modal.panel.append(top, title, line, price, buy, this.ticketStatusText);
+      this.refreshUILock();
     }
 
     tryBuyTicket() {
       if (!this.ticketModal) return;
 
       if (this.hasCityTicket) {
-        this.ticketStatusText?.setText("TICKET BEREITS GEKAUFT");
+        if (this.ticketStatusText) {
+          this.ticketStatusText.textContent = "TICKET BEREITS GEKAUFT";
+          this.ticketStatusText.style.color = "#315d43";
+        }
         return;
       }
 
       if (this.coins < 10) {
-        this.ticketStatusText
-          ?.setColor("#8b3a36")
-          .setText("NÖD GNUeG COINS!");
+        if (this.ticketStatusText) {
+          this.ticketStatusText.textContent = "NÖD GNUEG COINS!";
+          this.ticketStatusText.style.color = "#8b3a36";
+        }
         return;
       }
 
@@ -1200,15 +1392,23 @@
       this.updateInventoryUI();
       this.equipTicketToHotbar();
 
-      this.ticketStatusText
-        ?.setColor("#315d43")
-        .setText("TICKET GEKAUFT!");
+      if (this.ticketStatusText) {
+        this.ticketStatusText.textContent = "TICKET GEKAUFT!";
+        this.ticketStatusText.style.color = "#315d43";
+      }
+
+      const buy = this.ticketModal?.panel?.querySelector("[data-ticket-buy='true']");
+      if (buy) {
+        buy.textContent = "GEKAUFT";
+        buy.style.background = "#bfe0c6";
+        buy.style.color = "#315d43";
+      }
     }
 
     closeTicketModal() {
       if (!this.ticketModal) return;
 
-      this.ticketModal.destroy(true);
+      this.destroyDOMModal(this.ticketModal);
       this.ticketModal = null;
       this.ticketStatusText = null;
       this.refreshUILock();
@@ -1246,74 +1446,79 @@
 
       this.setUILocked(true);
 
-      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2)
-        .setScrollFactor(0)
-        .setDepth(430);
+      const modal = this.createDOMModal({
+        key: "loot",
+        width: "min(91%, 520px)",
+        background: "#ffedc0",
+        border: "#5a402a",
+        shade: "rgba(5, 6, 11, 0.68)",
+        padding: "20px"
+      });
 
-      const shade = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060b, 0.68)
-        .setInteractive();
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
 
-      const panel = this.add.graphics();
-      panel.fillStyle(0xffedc0, 1);
-      panel.fillRoundedRect(-260, -100, 520, 200, 17);
-      panel.lineStyle(4, 0x5a402a, 1);
-      panel.strokeRoundedRect(-260, -100, 520, 200, 17);
+      this.lootModal = modal;
 
-      const question = this.add.text(
-        0,
-        -42,
+      const question = this.createDOMText(
         this.bouncerTipStolen
           ? "Da isch nüt meh z hole."
           : "Das Trinkgeld der Türsteher klauen?",
         {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "10px",
+          fontSize: "9px",
           color: "#302319",
-          align: "center",
-          wordWrap: { width: 450 }
+          margin: "2px 0 20px",
+          lineHeight: "1.7"
         }
-      ).setOrigin(0.5);
+      );
 
-      const no = this.add.text(this.bouncerTipStolen ? 0 : 78, 40, this.bouncerTipStolen ? "ZURÜCK" : "NEIN", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "10px",
-        color: "#382b21",
-        backgroundColor: "#d5c6a6",
-        padding: { x: 18, y: 12 }
-      })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-
-      no.on("pointerdown", (pointer) => {
-        pointer.event?.preventDefault?.();
-        pointer.event?.stopPropagation?.();
-        this.closeLootModal();
+      const buttons = document.createElement("div");
+      Object.assign(buttons.style, {
+        display: "grid",
+        gridTemplateColumns: this.bouncerTipStolen ? "1fr" : "1fr 1fr",
+        gap: "10px",
+        maxWidth: this.bouncerTipStolen ? "210px" : "330px",
+        margin: "0 auto"
       });
 
-      const children = [shade, panel, question, no];
-
       if (!this.bouncerTipStolen) {
-        const yes = this.add.text(-78, 40, "JA", {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "10px",
+        const yes = this.createDOMButton("JA", () => this.stealBouncerTips(), {
           color: "#245135",
-          backgroundColor: "#b8d7b5",
-          padding: { x: 22, y: 12 }
-        })
-          .setOrigin(0.5)
-          .setInteractive({ useHandCursor: true });
-
-        yes.on("pointerdown", (pointer) => {
-          pointer.event?.preventDefault?.();
-          pointer.event?.stopPropagation?.();
-          this.stealBouncerTips();
+          background: "#b8d7b5",
+          border: "#6f8f70",
+          fontSize: "10px"
         });
 
-        children.push(yes);
+        const no = this.createDOMButton("NEIN", () => this.closeLootModal(), {
+          color: "#382b21",
+          background: "#d5c6a6",
+          border: "#8a7659",
+          fontSize: "10px"
+        });
+
+        buttons.append(yes, no);
+      } else {
+        const back = this.createDOMButton("ZURÜCK", () => this.closeLootModal(), {
+          color: "#382b21",
+          background: "#d5c6a6",
+          border: "#8a7659",
+          fontSize: "9px"
+        });
+
+        buttons.appendChild(back);
       }
 
-      modal.add(children);
-      this.lootModal = modal;
+      const status = this.createDOMText("", {
+        fontSize: "9px",
+        color: "#856015",
+        margin: "14px 0 0"
+      });
+      status.dataset.lootStatus = "true";
+
+      modal.panel.append(question, buttons, status);
+      this.refreshUILock();
     }
 
     stealBouncerTips() {
@@ -1324,23 +1529,24 @@
       this.updateCoinHUD();
       this.animateCoinGain(100);
 
-      if (this.lootModal) {
-        const success = this.add.text(0, 78, "+100 COINS", {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "9px",
-          color: "#856015",
-          stroke: "#fff0b8",
-          strokeThickness: 3
-        }).setOrigin(0.5);
-        this.lootModal.add(success);
+      const status = this.lootModal?.panel?.querySelector("[data-loot-status='true']");
+      if (status) {
+        status.textContent = "+100 COINS";
       }
+
+      const buttons = this.lootModal?.panel?.querySelectorAll("button");
+      buttons?.forEach((button) => {
+        button.disabled = true;
+        button.style.opacity = "0.6";
+      });
 
       this.time.delayedCall(850, () => this.closeLootModal());
     }
 
     closeLootModal() {
       if (!this.lootModal) return;
-      this.lootModal.destroy(true);
+
+      this.destroyDOMModal(this.lootModal);
       this.lootModal = null;
       this.refreshUILock();
       this.ensureTicketMachineInteractive();
@@ -1870,12 +2076,7 @@
       }
 
       if (this.lionChoiceModal) {
-        if (typeof this.lionChoiceModal.destroy === "function") {
-          this.lionChoiceModal.destroy(true);
-        } else if (typeof this.lionChoiceModal.remove === "function") {
-          this.lionChoiceModal.remove();
-        }
-
+        this.destroyDOMModal(this.lionChoiceModal);
         this.lionChoiceModal = null;
       }
     }
@@ -1893,138 +2094,57 @@
         0
       );
 
-      /*
-       * WICHTIG:
-       * Die Antwortbuttons liegen ab hier NICHT mehr als Phaser-Objekte
-       * im Canvas. Auf iPhone/Safari gab es mit verschachtelten Phaser-
-       * Containern und Touch-Events reproduzierbare Probleme, bei denen
-       * die Buttons sichtbar reagierten, der Callback aber nicht sauber
-       * ausgelöst wurde.
-       *
-       * Deshalb verwenden wir hier echte HTML-Buttons direkt über dem
-       * Phaser-Canvas. Damit laufen Touch und Click über Safari selbst.
-       */
-      const parent = document.getElementById("phaser-game");
-      if (!parent) return;
-
-      parent.querySelectorAll("[data-lion-choice='true']").forEach((node) => node.remove());
-
-      const overlay = document.createElement("div");
-      overlay.dataset.lionChoice = "true";
-      overlay.setAttribute("aria-label", "Antwort auswählen");
-      overlay.style.position = "absolute";
-      overlay.style.left = "50%";
-      overlay.style.bottom = "16px";
-      overlay.style.transform = "translateX(-50%)";
-      overlay.style.width = "min(92%, 520px)";
-      overlay.style.padding = "9px";
-      overlay.style.display = "grid";
-      overlay.style.gridTemplateColumns = "1fr 1fr 1.18fr";
-      overlay.style.gap = "7px";
-      overlay.style.background = "rgba(18, 21, 29, 0.95)";
-      overlay.style.border = "3px solid rgba(255, 230, 168, 0.9)";
-      overlay.style.boxShadow = "0 4px 0 rgba(60, 42, 28, 0.8)";
-      overlay.style.zIndex = "99999";
-      overlay.style.pointerEvents = "auto";
-      overlay.style.touchAction = "manipulation";
-      overlay.style.boxSizing = "border-box";
-
-      const makeButton = (label, textColor, callback) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = label;
-
-        button.style.minWidth = "0";
-        button.style.width = "100%";
-        button.style.height = "44px";
-        button.style.padding = "0 5px";
-        button.style.border = "2px solid rgba(255, 230, 168, 0.65)";
-        button.style.borderRadius = "4px";
-        button.style.background = "#302d34";
-        button.style.color = textColor;
-        button.style.fontFamily = '"Press Start 2P", monospace';
-        button.style.fontSize = label === "KÄMPFEN"
-          ? "clamp(7px, 1.45vw, 9px)"
-          : "clamp(8px, 1.65vw, 10px)";
-        button.style.lineHeight = "1";
-        button.style.textAlign = "center";
-        button.style.whiteSpace = "nowrap";
-        button.style.overflow = "hidden";
-        button.style.boxSizing = "border-box";
-        button.style.touchAction = "manipulation";
-        button.style.webkitTapHighlightColor = "transparent";
-        button.style.cursor = "pointer";
-
-        let fired = false;
-
-        const activate = (event) => {
-          if (fired || !this.lionChoiceModal) return;
-          fired = true;
-
-          event?.preventDefault?.();
-          event?.stopPropagation?.();
-
-          // Sofort visuelles Feedback und danach die eigentliche Aktion.
-          button.style.background = "#5a5360";
-          button.style.transform = "translateY(2px)";
-
-          window.setTimeout(() => {
-            callback();
-          }, 25);
-        };
-
-        // touchend ist für iPhone im Home-Screen-Modus die wichtigste Route.
-        button.addEventListener("touchend", activate, { passive: false });
-
-        // pointerup deckt moderne Safari-Versionen sowie Desktop ab.
-        button.addEventListener("pointerup", activate, { passive: false });
-
-        // click bleibt als robuste Fallback-Route bestehen.
-        button.addEventListener("click", activate, { passive: false });
-
-        button.addEventListener("touchstart", (event) => {
-          event.stopPropagation();
-          button.style.background = "#48424d";
-        }, { passive: true });
-
-        button.addEventListener("pointerdown", (event) => {
-          event.stopPropagation();
-          button.style.background = "#48424d";
-        });
-
-        return button;
-      };
-
-      const yes = makeButton(
-        "JA",
-        "#bff3bd",
-        () => this.chooseDanceWithLion()
-      );
-
-      const no = makeButton(
-        "NEIN",
-        "#f3ddbd",
-        () => this.chooseNoDance()
-      );
-
-      const fight = makeButton(
-        "KÄMPFEN",
-        "#ffaaa6",
-        () => this.startLionCombat()
-      );
-
-      overlay.append(yes, no, fight);
-
-      // Verhindert, dass der darunterliegende Phaser-Canvas den Tap
-      // gleichzeitig als Spielinput verarbeitet.
-      ["touchstart", "touchend", "pointerdown", "pointerup", "click"].forEach((type) => {
-        overlay.addEventListener(type, (event) => {
-          event.stopPropagation();
-        }, { passive: type === "touchstart" });
+      const modal = this.createDOMModal({
+        key: "lion-choice",
+        width: "min(92%, 500px)",
+        placement: "bottom",
+        background: "#12151d",
+        border: "#ffe6a8",
+        shade: "rgba(0, 0, 0, 0)",
+        padding: "9px"
       });
 
-      parent.appendChild(overlay);
-      this.lionChoiceModal = overlay;
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.lionChoiceModal = modal;
+
+      const choices = document.createElement("div");
+      Object.assign(choices.style, {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1.18fr",
+        gap: "7px",
+        width: "100%"
+      });
+
+      const yes = this.createDOMButton("JA", () => this.chooseDanceWithLion(), {
+        color: "#bff3bd",
+        background: "#302d34",
+        border: "#806f55",
+        fontSize: "9px",
+        padding: "6px 4px"
+      });
+
+      const no = this.createDOMButton("NEIN", () => this.chooseNoDance(), {
+        color: "#f3ddbd",
+        background: "#302d34",
+        border: "#806f55",
+        fontSize: "9px",
+        padding: "6px 4px"
+      });
+
+      const fight = this.createDOMButton("KÄMPFEN", () => this.startLionCombat(), {
+        color: "#ffaaa6",
+        background: "#302d34",
+        border: "#806f55",
+        fontSize: "7px",
+        padding: "6px 3px"
+      });
+
+      choices.append(yes, no, fight);
+      modal.panel.appendChild(choices);
       this.refreshUILock();
     }
 
@@ -2098,6 +2218,7 @@
 
       const danceSimon = this.add.sprite(330, 252, "simon", 0)
         .setScale(0.36)
+        .setScrollFactor(0)
         .setDepth(620);
       danceSimon.play("simon-run", true);
 
@@ -2111,7 +2232,7 @@
         color: "#ffe6a1"
       }).setOrigin(0.5);
 
-      overlay.add([bg, lights, disco, hive, caption]);
+      overlay.add([bg, lights, disco, hive, danceSimon, danceLion, caption]);
 
       this.tweens.add({
         targets: danceSimon,

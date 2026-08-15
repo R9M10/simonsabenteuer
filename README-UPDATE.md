@@ -1,28 +1,39 @@
-# Löwen-Auswahl – grundlegender iPhone-Fix
+# Simons Abenteuer – stabiler UI-Fix
 
-Bitte nur die bestehende `game.js` im Repository ersetzen.
+Diese Version wurde auf Basis der aktuellsten `game.js` aus dem Repository erstellt.
 
-## Was diesmal geändert wurde
+## Grundlegende Änderung
 
-Die Auswahl `JA / NEIN / KÄMPFEN` wurde technisch neu aufgebaut.
+Die Menü- und Entscheidungsbuttons benutzen jetzt ein **einheitliches natives HTML-UI-System** über dem Phaser-Canvas.
 
-Das Problem lag nicht nur an der Größe der Phaser-Hitboxen: Die Auswahl befand sich als interaktive Phaser-Objekte in einem verschachtelten Canvas-Container. Auf iPhone/Safari konnte der Button zwar optisch auf den Tap reagieren, der eigentliche Aktions-Callback aber trotzdem verloren gehen.
+Damit werden nicht mehr einzelne problematische Phaser-Textobjekte als Buttons verwendet.
 
-Die drei Antworten sind jetzt **echte HTML-Buttons**, die direkt über dem Phaser-Canvas liegen. Dadurch verarbeitet Safari selbst den Touch.
+Das neue System wird jetzt für folgende Menüs verwendet:
 
-Zusätzlich:
+- Löwe: `JA / NEIN / KÄMPFEN`
+- Türsteher ausrauben: `JA / NEIN / ZURÜCK`
+- Ticketautomat: `← ZURÜCK / KAUFEN`
+- ITEMS-Menü: `X` und Ticket-Ausrüstung
 
-- `touchend`, `pointerup` und `click` werden als abgesicherte Aktivierungswege unterstützt.
-- Doppeltes Auslösen wird verhindert.
-- Der Tap wird nicht mehr an das Spiel-Canvas weitergereicht.
-- Alle drei Buttons bleiben vollständig innerhalb der Box.
-- `KÄMPFEN` bekommt etwas kleinere Schrift und mehr Spaltenbreite.
-- Die Box nutzt maximal 92 % der Spielfeldbreite und passt damit auch sauber ins iPhone-Querformat.
+Jeder Button unterstützt abgesichert:
 
-Die bestehenden Funktionen für:
+- `touchend`
+- `pointerup`
+- `click`
+- Schutz vor Mehrfachauslösung eines einzigen iPhone-Taps
+- große Touchflächen
+- keine Weitergabe des Taps an den Phaser-Canvas
 
-- JA → Tanzen im HIVE
-- NEIN → Löwe geht alleine in den Club
-- KÄMPFEN → Löwe verfolgt und attackiert Simon
+Damit gibt es für zukünftige Menüs jetzt **eine einzige Button-Implementierung**, statt für jedes Menü eine andere Sonderlösung.
 
-bleiben unverändert und werden nun direkt von den HTML-Buttons aufgerufen.
+## Zusätzlich behoben
+
+- Simon war beim gemeinsamen Tanz im HIVE nicht sichtbar, weil sein Dance-Sprite an Weltkoordinaten hing, während die Kamera noch beim HIVE stand.
+- Sein Dance-Sprite ist jetzt kamera-fixiert und Bestandteil des HIVE-Overlays.
+- Der Löwe und Simon werden gemeinsam über dem Club-Hintergrund gerendert.
+
+## Wichtig
+
+Nur `game.js` ersetzen.
+
+Die zwischenzeitlichen Änderungen an `animation-fix.js`, `index.html`, `dialog-fix.css` und dem neuen Simon-Dialogbild bleiben unangetastet.
