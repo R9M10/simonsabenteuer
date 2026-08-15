@@ -18,6 +18,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="dialog-fix.css?v=5.1">
 </head>
 <body>
   <div id="app-shell">
@@ -32,10 +33,13 @@
         <div class="water-wall" aria-hidden="true"></div>
 
         <div class="characters" aria-hidden="true">
-          <div class="character character-left">
-            <div class="head"></div>
-            <div class="body"></div>
-            <div class="legs"></div>
+          <div class="dialog-character dialog-character-simon">
+            <img
+              src="assets/simon-dialog-back-clean.png"
+              alt=""
+              class="dialog-character-image"
+              draggable="false"
+            >
           </div>
 
           <div class="character character-right">
@@ -66,7 +70,7 @@
        einfache GitHub-Pages-Projekt keinen Build-Step benötigt. -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
   <script src="game.js"></script>
-  <script src="animation-fix.js?v=4"></script>
+  <script src="animation-fix.js?v=5.1"></script>
   <script src="script.js"></script>
 </body>
 </html>

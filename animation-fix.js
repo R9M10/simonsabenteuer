@@ -1,14 +1,10 @@
 (() => {
   "use strict";
 
-  // Dieses Add-on verändert NICHT die Milchbuck-Welt oder die Steuerungslogik.
-  // Es hängt sich nur an die bereits vorhandene Szene und korrigiert die
-  // Bewegungsanimationen von Simon.
-
   const originalStartSimonGame = window.startSimonGame;
 
   if (typeof originalStartSimonGame !== "function") {
-    console.error("Animation-Fix: startSimonGame wurde nicht gefunden.");
+    console.error("Animation-Fix 5.1: startSimonGame wurde nicht gefunden.");
     return;
   }
 
@@ -16,58 +12,83 @@
     const game = originalStartSimonGame.apply(this, args);
 
     if (game) {
-      waitForMilchbuckScene(game);
+      waitForScene(game);
     }
 
     return game;
   };
 
-  function waitForMilchbuckScene(game, attempt = 0) {
-    const scene = game.scene?.getScene("MilchbuckScene");
+  function waitForScene(game, attempt = 0) {
+    const scene =
+      game.scene?.getScene("MilchbuckScene") ||
+      game.scene?.getScene("PrototypeScene");
 
     if (scene?.player?.body) {
       installAnimationFix(scene);
       return;
     }
 
-    if (attempt >= 120) {
-      console.error("Animation-Fix: MilchbuckScene wurde nicht rechtzeitig bereit.");
+    if (attempt >= 140) {
+      console.error("Animation-Fix 5.1: Spielszene wurde nicht rechtzeitig bereit.");
       return;
     }
 
-    window.setTimeout(() => {
-      waitForMilchbuckScene(game, attempt + 1);
-    }, 50);
+    window.setTimeout(() => waitForScene(game, attempt + 1), 50);
   }
 
   function installAnimationFix(scene) {
-    if (scene.__simonAnimationFixInstalled) return;
-    scene.__simonAnimationFixInstalled = true;
+    if (scene.__simonAnimationFixInstalled51) return;
+    scene.__simonAnimationFixInstalled51 = true;
 
-    // RUN
-    // Die letzten beiden Frames 16/17 wirken deutlich aufrechter/langsamer und
-    // brechen den Laufzyklus optisch. Deshalb läuft der echte Zyklus nur 8–15.
-    // 14 fps passen besser zur aktuellen horizontalen Geschwindigkeit (175 px/s).
+    /*
+      LAUFEN
+
+      Das Original verwendet 8–17 linear. Mehrere davon sind fast identische
+      Beinpositionen (vor allem 10–12), wodurch Simon optisch kurz "hängen"
+      bleibt. Gleichzeitig ist Frame 17 bereits sehr nah an einer Idle-/Walk-Pose.
+
+      Wir benutzen deshalb nur die deutlich unterscheidbaren Schlüsselposen:
+      8  = Kontakt / langer Schritt
+      9  = Bein hebt ab
+      10 = frühe Schwungphase
+      11 = große Schwungphase
+      13 = Landung / Kompression
+      14 = Durchgang
+      15 = Gegenschritt
+      16 = Rückkehr zum Kontakt
+
+      Kein Ping-Pong: die Bewegung läuft immer vorwärts durch den Zyklus.
+    */
     if (scene.anims.exists("simon-run")) {
       scene.anims.remove("simon-run");
     }
 
     scene.anims.create({
       key: "simon-run",
-      frames: scene.anims.generateFrameNumbers("simon", {
-        start: 8,
-        end: 15
-      }),
+      frames: [
+        { key: "simon", frame: 8,  duration: 78 },
+        { key: "simon", frame: 9,  duration: 62 },
+        { key: "simon", frame: 10, duration: 58 },
+        { key: "simon", frame: 11, duration: 62 },
+        { key: "simon", frame: 13, duration: 72 },
+        { key: "simon", frame: 14, duration: 66 },
+        { key: "simon", frame: 15, duration: 62 },
+        { key: "simon", frame: 16, duration: 72 }
+      ],
       frameRate: 14,
-      repeat: -1
+      repeat: -1,
+      skipMissedFrames: true
     });
 
     let wasGrounded = true;
     let landingUntil = 0;
 
-    // POST_UPDATE läuft nach der vorhandenen scene.update()-Methode.
-    // Damit bleiben Bewegung, Input, Kamera und Schießen unangetastet und wir
-    // korrigieren nur das letztlich gerenderte Sprungbild.
+    /*
+      SPRINGEN
+      Die bestehende Verbesserung bleibt: nicht 18–25 blind als Film abspielen,
+      sondern eine passende Pose anhand der echten Y-Geschwindigkeit wählen.
+      Das ist jetzt zusätzlich mit uiLocked/dialogues kompatibel.
+    */
     scene.events.on("postupdate", (time) => {
       const player = scene.player;
       const body = player?.body;
@@ -75,10 +96,17 @@
       if (!player || !body) return;
 
       const grounded = body.blocked.down || body.touching.down;
-      const shooting = time < scene.shootingUntil;
+      const shooting =
+        typeof scene.shootingUntil === "number" &&
+        time < scene.shootingUntil;
 
-      // Während einer Schussanimation soll der bestehende Code die Kontrolle
-      // über die Frames behalten.
+      // Bei Ticketmodal/Dialog/Türsteher-Dialogen lässt der Fix die aktuelle
+      // Spiellogik vollständig in Ruhe.
+      if (scene.uiLocked) {
+        wasGrounded = grounded;
+        return;
+      }
+
       if (shooting) {
         wasGrounded = grounded;
         return;
@@ -86,33 +114,25 @@
 
       if (!grounded) {
         wasGrounded = false;
-
-        // Die alte Version spielte stumpf 18–25 ab. Darin liegen aber mehrere
-        // Posen, die nicht zu einer kontinuierlichen Flugbahn gehören.
-        // Jetzt bestimmt die echte vertikale Geschwindigkeit die Pose.
         player.anims.stop();
 
         const vy = body.velocity.y;
-        let frame;
 
         if (vy < -260) {
-          frame = 19; // kräftiger Aufstieg
+          player.setFrame(19); // kräftiger Absprung
         } else if (vy < -80) {
-          frame = 20; // weiterer Aufstieg / Einrollen
+          player.setFrame(20); // Aufstieg
         } else if (vy < 100) {
-          frame = 21; // Scheitelpunkt
+          player.setFrame(21); // Scheitelpunkt
         } else {
-          frame = 22; // Abstieg / Landung vorbereiten
+          player.setFrame(22); // Fall
         }
 
-        player.setFrame(frame);
         return;
       }
 
-      // Sehr kurze Landepose, damit der Sprung nicht abrupt direkt in Idle/Run
-      // springt. Danach übernimmt die bestehende Idle-/Run-Logik wieder.
       if (!wasGrounded) {
-        landingUntil = time + 75;
+        landingUntil = time + 70;
         wasGrounded = true;
       }
 
@@ -122,6 +142,6 @@
       }
     });
 
-    console.info("Simon Animation-Fix v4 aktiv.");
+    console.info("Simon Animation-Fix 5.1 aktiv.");
   }
 })();

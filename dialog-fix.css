@@ -1,0 +1,36 @@
+/* Update 05.1 — Simon als echte Figur in der Den-Haag-Dialogszene */
+.dialog-character {
+  position: relative;
+  width: 104px;
+  height: 138px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex: 0 0 104px;
+  filter: drop-shadow(3px 5px 0 rgba(0, 0, 0, 0.32));
+}
+
+.dialog-character-image {
+  display: block;
+  width: auto;
+  height: 136px;
+  max-width: 116px;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-height: 430px) {
+  .dialog-character {
+    width: 90px;
+    height: 118px;
+    flex-basis: 90px;
+  }
+
+  .dialog-character-image {
+    height: 116px;
+    max-width: 100px;
+  }
+}
