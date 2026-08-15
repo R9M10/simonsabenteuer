@@ -2934,6 +2934,13 @@
       this.hbBoundary = null;
       this.arrivalFinished = false;
       this.arrivalData = null;
+
+      this.indianStoreHitbox = null;
+      this.storeEntryModal = null;
+      this.indianStoreOverlay = null;
+      this.indianStoreBackUI = null;
+      this.indianStoreShopUI = null;
+      this.shopModal = null;
     }
 
     init(data = {}) {
@@ -3027,6 +3034,7 @@
       this.createHauptbahnhofFacade();
       this.createBahnhofquaiStop();
       this.createBahnhofstrasse();
+      this.createIndianStoreExterior();
 
       // Fahrbahn / Gleise / Gehfläche.
       const street = this.add.graphics().setDepth(0);
@@ -3140,31 +3148,26 @@
 
       // Haltestellenmast.
       stop.fillStyle(0x687075, 1);
-      stop.fillRect(882, 171, 7, 124);
+      stop.fillRect(888, 171, 7, 124);
+
+      // Ein einziges blaues Schild mit dem vollständigen Stationsnamen.
       stop.fillStyle(0x216aa4, 1);
-      stop.fillRect(846, 141, 79, 33);
+      stop.fillRect(817, 139, 151, 37);
+      stop.lineStyle(2, 0xdcecf5, 0.75);
+      stop.strokeRect(817, 139, 151, 37);
 
-      this.add.text(885, 158, "BAHNHOFQUAI", {
+      this.add.text(892, 158, "BAHNHOFSTRASSE/HB", {
         fontFamily: '"Press Start 2P", monospace',
-        fontSize: "6px",
-        color: "#ffffff"
+        fontSize: "5.5px",
+        color: "#ffffff",
+        align: "center"
       })
         .setOrigin(0.5)
         .setDepth(6);
 
-      this.add.text(885, 187, "/ HB", {
+      this.add.text(735, 126, "BAHNHOFSTRASSE / HB", {
         fontFamily: '"Press Start 2P", monospace',
-        fontSize: "7px",
-        color: "#183348",
-        backgroundColor: "#f0efe6",
-        padding: { x: 8, y: 5 }
-      })
-        .setOrigin(0.5)
-        .setDepth(6);
-
-      this.add.text(735, 126, "BAHNHOFQUAI / HB", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "12px",
+        fontSize: "11px",
         color: "#fff8d9",
         stroke: "#28495b",
         strokeThickness: 5
@@ -3216,7 +3219,7 @@
         b.fillRect(x + 64, GROUND_TOP - 38, 39, 25);
       }
 
-      this.add.text(1160, 244, "BAHNHOFSTRASSE →", {
+      this.add.text(1240, 244, "BAHNHOFSTRASSE →", {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: "8px",
         color: "#f2efe4",
@@ -3235,6 +3238,531 @@
         tree.fillCircle(x - 11, 263, 17);
         tree.fillCircle(x + 19, 263, 18);
       }
+    }
+
+    createIndianStoreExterior() {
+      const x = 995;
+      const y = 176;
+      const w = 202;
+      const h = GROUND_TOP - y;
+
+      const store = this.add.graphics().setDepth(2);
+
+      // Warme, indisch inspirierte Ladenfassade mit Bögen und Ornamenten.
+      store.fillStyle(0xa54f32, 1);
+      store.fillRect(x, y, w, h);
+
+      store.fillStyle(0xd98a3d, 1);
+      store.fillRect(x + 5, y + 6, w - 10, 35);
+
+      store.fillStyle(0x5e2340, 1);
+      store.fillRect(x + 14, y + 48, w - 28, h - 58);
+
+      // Zwei Schaufenster.
+      store.fillStyle(0x213c43, 1);
+      store.fillRoundedRect(x + 20, y + 61, 58, 64, 16);
+      store.fillRoundedRect(x + 124, y + 61, 58, 64, 16);
+
+      store.lineStyle(3, 0xf4c75a, 1);
+      store.strokeRoundedRect(x + 20, y + 61, 58, 64, 16);
+      store.strokeRoundedRect(x + 124, y + 61, 58, 64, 16);
+
+      // Tür in der Mitte.
+      store.fillStyle(0x3c2220, 1);
+      store.fillRoundedRect(x + 82, y + 58, 38, 104, 11);
+      store.fillStyle(0xf2c45d, 1);
+      store.fillCircle(x + 111, y + 111, 3);
+
+      // Kleine ornamentale Farbbänder.
+      const ornamentColors = [0xf0be4d, 0x3f875c, 0xd84f4e];
+      for (let i = 0; i < 9; i += 1) {
+        store.fillStyle(ornamentColors[i % ornamentColors.length], 1);
+        store.fillTriangle(
+          x + 12 + i * 21,
+          y + 42,
+          x + 21 + i * 21,
+          y + 51,
+          x + 30 + i * 21,
+          y + 42
+        );
+      }
+
+      this.add.text(x + w / 2, y + 24, "DER INDER", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "12px",
+        color: "#fff0b0",
+        stroke: "#652a24",
+        strokeThickness: 5
+      })
+        .setOrigin(0.5)
+        .setDepth(7);
+
+      // Gemüseauslage vor dem Laden.
+      const veg = this.add.graphics().setDepth(5);
+
+      // Holzkisten.
+      veg.fillStyle(0x8b5e35, 1);
+      veg.fillRect(x + 20, GROUND_TOP - 34, 54, 27);
+      veg.fillRect(x + 126, GROUND_TOP - 34, 54, 27);
+
+      veg.lineStyle(2, 0x5c3b23, 1);
+      veg.strokeRect(x + 20, GROUND_TOP - 34, 54, 27);
+      veg.strokeRect(x + 126, GROUND_TOP - 34, 54, 27);
+
+      // Auberginen.
+      veg.fillStyle(0x5d356f, 1);
+      [0, 13, 26, 39].forEach((dx, i) => {
+        veg.fillEllipse(x + 27 + dx, GROUND_TOP - 28 + (i % 2) * 3, 10, 16);
+      });
+      veg.fillStyle(0x4e8746, 1);
+      [0, 13, 26, 39].forEach((dx) => {
+        veg.fillRect(x + 25 + dx, GROUND_TOP - 39, 4, 6);
+      });
+
+      // Okra / grüne Chilis / Tomaten.
+      veg.fillStyle(0x4b9449, 1);
+      for (let i = 0; i < 8; i += 1) {
+        veg.fillRect(x + 131 + i * 6, GROUND_TOP - 31 + (i % 3), 3, 15);
+      }
+
+      veg.fillStyle(0xd64a38, 1);
+      veg.fillCircle(x + 139, GROUND_TOP - 13, 6);
+      veg.fillCircle(x + 155, GROUND_TOP - 15, 6);
+      veg.fillCircle(x + 171, GROUND_TOP - 13, 6);
+
+      // Kleine Gewürzsäcke vor der Tür.
+      veg.fillStyle(0xc8904d, 1);
+      veg.fillRoundedRect(x + 82, GROUND_TOP - 24, 18, 20, 5);
+      veg.fillStyle(0xb84f34, 1);
+      veg.fillRoundedRect(x + 103, GROUND_TOP - 24, 18, 20, 5);
+
+      // Die gesamte Fassade ist großzügig anklickbar.
+      this.indianStoreHitbox = this.add.zone(x + w / 2, y + h / 2, w + 18, h + 18)
+        .setDepth(180)
+        .setInteractive({ useHandCursor: true });
+
+      this.indianStoreHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openIndianStorePrompt();
+      });
+    }
+
+    refreshUILock() {
+      const locked = Boolean(
+        this.ticketModal ||
+        this.itemsModal ||
+        this.lootModal ||
+        this.lionChoiceModal ||
+        this.danceOverlay ||
+        this.bouncerDialogueActive ||
+        this.fightActive ||
+        this.lionExitActive ||
+        this.tramTransitActive ||
+        this.playerDying ||
+        this.storeEntryModal ||
+        this.indianStoreOverlay ||
+        this.shopModal
+      );
+
+      this.setUILocked(locked);
+    }
+
+    openIndianStorePrompt() {
+      if (
+        !this.arrivalFinished ||
+        this.playerDying ||
+        this.storeEntryModal ||
+        this.indianStoreOverlay ||
+        this.shopModal
+      ) {
+        return;
+      }
+
+      this.setUILocked(true);
+
+      const modal = this.createDOMModal({
+        key: "der-inder-entry",
+        width: "min(88%, 430px)",
+        background: "#f4d9a5",
+        border: "#7c3e2b",
+        shade: "rgba(5, 6, 11, 0.62)",
+        padding: "20px"
+      });
+
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.storeEntryModal = modal;
+
+      const title = this.createDOMText("DER INDER", {
+        fontSize: "14px",
+        color: "#713524",
+        margin: "0 0 13px"
+      });
+
+      const question = this.createDOMText("Betreten?", {
+        fontSize: "10px",
+        color: "#32251d",
+        margin: "0 0 18px"
+      });
+
+      const buttons = document.createElement("div");
+      Object.assign(buttons.style, {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "10px",
+        maxWidth: "300px",
+        margin: "0 auto"
+      });
+
+      const yes = this.createDOMButton("JA", () => this.enterIndianStore(), {
+        color: "#214f32",
+        background: "#b8d7b5",
+        border: "#688568",
+        fontSize: "10px"
+      });
+
+      const no = this.createDOMButton("NEIN", () => this.closeIndianStorePrompt(), {
+        color: "#4c3328",
+        background: "#d7c4a6",
+        border: "#8d6a50",
+        fontSize: "10px"
+      });
+
+      buttons.append(yes, no);
+      modal.panel.append(title, question, buttons);
+      this.refreshUILock();
+    }
+
+    closeIndianStorePrompt() {
+      if (!this.storeEntryModal) return;
+
+      this.destroyDOMModal(this.storeEntryModal);
+      this.storeEntryModal = null;
+      this.refreshUILock();
+    }
+
+    enterIndianStore() {
+      if (this.indianStoreOverlay) return;
+
+      if (this.storeEntryModal) {
+        this.destroyDOMModal(this.storeEntryModal);
+        this.storeEntryModal = null;
+      }
+
+      this.setUILocked(true);
+      this.player.setVisible(false);
+
+      const overlay = this.add.container(0, 0)
+        .setScrollFactor(0)
+        .setDepth(650);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0x2a1a17, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+      // Wand.
+      bg.fillStyle(0xc77c43, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, 238);
+
+      // Dekorative Wandbänder.
+      bg.fillStyle(0xf0c259, 1);
+      bg.fillRect(0, 62, GAME_WIDTH, 12);
+      bg.fillStyle(0x47835a, 1);
+      bg.fillRect(0, 76, GAME_WIDTH, 7);
+
+      for (let x = 18; x < GAME_WIDTH; x += 42) {
+        bg.fillStyle((x / 42) % 2 === 0 ? 0x8b3150 : 0xe0a347, 1);
+        bg.fillTriangle(x, 84, x + 14, 98, x + 28, 84);
+      }
+
+      // Regale mit farbigen Produkten/Gewürzen.
+      for (const shelfY of [125, 177]) {
+        bg.fillStyle(0x70452d, 1);
+        bg.fillRect(40, shelfY, 250, 9);
+        bg.fillRect(530, shelfY, 250, 9);
+
+        for (let x = 52; x < 278; x += 31) {
+          const palette = [0xb94c39, 0xdca845, 0x588f55, 0x74496f];
+          bg.fillStyle(palette[(x + shelfY) % palette.length], 1);
+          bg.fillRect(x, shelfY - 28, 18, 27);
+        }
+
+        for (let x = 542; x < 768; x += 31) {
+          const palette = [0xdca845, 0x588f55, 0x74496f, 0xb94c39];
+          bg.fillStyle(palette[(x + shelfY) % palette.length], 1);
+          bg.fillRect(x, shelfY - 28, 18, 27);
+        }
+      }
+
+      // Tresen.
+      bg.fillStyle(0x56372a, 1);
+      bg.fillRoundedRect(175, 254, 470, 96, 12);
+      bg.fillStyle(0x875237, 1);
+      bg.fillRect(163, 247, 494, 18);
+      bg.lineStyle(4, 0xf0c259, 0.65);
+      bg.strokeRoundedRect(175, 254, 470, 96, 12);
+
+      const seller = this.createIndianSeller(410, 226);
+
+      // Sprechblase über dem Verkäufer.
+      const bubble = this.add.container(410, 112).setScrollFactor(0).setDepth(675);
+      const bubbleG = this.add.graphics();
+      bubbleG.fillStyle(0xffefc2, 1);
+      bubbleG.fillRoundedRect(-145, -34, 290, 68, 15);
+      bubbleG.lineStyle(4, 0x5d3f27, 1);
+      bubbleG.strokeRoundedRect(-145, -34, 290, 68, 15);
+      bubbleG.fillTriangle(-12, 32, 12, 32, 0, 51);
+
+      const bubbleText = this.add.text(0, 0, "Guter Kunde, Guter Kunde", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "9px",
+        color: "#2a2017",
+        align: "center"
+      }).setOrigin(0.5);
+
+      bubble.add([bubbleG, bubbleText]);
+
+      const sign = this.add.text(GAME_WIDTH / 2, 30, "DER INDER", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "18px",
+        color: "#fff1ae",
+        stroke: "#713524",
+        strokeThickness: 6
+      })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(675);
+
+      overlay.add([bg, seller, bubble, sign]);
+      this.indianStoreOverlay = overlay;
+
+      this.createIndianStoreDOMControls();
+      this.refreshUILock();
+    }
+
+    createIndianSeller(x, y) {
+      const seller = this.add.container(x, y).setScrollFactor(0).setDepth(670);
+      const g = this.add.graphics();
+
+      // Kurta / Oberteil.
+      g.fillStyle(0xefe0bd, 1);
+      g.fillRoundedRect(-31, -5, 62, 68, 9);
+      g.fillStyle(0x9f4934, 1);
+      g.fillRect(-7, -5, 14, 68);
+
+      // Hals und Gesicht.
+      g.fillStyle(0xa96f4d, 1);
+      g.fillRect(-9, -18, 18, 15);
+      g.fillRoundedRect(-22, -52, 44, 39, 9);
+
+      // Dunkles Haar.
+      g.fillStyle(0x1f1b1a, 1);
+      g.fillRect(-20, -55, 40, 10);
+      g.fillRect(-22, -49, 6, 16);
+
+      // Augen und freundlicher Schnurrbart.
+      g.fillStyle(0x1d1715, 1);
+      g.fillRect(-11, -39, 4, 3);
+      g.fillRect(7, -39, 4, 3);
+      g.fillRect(-10, -27, 20, 4);
+      g.fillTriangle(-10, -27, -17, -23, -4, -24);
+      g.fillTriangle(10, -27, 17, -23, 4, -24);
+
+      // Arme auf dem Tresen.
+      g.fillStyle(0xa96f4d, 1);
+      g.fillRoundedRect(-42, 34, 36, 13, 6);
+      g.fillRoundedRect(6, 34, 36, 13, 6);
+
+      seller.add(g);
+      return seller;
+    }
+
+    createIndianStoreDOMControls() {
+      const root = this.getDOMUIRoot();
+      if (!root) return;
+
+      root.querySelectorAll("[data-simon-ui='der-inder-controls']")
+        .forEach((node) => node.remove());
+
+      const wrapper = document.createElement("div");
+      wrapper.dataset.simonUi = "der-inder-controls";
+
+      Object.assign(wrapper.style, {
+        position: "absolute",
+        inset: "0",
+        zIndex: "100001",
+        pointerEvents: "none",
+        touchAction: "manipulation"
+      });
+
+      const street = this.createDOMButton("← STRASSE", () => this.exitIndianStore(), {
+        color: "#fff3ca",
+        background: "#713524",
+        border: "#efc45c",
+        width: "150px",
+        minHeight: "42px",
+        fontSize: "8px",
+        padding: "7px 9px"
+      });
+
+      Object.assign(street.style, {
+        position: "absolute",
+        left: "12px",
+        top: "12px",
+        pointerEvents: "auto"
+      });
+
+      const shop = this.createDOMButton("EINKAUFEN", () => this.openIndianShopWindow(), {
+        color: "#2f261d",
+        background: "#efc45c",
+        border: "#7a4b2e",
+        width: "180px",
+        minHeight: "44px",
+        fontSize: "9px",
+        padding: "8px 10px"
+      });
+
+      Object.assign(shop.style, {
+        position: "absolute",
+        left: "50%",
+        bottom: "42px",
+        transform: "translateX(-50%)",
+        pointerEvents: "auto"
+      });
+
+      wrapper.append(street, shop);
+      root.appendChild(wrapper);
+
+      this.indianStoreBackUI = { overlay: wrapper };
+      this.indianStoreShopUI = shop;
+    }
+
+    openIndianShopWindow() {
+      if (!this.indianStoreOverlay || this.shopModal) return;
+
+      const modal = this.createDOMModal({
+        key: "der-inder-shop",
+        width: "min(92%, 540px)",
+        background: "#f0ddb7",
+        border: "#713524",
+        shade: "rgba(9, 6, 5, 0.72)",
+        padding: "17px"
+      });
+
+      if (!modal) return;
+
+      this.shopModal = modal;
+
+      const title = this.createDOMText("KAUFBARE ITEMS", {
+        fontSize: "14px",
+        color: "#713524",
+        margin: "0 0 15px"
+      });
+
+      const slots = document.createElement("div");
+      Object.assign(slots.style, {
+        display: "grid",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: "9px",
+        margin: "0 auto 15px",
+        maxWidth: "380px"
+      });
+
+      for (let i = 0; i < 8; i += 1) {
+        const slot = document.createElement("div");
+        Object.assign(slot.style, {
+          height: "58px",
+          background: "#bfa980",
+          border: "2px solid #765d42",
+          boxSizing: "border-box",
+          opacity: "0.72"
+        });
+        slots.appendChild(slot);
+      }
+
+      const note = this.createDOMText("Wird später mit Items gefüllt.", {
+        fontSize: "7px",
+        color: "#66503b",
+        margin: "0 0 15px"
+      });
+
+      const buttons = document.createElement("div");
+      Object.assign(buttons.style, {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "10px",
+        maxWidth: "360px",
+        margin: "0 auto"
+      });
+
+      const backToShop = this.createDOMButton("← LADEN", () => this.closeIndianShopWindow(), {
+        color: "#3f3127",
+        background: "#d5c19b",
+        border: "#85684a",
+        fontSize: "8px"
+      });
+
+      // Direkter Notausgang: selbst aus dem Einkaufsfenster ist die Straße
+      // immer mit genau einem weiteren Tap erreichbar.
+      const street = this.createDOMButton("STRASSE", () => {
+        this.closeIndianShopWindow();
+        this.exitIndianStore();
+      }, {
+        color: "#fff3ca",
+        background: "#713524",
+        border: "#efc45c",
+        fontSize: "8px"
+      });
+
+      buttons.append(backToShop, street);
+      modal.panel.append(title, slots, note, buttons);
+      this.refreshUILock();
+    }
+
+    closeIndianShopWindow() {
+      if (!this.shopModal) return;
+
+      this.destroyDOMModal(this.shopModal);
+      this.shopModal = null;
+      this.refreshUILock();
+    }
+
+    exitIndianStore() {
+      if (this.shopModal) {
+        this.destroyDOMModal(this.shopModal);
+        this.shopModal = null;
+      }
+
+      if (this.storeEntryModal) {
+        this.destroyDOMModal(this.storeEntryModal);
+        this.storeEntryModal = null;
+      }
+
+      if (this.indianStoreBackUI) {
+        this.destroyDOMModal(this.indianStoreBackUI);
+        this.indianStoreBackUI = null;
+        this.indianStoreShopUI = null;
+      }
+
+      if (this.indianStoreOverlay) {
+        this.indianStoreOverlay.list?.forEach((child) => {
+          this.tweens.killTweensOf(child);
+        });
+        this.indianStoreOverlay.destroy(true);
+        this.indianStoreOverlay = null;
+      }
+
+      this.player.setVisible(true);
+      if (this.player.body) this.player.body.enable = true;
+      this.player.play("simon-idle", true);
+
+      this.refreshUILock();
+      this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
+      this.cameras.main.setDeadzone(240, 80);
     }
 
     createArrivalTram() {

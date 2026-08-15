@@ -1,71 +1,85 @@
-# Simons Abenteuer – Developer Mode + Bahnhofquai/HB
+# Simons Abenteuer – Bahnhofstrasse/HB + Der Inder
 
-Diese Version basiert auf dem **aktuellen GitHub-Stand** vor dieser Änderung.
+Diese Änderung wurde auf Basis der unmittelbar zuvor aus GitHub gelesenen
+aktuellen Version erstellt.
 
-Verifiziert wurden dabei unter anderem:
+Verifizierte Ausgangs-Blobs:
 
-- `game.js`: `ef683ee1a63d5c93ea3e738978f318a1c9e5f29f`
-- `index.html`: `a2f289426ed701083a4d22a531213918b4e56f54`
-- `script.js`: `364683dbdb414ea8f23219531a2a4e8e595915a0`
-- `animation-fix.js`: `0dd16d6b163e0d1b059961ae005c1bf676b70cd0`
+- `game.js`: `9e6cf2e15c16dfdd0b413d11c4e883ccade5ef7f`
+- `index.html`: `5dedcbd0cee1a9baec2ead0a3fd49f23dc6a708b`
+- `script.js`: `039f3ab8e7127a8bd145e23e7be069d00a181df0`
+- `animation-fix.js`: `fa867f55cf726be98c9cdecae59eb952ebb18b14`
+
+Damit bleiben die zwischenzeitlichen Änderungen der anderen Bearbeiterin erhalten.
 
 ## Dateien ersetzen
 
+Nur:
+
 - `game.js`
-- `animation-fix.js`
 - `index.html`
-- `script.js`
 
-`style.css` und die übrigen Dateien bleiben unangetastet.
+## Änderungen
 
-## Developer Mode
+### Station
 
-Nach START erscheint jetzt zuerst ein eigener Developer-Mode-Bildschirm.
+Die sichtbare Station heißt jetzt:
 
-Standard: `AUS`
+`BAHNHOFSTRASSE/HB`
 
-- AUS + WEITER → normales Spiel, beginnend mit der ersten Dialogszene.
-- AN + WEITER → Developer-Menü.
+Der komplette Name steht in **einem einzigen blauen Haltestellenschild**.
+Die separate weiße `/ HB`-Tafel wurde entfernt.
 
-Aktuelle Sprungziele:
+Auch das Developer-Menü nennt das Sprungziel jetzt
+`BAHNHOFSTRASSE / HB`.
 
-1. `ZUR LÖWENAUSWAHL`
-   - startet direkt vor dem HIVE bei der Auswahl `JA / NEIN / KÄMPFEN`
-   - die besiegten Türsteher liegen bereits auf der Straße und bleiben anklickbar
+### Der Inder
 
-2. `BAHNHOFQUAI / HB`
-   - startet direkt die neue Tram-Ankunft am Hauptbahnhof
+Direkt rechts neben der Haltestelle steht ein kleiner Laden:
 
-3. `NORMALER START`
+`DER INDER`
 
-Der Developer Mode ist absichtlich leicht wieder entfernbar:
-In `script.js` kann `DEVELOPER_GATE_ENABLED` einfach auf `false` gesetzt werden.
-Die zugehörigen HTML/CSS-Blöcke in `index.html` sind zusätzlich mit
-`DEVELOPER MODE START/END` markiert.
+Die Fassade ist warm, arcadeartig und mit ornamentalen Farbbändern,
+Schaufenstern und Gemüseauslage gestaltet. Vor dem Laden liegen u.a.
+Auberginen, grüne Gemüse/Chilis, Tomaten und kleine Gewürzsäcke.
 
-## Neue Szene: Bahnhofquai / HB
+Die gesamte Ladenfassade ist großzügig anklickbar.
 
-Nach der normalen Tramfahrt aus Milchbuck geht es jetzt wirklich weiter zur
-Haltestelle `BAHNHOFQUAI / HB`.
+Beim Anklicken:
 
-- links: arcadeartiger Zürcher Hauptbahnhof als feste Begrenzung
-- Mitte: Tramhaltestelle Bahnhofquai / HB
-- rechts: Beginn der Bahnhofstrasse mit Zürcher Häuserzeile, Schaufenstern,
-  Bäumen und Straßenraum
-- aktuell noch keine neuen Interaktionen
+`Betreten?`
 
-### Ankunft
+mit:
 
-- Szene fadet aus Milchbuck ein
-- Tram rollt in die Haltestelle
-- Tür öffnet sich
-- Simon steigt sichtbar aus und geht auf den Bahnsteig
-- danach werden Touch-Steuerung und freie Bewegung wieder freigegeben
+- `JA`
+- `NEIN`
 
-Coins, HP und das gekaufte Ticket werden in die neue Szene übernommen.
+### Innenraum
 
-## Animation-Fix
+Bei `JA` geht Simon in den Laden.
 
-`animation-fix.js` ist jetzt v10 und überwacht sowohl `MilchbuckScene` als auch
-`BahnhofquaiScene`, damit die bestehende Sprungdarstellung auch nach dem
-Szenenwechsel erhalten bleibt.
+Dort:
+
+- steht ein indischer Verkäufer hinter dem Tresen,
+- er sagt in einer Sprechblase `Guter Kunde, Guter Kunde`,
+- am Tresen gibt es den robusten Button `EINKAUFEN`,
+- oben links gibt es jederzeit `← STRASSE`.
+
+### Einkaufen
+
+`EINKAUFEN` öffnet bereits ein erstes Item-Fenster mit leeren Slots.
+Die eigentlichen kaufbaren Items bauen wir später aus.
+
+Im Einkaufsfenster gibt es:
+
+- `← LADEN`
+- `STRASSE`
+
+Dadurch gibt es sowohl aus dem Laden als auch direkt aus dem Item-Fenster
+immer einen zuverlässigen Weg zurück auf die Straße.
+
+Alle neuen Menübuttons verwenden wieder das bereits etablierte native
+HTML-Button-System über Phaser, damit die iPhone-Touchbedienung stabil bleibt.
+
+`index.html` lädt die neue `game.js` als `game.js?v=11`, um iPhone-Caching
+der alten Spiellogik zu vermeiden.
