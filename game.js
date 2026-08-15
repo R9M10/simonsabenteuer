@@ -93,6 +93,27 @@
         zarathustra: false
       };
 
+      this.booksRead = {
+        generalRelativity: false,
+        phaenomenologie: false,
+        playbook: false,
+        zarathustra: false
+      };
+
+      this.abilitiesUnlocked = {
+        wormhole: false
+      };
+      this.activeAbility = null;
+      this.itemsModalTab = "items";
+      this.itemsModalContent = null;
+      this.readingBook = false;
+      this.abilityIndicatorDOM = null;
+      this.abilityUnlockBannerDOM = null;
+
+      this.wormholeTeleporting = false;
+      this.wormholeUsedThisJump = false;
+      this.__wormholePointerHandler = null;
+
       this.hotbarContainer = null;
       this.hotbarBackground = null;
       this.hotbarSlotCenters = [];
@@ -144,6 +165,10 @@
       this.danceOverlay = null;
       this.playerDying = false;
       this.drinkingItem = false;
+      this.readingBook = false;
+      this.wormholeTeleporting = false;
+      this.wormholeUsedThisJump = false;
+      this.itemsModalContent = null;
 
       // A Scene instance is reused by Phaser after scene.start(). Any old
       // modal/combat/travel lock must be reset explicitly.
@@ -191,6 +216,22 @@
         playbook: Boolean(data.booksOwned?.playbook),
         zarathustra: Boolean(data.booksOwned?.zarathustra)
       };
+
+      this.booksRead = {
+        generalRelativity: Boolean(data.booksRead?.generalRelativity),
+        phaenomenologie: Boolean(data.booksRead?.phaenomenologie),
+        playbook: Boolean(data.booksRead?.playbook),
+        zarathustra: Boolean(data.booksRead?.zarathustra)
+      };
+
+      this.abilitiesUnlocked = {
+        wormhole: Boolean(data.abilitiesUnlocked?.wormhole)
+      };
+
+      this.activeAbility =
+        data.activeAbility === "wormhole" && this.abilitiesUnlocked.wormhole
+          ? "wormhole"
+          : null;
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
@@ -276,6 +317,7 @@
       this.createKeyboardControls();
       this.createTouchControls();
       this.createHUD();
+      this.installWormholeInput();
 
       this.events.once("shutdown", () => {
         this.cleanupHotbarDOM?.();
@@ -283,6 +325,7 @@
           .querySelectorAll("#phaser-game [data-simon-ui='hotbar-action']")
           .forEach((node) => node.remove());
         this.cleanupSprintIndicator();
+        this.cleanupAbilityIndicator();
       });
 
       if (this.travelArrivalFrom === "bahnhofstrasse") {
@@ -321,6 +364,7 @@
         this.updateHpBar();
         this.updateInventoryUI();
         this.updateSprintIndicator(true);
+        this.updateAbilityIndicator();
 
         // The original street bouncer belongs to the already-resolved HIVE
         // story. On a later return from Bahnhofstrasse he must not respawn.
@@ -341,6 +385,9 @@
           developerMode: true,
           inventory: { ...this.inventory },
           booksOwned: { ...this.booksOwned },
+          booksRead: { ...this.booksRead },
+          abilitiesUnlocked: { ...this.abilitiesUnlocked },
+          activeAbility: this.activeAbility,
           hotbarItems: ["ticket", null, null, null, null]
         });
         return;
@@ -395,6 +442,8 @@
         .setDepth(91);
 
       zone.on("pointerup", (pointer) => {
+        if (this.canUseWormholeNow()) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.enterLatestHiveInterior();
@@ -1050,26 +1099,7 @@
         .setScrollFactor(0)
         .setDepth(300);
 
-      // Coins oben links.
-      const coin = this.add.graphics();
-      coin.fillStyle(0xe2aa28, 1);
-      coin.fillCircle(20, 19, 12);
-      coin.fillStyle(0xffdf65, 1);
-      coin.fillCircle(20, 19, 8);
-      coin.fillStyle(0xa66c15, 1);
-      coin.fillRect(18, 13, 4, 12);
-      coin.lineStyle(2, 0xfff0a0, 0.85);
-      coin.strokeCircle(20, 19, 11);
-
-      this.coinText = this.add.text(40, 19, "0", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "12px",
-        color: "#fff4cf",
-        stroke: "#2a1b0b",
-        strokeThickness: 4
-      }).setOrigin(0, 0.5);
-
-      // HP-Leiste ohne Zahlen. Sauberes Pixel-Herz.
+      // HP ganz oben links.
       const heart = this.add.graphics();
       const heartPixels = [
         [1,0],[2,0],[4,0],[5,0],
@@ -1082,25 +1112,44 @@
 
       heart.fillStyle(0xc73c49, 1);
       heartPixels.forEach(([px, py]) => {
-        heart.fillRect(82 + px * 3, 11 + py * 3, 3, 3);
+        heart.fillRect(10 + px * 3, 8 + py * 3, 3, 3);
       });
 
       heart.fillStyle(0xff7a82, 1);
-      heart.fillRect(85, 14, 3, 3);
-      heart.fillRect(88, 14, 3, 3);
+      heart.fillRect(13, 11, 3, 3);
+      heart.fillRect(16, 11, 3, 3);
 
       const hpFrame = this.add.graphics();
       hpFrame.fillStyle(0x15171c, 0.9);
-      hpFrame.fillRoundedRect(109, 12, 104, 16, 5);
+      hpFrame.fillRoundedRect(36, 9, 104, 16, 5);
       hpFrame.lineStyle(2, 0xffe3d1, 0.8);
-      hpFrame.strokeRoundedRect(109, 12, 104, 16, 5);
+      hpFrame.strokeRoundedRect(36, 9, 104, 16, 5);
 
-      this.hpBarFill = this.add.rectangle(113, 20, 96, 10, 0xd84e57)
+      this.hpBarFill = this.add.rectangle(40, 17, 96, 10, 0xd84e57)
         .setOrigin(0, 0.5);
 
-      hud.add([coin, this.coinText, heart, hpFrame, this.hpBarFill]);
+      // Coins direkt unter der HP-Leiste.
+      const coin = this.add.graphics();
+      coin.fillStyle(0xe2aa28, 1);
+      coin.fillCircle(20, 45, 10);
+      coin.fillStyle(0xffdf65, 1);
+      coin.fillCircle(20, 45, 6);
+      coin.fillStyle(0xa66c15, 1);
+      coin.fillRect(18, 40, 4, 10);
+      coin.lineStyle(2, 0xfff0a0, 0.85);
+      coin.strokeCircle(20, 45, 9);
 
-      // ITEMS-Menü oben rechts.
+      this.coinText = this.add.text(38, 45, "0", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "10px",
+        color: "#fff4cf",
+        stroke: "#2a1b0b",
+        strokeThickness: 4
+      }).setOrigin(0, 0.5);
+
+      hud.add([heart, hpFrame, this.hpBarFill, coin, this.coinText]);
+
+      // ITEMS-Menü oben rechts. Kein separates TICKET-Badge mehr.
       this.itemsButton = this.add.text(GAME_WIDTH - 18, 18, "ITEMS", {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: "9px",
@@ -1119,21 +1168,12 @@
         this.openItemsModal();
       });
 
-      this.itemsTicketBadge = this.add.text(GAME_WIDTH - 14, 38, "TICKET", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "5px",
-        color: "#2b2115",
-        backgroundColor: "#ffe3a2",
-        padding: { x: 4, y: 3 }
-      })
-        .setOrigin(1, 0)
-        .setScrollFactor(0)
-        .setDepth(305)
-        .setVisible(false);
+      this.itemsTicketBadge = null;
 
       this.createHotbar();
       this.updateHpBar();
       this.updateInventoryUI();
+      this.updateAbilityIndicator();
     }
 
     updateCoinHUD() {
@@ -1182,12 +1222,9 @@
 
     getItemDefinition(key) {
       const definitions = {
-        ticket: {
-          name: "Ticket",
-          description: "Gültig für genau eine Tramfahrt. Beim Einsteigen wird das Ticket verbraucht."
-        },
         gatorade: {
           name: "Gatorade",
+          type: "consumable",
           price: 10,
           heal: 10,
           effectLabel: "+10 HP",
@@ -1195,6 +1232,7 @@
         },
         monster: {
           name: "Monster Energy",
+          type: "consumable",
           price: 30,
           heal: 30,
           effectLabel: "+30 HP",
@@ -1202,18 +1240,73 @@
         },
         camel: {
           name: "Zigarette",
+          type: "consumable",
           price: 0.5,
           sprintMs: 60000,
           effectLabel: "SPRINT 60 SEK.",
           description: "Eine Zigarette. Nach dem Rauchen läuft Simon 60 Sekunden lang 75 % schneller. In den letzten 10 Sekunden blinkt die Anzeige."
+        },
+
+        bookGeneralRelativity: {
+          name: "General Relativity",
+          type: "book",
+          bookKey: "generalRelativity",
+          abilityKey: "wormhole",
+          description: "Ein Buch über Allgemeine Relativitätstheorie. Beim ersten Lesen wird die Fähigkeit Wurmloch freigeschaltet."
+        },
+        bookPhaenomenologie: {
+          name: "Phänomenologie des Geistes",
+          type: "book",
+          bookKey: "phaenomenologie",
+          description: "Hegels Phänomenologie des Geistes. Eine spätere Fähigkeit wird mit diesem Buch verknüpft."
+        },
+        bookPlaybook: {
+          name: "The Playbook",
+          type: "book",
+          bookKey: "playbook",
+          description: "The Playbook. Eine spätere Fähigkeit wird mit diesem Buch verknüpft."
+        },
+        bookZarathustra: {
+          name: "Also sprach Zarathustra",
+          type: "book",
+          bookKey: "zarathustra",
+          description: "Nietzsches Also sprach Zarathustra. Eine spätere Fähigkeit wird mit diesem Buch verknüpft."
         }
       };
 
       return definitions[key] || null;
     }
 
+    getAbilityDefinition(key) {
+      const definitions = {
+        wormhole: {
+          name: "Wurmloch",
+          description: "Springe und tippe während Simon in der Luft ist auf einen Punkt der Welt. Ein Wurmloch versetzt ihn dorthin."
+        }
+      };
+
+      return definitions[key] || null;
+    }
+
+    getBookItemKey(bookKey) {
+      const mapping = {
+        generalRelativity: "bookGeneralRelativity",
+        phaenomenologie: "bookPhaenomenologie",
+        playbook: "bookPlaybook",
+        zarathustra: "bookZarathustra"
+      };
+
+      return mapping[bookKey] || null;
+    }
+
     getItemCount(key) {
       if (key === "ticket") return this.hasCityTicket ? 1 : 0;
+
+      const definition = this.getItemDefinition(key);
+      if (definition?.type === "book") {
+        return this.booksOwned?.[definition.bookKey] ? 1 : 0;
+      }
+
       return Math.max(0, Number(this.inventory?.[key]) || 0);
     }
 
@@ -1249,8 +1342,7 @@
         g.fillStyle(0xf2c7a1, 0.85);
         g.fillRect(-7, -15, 14, 2);
       } else if (key === "camel") {
-        // Einzelne Zigarette als Item-Symbol, von links nach rechts:
-        // Filter links, glühende Spitze rechts.
+        // Einzelne Zigarette als Item-Symbol, Filter links / Glut rechts.
         g.fillStyle(0xc58a48, 1);
         g.fillRect(-16, -4, 9, 8);
         g.fillStyle(0xf3efe2, 1);
@@ -1259,6 +1351,23 @@
         g.fillRect(16, -3, 3, 6);
         g.lineStyle(1, 0x675b48, 1);
         g.strokeRoundedRect(-16, -4, 32, 8, 2);
+      } else if (this.getItemDefinition(key)?.type === "book") {
+        const bookColors = {
+          bookGeneralRelativity: 0x355f85,
+          bookPhaenomenologie: 0x694c78,
+          bookPlaybook: 0x9a6739,
+          bookZarathustra: 0x8e3038
+        };
+
+        g.fillStyle(bookColors[key] || 0x5b4d42, 1);
+        g.fillRoundedRect(-14, -18, 28, 36, 3);
+        g.fillStyle(0xe6d8ba, 1);
+        g.fillRect(-9, -13, 18, 4);
+        g.fillRect(-9, -5, 14, 2);
+        g.fillRect(-9, 1, 17, 2);
+        g.lineStyle(2, 0x2d2926, 1);
+        g.strokeRoundedRect(-14, -18, 28, 36, 3);
+        g.lineBetween(-8, -18, -8, 18);
       }
 
       icon.add(g);
@@ -1403,6 +1512,55 @@
 
         cigarette.append(filter, ember);
         outer.appendChild(cigarette);
+        return outer;
+      }
+
+      const bookDefinition = this.getItemDefinition(key);
+      if (bookDefinition?.type === "book") {
+        const colors = {
+          bookGeneralRelativity: "#355f85",
+          bookPhaenomenologie: "#694c78",
+          bookPlaybook: "#9a6739",
+          bookZarathustra: "#8e3038"
+        };
+
+        const abbreviations = {
+          bookGeneralRelativity: "GR",
+          bookPhaenomenologie: "PH",
+          bookPlaybook: "PB",
+          bookZarathustra: "AZ"
+        };
+
+        const book = document.createElement("div");
+        Object.assign(book.style, {
+          width: "29px",
+          height: "38px",
+          background: colors[key] || "#5b4d42",
+          border: "2px solid #302a26",
+          borderRadius: "3px",
+          boxSizing: "border-box",
+          boxShadow: "4px 0 0 rgba(32,28,25,.35)",
+          display: "grid",
+          placeItems: "center",
+          color: "#fff2cf",
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "6px",
+          position: "relative"
+        });
+        book.textContent = abbreviations[key] || "B";
+
+        const spine = document.createElement("span");
+        Object.assign(spine.style, {
+          position: "absolute",
+          left: "4px",
+          top: "0",
+          bottom: "0",
+          width: "2px",
+          background: "rgba(255,240,210,.55)"
+        });
+        book.appendChild(spine);
+
+        outer.appendChild(book);
         return outer;
       }
 
@@ -1578,11 +1736,13 @@
       }
 
       const key = this.hotbarItems?.[this.selectedHotbarIndex];
-
-      if (!["gatorade", "monster", "camel"].includes(key)) return;
-      if (this.getItemCount(key) <= 0) return;
-
       const item = this.getItemDefinition(key);
+
+      const isConsumable = ["gatorade", "monster", "camel"].includes(key);
+      const isBook = item?.type === "book";
+
+      if (!isConsumable && !isBook) return;
+      if (this.getItemCount(key) <= 0) return;
       const wrapper = document.createElement("div");
       wrapper.dataset.simonUi = "hotbar-action";
 
@@ -1596,9 +1756,13 @@
         touchAction: "manipulation"
       });
 
-      const actionLabel = key === "camel"
-        ? `RAUCHEN · ${item.name.toUpperCase()}`
-        : `TRINKEN · ${item.name.toUpperCase()}`;
+      const actionLabel = isBook
+        ? `LESEN · ${item.name.toUpperCase()}`
+        : (
+            key === "camel"
+              ? `RAUCHEN · ${item.name.toUpperCase()}`
+              : `TRINKEN · ${item.name.toUpperCase()}`
+          );
 
       const drink = this.createDOMButton(
         actionLabel,
@@ -1620,7 +1784,8 @@
     }
 
     updateInventoryUI() {
-      this.itemsTicketBadge?.setVisible(Boolean(this.hasCityTicket));
+      // No separate TICKET label under ITEMS. The valid one-trip ticket is
+      // represented only by its hotbar slot / tram state.
       this.refreshHotbar();
     }
 
@@ -1660,7 +1825,15 @@
     }
 
     equipItemToHotbar(key) {
-      if (!["gatorade", "monster", "camel"].includes(key)) return false;
+      const item = this.getItemDefinition(key);
+
+      if (
+        !["gatorade", "monster", "camel"].includes(key) &&
+        item?.type !== "book"
+      ) {
+        return false;
+      }
+
       return this.addItemToHotbar(key);
     }
 
@@ -1679,8 +1852,16 @@
       }
 
       const key = this.hotbarItems[index];
+      const item = this.getItemDefinition(key);
+
+      if (!item || this.getItemCount(key) <= 0) return;
+
+      if (item.type === "book") {
+        this.playBookReadingAnimation(key);
+        return;
+      }
+
       if (!["gatorade", "monster", "camel"].includes(key)) return;
-      if (this.getItemCount(key) <= 0) return;
 
       if (key === "camel") {
         this.playSmokeAnimation();
@@ -1778,6 +1959,422 @@
               this.drinkingItem = false;
               this.updateInventoryUI();
               this.refreshUILock();
+            }
+          });
+        }
+      });
+    }
+
+    playBookReadingAnimation(itemKey) {
+      const item = this.getItemDefinition(itemKey);
+
+      if (
+        item?.type !== "book" ||
+        this.getItemCount(itemKey) <= 0 ||
+        this.readingBook ||
+        this.drinkingItem ||
+        this.playerDying ||
+        !this.player?.visible
+      ) {
+        return;
+      }
+
+      this.readingBook = true;
+      this.refreshUILock();
+
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+      this.player.play("simon-idle", true);
+
+      const direction = this.facing < 0 ? -1 : 1;
+      const book = this.add.container(
+        this.player.x + direction * 22,
+        this.player.y - 58
+      ).setDepth(90);
+
+      const pages = this.add.graphics();
+      pages.fillStyle(0xf6edcf, 1);
+      pages.fillRoundedRect(-26, -17, 23, 34, 3);
+      pages.fillRoundedRect(3, -17, 23, 34, 3);
+      pages.lineStyle(2, 0x665648, 1);
+      pages.strokeRoundedRect(-26, -17, 23, 34, 3);
+      pages.strokeRoundedRect(3, -17, 23, 34, 3);
+      pages.lineBetween(0, -16, 0, 17);
+
+      for (const y of [-9, -3, 3, 9]) {
+        pages.lineStyle(1, 0xb8a98e, 0.8);
+        pages.lineBetween(-21, y, -7, y);
+        pages.lineBetween(7, y, 21, y);
+      }
+
+      const cover = this.add.graphics();
+      cover.lineStyle(4, 0x355f85, 1);
+      cover.strokeRoundedRect(-29, -20, 58, 40, 4);
+
+      book.add([cover, pages]);
+
+      const readingText = this.add.text(
+        this.player.x,
+        this.player.y - 105,
+        "LESEN...",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "7px",
+          color: "#fff0bd",
+          stroke: "#2b2723",
+          strokeThickness: 4
+        }
+      )
+        .setOrigin(0.5)
+        .setDepth(92);
+
+      this.tweens.add({
+        targets: book,
+        y: book.y - 5,
+        angle: { from: -3, to: 3 },
+        duration: 260,
+        yoyo: true,
+        repeat: 3,
+        ease: "Sine.easeInOut"
+      });
+
+      // Page-flip impression.
+      const pageFlip = this.add.rectangle(
+        book.x + direction * 2,
+        book.y,
+        19,
+        31,
+        0xfff7dc,
+        0.92
+      )
+        .setOrigin(direction > 0 ? 0 : 1, 0.5)
+        .setDepth(91);
+
+      this.tweens.add({
+        targets: pageFlip,
+        scaleX: { from: 1, to: 0.08 },
+        alpha: { from: 0.95, to: 0.25 },
+        duration: 360,
+        yoyo: true,
+        repeat: 3,
+        ease: "Quad.easeInOut"
+      });
+
+      this.tweens.add({
+        targets: this.player,
+        angle: { from: -2, to: 2 },
+        duration: 310,
+        yoyo: true,
+        repeat: 3,
+        ease: "Sine.easeInOut"
+      });
+
+      this.time.delayedCall(1750, () => {
+        book.destroy(true);
+        pageFlip.destroy();
+        readingText.destroy();
+
+        this.player.setAngle(0);
+        this.player.play("simon-idle", true);
+
+        if (
+          item.bookKey === "generalRelativity" &&
+          !this.booksRead.generalRelativity
+        ) {
+          this.booksRead.generalRelativity = true;
+          this.abilitiesUnlocked.wormhole = true;
+          this.showAbilityUnlockedBanner("Wurmloch");
+        }
+
+        this.readingBook = false;
+        this.refreshUILock();
+        this.updateAbilityIndicator();
+      });
+    }
+
+    showAbilityUnlockedBanner(abilityName) {
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      this.abilityUnlockBannerDOM?.remove?.();
+
+      const banner = document.createElement("div");
+      banner.dataset.simonUi = "ability-unlock-banner";
+      banner.textContent = `FÄHIGKEIT FREIGESCHALTET · ${abilityName.toUpperCase()}`;
+
+      Object.assign(banner.style, {
+        position: "absolute",
+        left: "50%",
+        top: "48px",
+        transform: "translateX(-50%)",
+        zIndex: "100050",
+        maxWidth: "78%",
+        padding: "9px 12px",
+        border: "3px solid #bda6ff",
+        background: "rgba(34, 22, 58, .95)",
+        color: "#fff1c9",
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "7px",
+        lineHeight: "1.5",
+        textAlign: "center",
+        boxShadow: "0 4px 0 rgba(14, 8, 25, .75)",
+        pointerEvents: "none"
+      });
+
+      root.appendChild(banner);
+      this.abilityUnlockBannerDOM = banner;
+
+      window.setTimeout(() => {
+        if (this.abilityUnlockBannerDOM === banner) {
+          banner.remove();
+          this.abilityUnlockBannerDOM = null;
+        }
+      }, 3000);
+    }
+
+    cleanupAbilityIndicator() {
+      this.abilityIndicatorDOM?.remove?.();
+      this.abilityIndicatorDOM = null;
+
+      const root = document.getElementById("phaser-game");
+      root?.querySelectorAll(
+        "[data-simon-ui='ability-indicator'], [data-simon-ui='ability-unlock-banner']"
+      ).forEach((node) => node.remove());
+
+      this.abilityUnlockBannerDOM = null;
+    }
+
+    updateAbilityIndicator() {
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      root.querySelectorAll("[data-simon-ui='ability-indicator']")
+        .forEach((node) => node.remove());
+
+      this.abilityIndicatorDOM = null;
+
+      if (
+        this.activeAbility !== "wormhole" ||
+        !this.abilitiesUnlocked?.wormhole
+      ) {
+        return;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.dataset.simonUi = "ability-indicator";
+      wrapper.setAttribute("aria-label", "Aktive Fähigkeit: Wurmloch");
+
+      Object.assign(wrapper.style, {
+        position: "absolute",
+        left: "50%",
+        top: "9px",
+        transform: "translateX(-50%)",
+        zIndex: "99972",
+        width: "38px",
+        height: "38px",
+        borderRadius: "50%",
+        border: "2px solid rgba(229,215,255,.9)",
+        background: "rgba(17,13,28,.82)",
+        display: "grid",
+        placeItems: "center",
+        pointerEvents: "none",
+        boxSizing: "border-box",
+        boxShadow: "0 0 9px rgba(143,92,255,.55)"
+      });
+
+      const portal = document.createElement("div");
+      Object.assign(portal.style, {
+        width: "25px",
+        height: "25px",
+        borderRadius: "50%",
+        background:
+          "radial-gradient(circle, #07040e 0 28%, #724dd2 31% 45%, #62c8ff 49% 58%, #2a153f 62% 100%)",
+        boxShadow:
+          "0 0 7px #7c5ee8, inset 0 0 5px rgba(255,255,255,.45)"
+      });
+
+      wrapper.appendChild(portal);
+      root.appendChild(wrapper);
+      this.abilityIndicatorDOM = wrapper;
+    }
+
+    equipAbility(key) {
+      if (!this.abilitiesUnlocked?.[key]) return;
+
+      // Exactly one active ability. Equipping another later simply replaces it.
+      this.activeAbility = key;
+      this.updateAbilityIndicator();
+
+      if (this.itemsModal) {
+        this.itemsModalTab = "abilities";
+        this.renderItemsModalTab();
+      }
+    }
+
+    canUseWormholeNow() {
+      if (
+        this.activeAbility !== "wormhole" ||
+        !this.abilitiesUnlocked?.wormhole ||
+        this.uiLocked ||
+        this.playerDying ||
+        this.wormholeTeleporting ||
+        this.wormholeUsedThisJump ||
+        !this.player?.body ||
+        !this.player.visible
+      ) {
+        return false;
+      }
+
+      const body = this.player.body;
+      const onGround = body.blocked.down || body.touching.down;
+      return !onGround;
+    }
+
+    isPointerInControlArea(pointer) {
+      if (!pointer) return true;
+
+      const x = pointer.x;
+      const y = pointer.y;
+
+      // Never reinterpret the four touch-control circles as wormhole targets.
+      if (y >= GAME_HEIGHT - 110 && (x <= 205 || x >= GAME_WIDTH - 205)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    installWormholeInput() {
+      if (!this.input) return;
+
+      if (this.__wormholePointerHandler) {
+        this.input.off("pointerup", this.__wormholePointerHandler);
+      }
+
+      this.__wormholePointerHandler = (pointer) => {
+        if (!this.canUseWormholeNow()) return;
+        if (this.isPointerInControlArea(pointer)) return;
+
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+
+        this.performWormholeTeleport(pointer);
+      };
+
+      this.input.on("pointerup", this.__wormholePointerHandler);
+    }
+
+    createWormholePortal(x, y, depth = 160) {
+      const container = this.add.container(x, y).setDepth(depth);
+
+      const outer = this.add.ellipse(0, 0, 62, 82, 0x6b43c6, 0.42);
+      outer.setStrokeStyle(5, 0xa88cff, 0.95);
+
+      const middle = this.add.ellipse(0, 0, 43, 61, 0x3189bb, 0.3);
+      middle.setStrokeStyle(4, 0x69d6ff, 0.92);
+
+      const core = this.add.ellipse(0, 0, 26, 43, 0x080411, 0.95);
+      core.setStrokeStyle(2, 0xe2d3ff, 0.75);
+
+      container.add([outer, middle, core]);
+
+      this.tweens.add({
+        targets: [outer, middle],
+        angle: { from: -12, to: 12 },
+        scaleX: { from: 0.9, to: 1.08 },
+        scaleY: { from: 1.08, to: 0.92 },
+        duration: 260,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
+      return container;
+    }
+
+    performWormholeTeleport(pointer) {
+      if (!this.canUseWormholeNow()) return;
+
+      this.wormholeUsedThisJump = true;
+      this.wormholeTeleporting = true;
+
+      const sourceX = this.player.x;
+      const sourceY = this.player.y - 20;
+
+      const targetX = Phaser.Math.Clamp(
+        Number(pointer.worldX) || sourceX,
+        45,
+        WORLD_WIDTH - 45
+      );
+
+      // If the player taps the road, emerge just above the ground and fall
+      // naturally onto it. Tapping higher creates a higher exit.
+      const targetY = Phaser.Math.Clamp(
+        Math.min(Number(pointer.worldY) || 220, GROUND_TOP - 112),
+        72,
+        GROUND_TOP - 112
+      );
+
+      const entry = this.createWormholePortal(sourceX, sourceY, 165);
+      const exit = this.createWormholePortal(targetX, targetY, 165)
+        .setScale(0.12)
+        .setAlpha(0);
+
+      this.player.setVelocity(0, 0);
+
+      this.tweens.add({
+        targets: entry,
+        scaleX: 0.12,
+        scaleY: 1.18,
+        alpha: 0,
+        duration: 240,
+        ease: "Quad.easeIn",
+        onComplete: () => entry.destroy(true)
+      });
+
+      this.tweens.add({
+        targets: this.player,
+        scaleX: 0.16 * Math.sign(this.player.scaleX || 1),
+        scaleY: 0.50,
+        alpha: 0,
+        duration: 200,
+        ease: "Quad.easeIn",
+        onComplete: () => {
+          this.player.setPosition(targetX, targetY);
+          this.player.setVelocity(0, 70);
+
+          this.tweens.add({
+            targets: exit,
+            scale: 1,
+            alpha: 1,
+            duration: 210,
+            ease: "Back.easeOut"
+          });
+
+          this.tweens.add({
+            targets: this.player,
+            scaleX: 0.42 * Math.sign(this.player.scaleX || 1),
+            scaleY: 0.42,
+            alpha: 1,
+            duration: 260,
+            ease: "Back.easeOut",
+            onComplete: () => {
+              this.player.setScale(0.42);
+              this.player.setFlipX(this.facing < 0);
+              this.player.play("simon-jump", true);
+              this.wormholeTeleporting = false;
+
+              this.time.delayedCall(280, () => {
+                if (exit.active) {
+                  this.tweens.add({
+                    targets: exit,
+                    scaleX: 0.1,
+                    alpha: 0,
+                    duration: 220,
+                    onComplete: () => exit.destroy(true)
+                  });
+                }
+              });
             }
           });
         }
@@ -2294,7 +2891,7 @@
       const icon = this.createDOMItemIcon(itemKey, 45);
 
       const qty = this.createDOMText(
-        itemKey === "ticket" ? "1x" : `${count}x`,
+        item.type === "book" ? "BUCH" : `${count}x`,
         {
           fontSize: "6px",
           color: "#aeb7b7"
@@ -2331,6 +2928,146 @@
       return card;
     }
 
+    renderItemsModalTab() {
+      if (!this.itemsModal || !this.itemsModalContent) return;
+
+      const content = this.itemsModalContent;
+      content.replaceChildren();
+
+      const tabButtons = this.itemsModal.panel.querySelectorAll("[data-items-tab]");
+      tabButtons.forEach((button) => {
+        const active = button.dataset.itemsTab === this.itemsModalTab;
+        button.style.background = active ? "#6d5a36" : "#2c333a";
+        button.style.borderColor = active ? "#ffe4a0" : "#68727b";
+        button.style.color = active ? "#fff4c7" : "#c5c7c8";
+      });
+
+      if (this.itemsModalTab === "abilities") {
+        this.renderAbilitiesTab(content);
+        return;
+      }
+
+      const grid = document.createElement("div");
+      Object.assign(grid.style, {
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: "8px",
+        width: "100%",
+        margin: "0 0 12px"
+      });
+
+      [
+        "gatorade",
+        "monster",
+        "camel",
+        "bookGeneralRelativity",
+        "bookPhaenomenologie",
+        "bookPlaybook",
+        "bookZarathustra"
+      ].forEach((itemKey) => {
+        const card = this.createInventoryCard(itemKey);
+        if (card) grid.appendChild(card);
+      });
+
+      const empty = grid.childElementCount === 0;
+
+      const hint = this.createDOMText(
+        empty
+          ? "NOCH KEINE ITEMS"
+          : "WÄHLE BIS ZU 5 ITEMS / BÜCHER FÜR DIE HOTBAR",
+        {
+          fontSize: "6px",
+          color: "#aeb7b7",
+          margin: "2px 0 0"
+        }
+      );
+      hint.dataset.itemsHint = "true";
+
+      content.append(grid, hint);
+    }
+
+    renderAbilitiesTab(content) {
+      const unlocked = Object.keys(this.abilitiesUnlocked || {})
+        .filter((key) => this.abilitiesUnlocked[key]);
+
+      if (unlocked.length === 0) {
+        content.appendChild(
+          this.createDOMText("NOCH KEINE FÄHIGKEITEN FREIGESCHALTET", {
+            fontSize: "7px",
+            color: "#b8bec4",
+            margin: "18px 0"
+          })
+        );
+        return;
+      }
+
+      const grid = document.createElement("div");
+      Object.assign(grid.style, {
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: "9px",
+        width: "100%"
+      });
+
+      unlocked.forEach((abilityKey) => {
+        const ability = this.getAbilityDefinition(abilityKey);
+        if (!ability) return;
+
+        const card = document.createElement("div");
+        Object.assign(card.style, {
+          padding: "10px 8px",
+          border: "2px solid #7259a5",
+          background: "#17131f",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          alignItems: "center",
+          boxSizing: "border-box"
+        });
+
+        const icon = document.createElement("div");
+        Object.assign(icon.style, {
+          width: "40px",
+          height: "40px",
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle, #07040e 0 27%, #724dd2 31% 45%, #62c8ff 50% 59%, #2a153f 63% 100%)",
+          border: "2px solid #d8c9ff",
+          boxShadow: "0 0 8px #7054cf"
+        });
+
+        const name = this.createDOMText(ability.name, {
+          fontSize: "8px",
+          color: "#eee3ff"
+        });
+
+        const description = this.createDOMText(ability.description, {
+          fontSize: "5.5px",
+          color: "#bfb6cc",
+          lineHeight: "1.55"
+        });
+
+        const active = this.activeAbility === abilityKey;
+        const button = this.createDOMButton(
+          active ? "AKTIV" : "AUSRÜSTEN",
+          () => this.equipAbility(abilityKey),
+          {
+            color: active ? "#f8f0c9" : "#eef2ff",
+            background: active ? "#61522f" : "#493670",
+            border: active ? "#e1c96d" : "#9c82d4",
+            minHeight: "36px",
+            fontSize: "6px"
+          }
+        );
+        button.disabled = active;
+
+        card.append(icon, name, description, button);
+        grid.appendChild(card);
+      });
+
+      content.appendChild(grid);
+    }
+
     openItemsModal() {
       if (
         this.itemsModal ||
@@ -2342,17 +3079,26 @@
         return;
       }
 
-      if (this.playerDying || this.danceOverlay || this.indianStoreOverlay) return;
+      if (
+        this.playerDying ||
+        this.danceOverlay ||
+        this.indianStoreOverlay ||
+        this.bookstoreOverlay ||
+        this.readingBook
+      ) {
+        return;
+      }
 
       this.setUILocked(true);
+      this.itemsModalTab = "items";
 
       const modal = this.createDOMModal({
         key: "items",
-        width: "min(92%, 540px)",
+        width: "min(94%, 590px)",
         background: "#20252b",
         border: "#d7c892",
         shade: "rgba(5, 6, 11, 0.72)",
-        padding: "15px"
+        padding: "13px"
       });
 
       if (!modal) {
@@ -2368,11 +3114,11 @@
         alignItems: "center",
         justifyContent: "space-between",
         gap: "12px",
-        marginBottom: "12px"
+        marginBottom: "9px"
       });
 
-      const title = this.createDOMText("ITEMS", {
-        fontSize: "15px",
+      const title = this.createDOMText("INVENTAR", {
+        fontSize: "13px",
         color: "#fff0bd"
       });
       title.style.textAlign = "left";
@@ -2382,40 +3128,61 @@
         background: "#443a30",
         border: "#8c795e",
         width: "48px",
-        minHeight: "40px",
+        minHeight: "38px",
         padding: "6px",
         fontSize: "12px"
       });
 
       top.append(title, close);
 
-      const grid = document.createElement("div");
-      Object.assign(grid.style, {
+      const tabs = document.createElement("div");
+      Object.assign(tabs.style, {
         display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: "8px",
-        width: "100%",
-        margin: "0 0 12px"
+        gridTemplateColumns: "1fr 1fr",
+        gap: "7px",
+        marginBottom: "10px"
       });
 
-      ["ticket", "gatorade", "monster", "camel"].forEach((itemKey) => {
-        const card = this.createInventoryCard(itemKey);
-        if (card) grid.appendChild(card);
-      });
-
-      const empty = grid.childElementCount === 0;
-
-      const hint = this.createDOMText(
-        empty ? "NOCH KEINE ITEMS" : "WÄHLE BIS ZU 5 ITEMS FÜR DIE HOTBAR",
+      const itemsTab = this.createDOMButton(
+        "ITEMS",
+        () => {
+          this.itemsModalTab = "items";
+          this.renderItemsModalTab();
+        },
         {
-          fontSize: "6px",
-          color: "#aeb7b7",
-          margin: "2px 0 0"
+          color: "#fff4c7",
+          background: "#6d5a36",
+          border: "#ffe4a0",
+          minHeight: "36px",
+          fontSize: "7px"
         }
       );
-      hint.dataset.itemsHint = "true";
+      itemsTab.dataset.itemsTab = "items";
 
-      modal.panel.append(top, grid, hint);
+      const abilitiesTab = this.createDOMButton(
+        "FÄHIGKEITEN",
+        () => {
+          this.itemsModalTab = "abilities";
+          this.renderItemsModalTab();
+        },
+        {
+          color: "#c5c7c8",
+          background: "#2c333a",
+          border: "#68727b",
+          minHeight: "36px",
+          fontSize: "7px"
+        }
+      );
+      abilitiesTab.dataset.itemsTab = "abilities";
+
+      tabs.append(itemsTab, abilitiesTab);
+
+      const content = document.createElement("div");
+      content.dataset.itemsContent = "true";
+      this.itemsModalContent = content;
+
+      modal.panel.append(top, tabs, content);
+      this.renderItemsModalTab();
       this.refreshUILock();
     }
 
@@ -2424,6 +3191,7 @@
 
       this.destroyDOMModal(this.itemsModal);
       this.itemsModal = null;
+      this.itemsModalContent = null;
       this.refreshUILock();
       this.ensureTicketMachineInteractive();
       this.ensureTramBoardingInteractive();
@@ -2443,6 +3211,7 @@
         this.tramDestinationModal ||
         this.itemInfoModal ||
         this.drinkingItem ||
+        this.readingBook ||
         this.playerDying
       );
 
@@ -2673,6 +3442,9 @@
                 developerMode: this.developerMode,
                 inventory: { ...this.inventory },
                 booksOwned: { ...this.booksOwned },
+                booksRead: { ...this.booksRead },
+                abilitiesUnlocked: { ...this.abilitiesUnlocked },
+                activeAbility: this.activeAbility,
                 hotbarItems: [...this.hotbarItems],
                 selectedHotbarIndex: this.selectedHotbarIndex,
                 sprintExpiresAt: this.sprintExpiresAt
@@ -4171,6 +4943,15 @@
       const body = this.player.body;
       const onGround = body.blocked.down || body.touching.down;
 
+      if (onGround) {
+        this.wormholeUsedThisJump = false;
+      }
+
+      if (this.wormholeTeleporting) {
+        this.player.setVelocity(0, 0);
+        return;
+      }
+
       if (this.playerDying) {
         this.player.setVelocityX(0);
         this.updateSprintIndicator();
@@ -4342,6 +5123,22 @@
         zarathustra: Boolean(data.booksOwned?.zarathustra)
       };
 
+      this.booksRead = {
+        generalRelativity: Boolean(data.booksRead?.generalRelativity),
+        phaenomenologie: Boolean(data.booksRead?.phaenomenologie),
+        playbook: Boolean(data.booksRead?.playbook),
+        zarathustra: Boolean(data.booksRead?.zarathustra)
+      };
+
+      this.abilitiesUnlocked = {
+        wormhole: Boolean(data.abilitiesUnlocked?.wormhole)
+      };
+
+      this.activeAbility =
+        data.activeAbility === "wormhole" && this.abilitiesUnlocked.wormhole
+          ? "wormhole"
+          : null;
+
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
         : Array(HOTBAR_SIZE).fill(null);
@@ -4408,6 +5205,7 @@
       this.createKeyboardControls();
       this.createTouchControls();
       this.createHUD();
+      this.installWormholeInput();
 
       this.events.once("shutdown", () => {
         this.cleanupHotbarDOM?.();
@@ -4415,12 +5213,14 @@
           .querySelectorAll("#phaser-game [data-simon-ui='hotbar-action']")
           .forEach((node) => node.remove());
         this.cleanupSprintIndicator();
+        this.cleanupAbilityIndicator();
       });
 
       this.updateCoinHUD();
       this.updateHpBar();
       this.updateInventoryUI();
       this.updateSprintIndicator(true);
+      this.updateAbilityIndicator();
 
       this.player.setPosition(650, 246);
       this.player.setVisible(false);
@@ -4919,6 +5719,11 @@
     }
 
     canOpenStreetStore(pointer) {
+      // An airborne Wurmloch click is a map target, never a store click.
+      if (this.canUseWormholeNow()) {
+        return false;
+      }
+
       // Stores are intentionally facade-only interactions.
       if (pointer && Number.isFinite(pointer.worldY) && pointer.worldY >= 279) {
         return false;
@@ -5373,6 +6178,7 @@
 
       this.booksOwned[key] = true;
       this.updateCoinHUD();
+      this.updateInventoryUI();
 
       const wallet = this.bookstoreCatalogModal?.panel?.querySelector(
         "[data-book-wallet]"
@@ -5474,6 +6280,7 @@
         this.tramDestinationModal ||
         this.itemInfoModal ||
         this.drinkingItem ||
+        this.readingBook ||
         this.milkmanDialogueActive ||
         this.milkmanLootModal
       );
@@ -5493,6 +6300,7 @@
         this.itemsModal ||
         this.itemInfoModal ||
         this.bookstoreCatalogModal ||
+        this.readingBook ||
         this.milkmanDialogueActive ||
         this.milkmanFightActive
       ) {
@@ -6337,7 +7145,13 @@
       }
 
       bottle.body.setAllowGravity(false);
-      bottle.body.setVelocityX(direction * (isSuperMilk ? 205 : 225));
+
+      const normalMilkSpeed = 225;
+      const projectileSpeed = isSuperMilk
+        ? normalMilkSpeed * 1.5
+        : normalMilkSpeed;
+
+      bottle.body.setVelocityX(direction * projectileSpeed);
 
       bottle.__milkHit = false;
       bottle.__milkDamage = damage;
@@ -6717,6 +7531,9 @@
                   developerMode: this.developerMode,
                   inventory: { ...this.inventory },
                   booksOwned: { ...this.booksOwned },
+                  booksRead: { ...this.booksRead },
+                  abilitiesUnlocked: { ...this.abilitiesUnlocked },
+                  activeAbility: this.activeAbility,
                   hotbarItems: [...this.hotbarItems],
                   selectedHotbarIndex: this.selectedHotbarIndex,
                   sprintExpiresAt: this.sprintExpiresAt

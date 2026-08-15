@@ -1,47 +1,107 @@
-# Simons Abenteuer – Super Milch + HIVE Re-entry Fix v19
+# Simons Abenteuer – Fähigkeiten / General Relativity / Wurmloch v21
 
-Aktueller GitHub-Stand vor der Änderung:
+Ausgangsstand wurde direkt vor dem Build gegen GitHub geprüft:
 
-- game.js: `78d4c9e1bb3f63747cc77fa15a731856e0c522d7`
+- game.js: `3c050afc610723633f3d6dcf91c6b4639e3f8d15`
 - index.html: `256c0e1f15b8a48e0878e2133181cc4c45d2dacc`
 - hive-expansion.js: `b9f89ac568cb0954cb0e72a7a897ddf95c25f98f` / v14.2
 
-`hive-expansion.js` wird nicht überschrieben.
+Die HIVE-Erweiterung wird nicht verändert.
 
-## Änderungen
+## Dateien ersetzen
 
-### Zigarette
-Die Zigarette ist komplett gedreht:
-- Filter links
-- glühende Spitze rechts
+- `game.js`
+- `index.html`
 
-Das gilt für Store/ITEMS/Hotbar, Rauch-Animation und Sprint-Statussymbol.
+## Super Milch
 
-### HIVE nach Tram-Rückkehr
-Der Fehler lag am wiederverwendeten `HiveInteriorScene`-Objekt:
-`leaveHive()` aus HIVE v14.2 setzt `__leaving = true`. Dieser Wert blieb beim
-nächsten Eintritt erhalten, weshalb `← STRASSE` sofort abbrach.
+- normale Milch: Geschwindigkeit 225
+- SUPER MILCH: Geschwindigkeit 337.5
+- also exakt 1.5x
+- normal 10 Schaden / SUPER MILCH 20 Schaden
+- jede dritte Flasche bleibt SUPER MILCH
+- Wurfabstand bleibt zufällig 1–3 Sekunden
 
-Vor jedem Eintritt über den nach der Tram-Rückkehr wiederhergestellten
-HIVE-Eingang werden nun die transienten HIVE-Zustände zurückgesetzt,
-insbesondere `__leaving = false`.
+## HUD
 
-Die aktuelle HIVE-v14.2-Datei selbst bleibt vollständig unangetastet.
+Oben links:
+1. HP-Herz + HP-Leiste
+2. direkt darunter Coins
 
-### Milchmann
-Milchflaschen kommen jetzt unregelmäßig:
-- Minimum: 1 Sekunde
-- Maximum: 3 Sekunden
-- Abstand wird nach jedem Wurf neu zufällig gewählt
+Das alte separate `TICKET`-Label unter `ITEMS` wurde vollständig entfernt.
+Tickets werden nicht mehr im ITEMS-Tab gelistet.
 
-Jede dritte Flasche ist **SUPER MILCH**:
-- sichtbar größer
-- Label `SUPER MILCH`
-- 20 Schaden statt 10
-- etwas stärkere Trefferreaktion
+## ITEMS / FÄHIGKEITEN
 
-Normale Milch:
-- 10 Schaden
+Das Inventar hat jetzt zwei Tabs:
+
+- ITEMS
+- FÄHIGKEITEN
+
+Im ITEMS-Tab liegen die normalen Gegenstände und gekaufte Bücher.
+Maximal fünf davon können weiterhin in die Hotbar gelegt werden.
+
+Im FÄHIGKEITEN-Tab stehen freigeschaltete Fähigkeiten.
+Es kann genau eine Fähigkeit aktiv sein. Wird später eine andere ausgerüstet,
+ersetzt sie die zuvor aktive.
+
+## Bücher
+
+Gekaufte Bücher erscheinen im ITEMS-Tab und können wie andere Gegenstände
+mit `IN HOTBAR` in einen der fünf Slots gelegt werden.
+
+Wird ein Buch unten ausgewählt, erscheint `LESEN · ...`.
+
+Beim Lesen:
+- Simon bleibt stehen,
+- ein geöffnetes Buch erscheint vor ihm,
+- Seiten-/Leseanimation läuft,
+- das Buch wird NICHT verbraucht.
+
+Die bisher anderen drei Bücher bleiben bereits kauf-/lesbar, bekommen ihre
+Abilities aber erst in einem späteren Schritt.
+
+## General Relativity -> Wurmloch
+
+Beim ERSTEN Lesen von `General Relativity`:
+
+`FÄHIGKEIT FREIGESCHALTET · WURMLOCH`
+
+erscheint drei Sekunden oben im Bild.
+
+Danach steht `Wurmloch` im Tab FÄHIGKEITEN.
+
+Wird Wurmloch ausgerüstet:
+- es ist die aktive Fähigkeit,
+- oben in der Mitte erscheint ein kleines Wurmloch-Icon.
+
+## Wurmloch benutzen
+
+Wenn Wurmloch aktiv ist:
+
+1. Simon springt.
+2. Solange er in der Luft ist, kann auf einen Punkt der Spielwelt getippt werden.
+3. Ein Wurmloch öffnet sich an Simon und am Ziel.
+4. Simon verschwindet im ersten Portal und erscheint am Zielportal.
+5. Dort fällt/landet er wieder normal auf dem Boden.
+
+Pro Sprung ist ein Wurmloch-Teleport möglich.
+
+Die Touch-Control-Flächen unten werden ausdrücklich NICHT als Wurmloch-Ziele
+interpretiert. Storefassaden werden bei einem gültigen Luft-Wurmloch-Tap
+ebenfalls nicht ausgelöst.
+
+## Persistenz
+
+Folgendes wird durch Tramfahrten Milchbuck <-> Bahnhofstrasse mitgenommen:
+
+- gekaufte Bücher
+- ob General Relativity bereits gelesen wurde
+- freigeschaltete Fähigkeiten
+- aktive Fähigkeit
+- Hotbar
+- bestehende Consumables/Sprintzustand
 
 ## Cache
-`game.js?v=19`
+
+`game.js?v=21`
