@@ -43,6 +43,12 @@
       this.bouncerDialogueStep = 0;
       this.bouncerDialogueBubble = null;
       this.dialogueIgnoreUntil = 0;
+
+      this.fightActive = false;
+      this.fightFinished = false;
+      this.fightBouncers = [];
+      this.fightLion = null;
+      this.purrText = null;
     }
 
     preload() {
@@ -265,15 +271,6 @@
         }
       }
 
-      // Straßenschild in der Stadt als subtiler Zürich-Hinweis.
-      this.add.text(1515, 250, "ZÜRICH", {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: "8px",
-        color: "#f2f4ef",
-        backgroundColor: "#24588b",
-        padding: { x: 7, y: 5 }
-      })
-        .setDepth(-1);
     }
 
     createMilchbuckStation() {
@@ -623,10 +620,18 @@
       body.fillRect(-14, -49, 28, 13);
       body.fillTriangle(-13, -36, 0, -29, 13, -36);
 
-      // Augen.
+      // Genervter Gesichtsausdruck: zusammengezogene Augenbrauen,
+      // kleine Augen und ein sichtbarer schiefer Mund.
+      body.lineStyle(3, 0x211b1d, 1);
+      body.lineBetween(-12, -60, -4, -57);
+      body.lineBetween(4, -57, 12, -60);
+
       body.fillStyle(0x17171a, 1);
-      body.fillRect(-9, -55, 4, 3);
-      body.fillRect(5, -55, 4, 3);
+      body.fillRect(-9, -55, 4, 2);
+      body.fillRect(5, -55, 4, 2);
+
+      body.lineStyle(2, 0x17171a, 1);
+      body.lineBetween(-5, -39, 5, -41);
 
       // Arme – kräftig und vor dem Körper zusammengeführt.
       body.fillStyle(0xc99473, 1);
@@ -735,7 +740,7 @@
     }
 
     openTicketModal() {
-      if (this.ticketModal || this.bouncerDialogueActive) return;
+      if (this.ticketModal || this.bouncerDialogueActive || this.fightActive) return;
 
       this.setUILocked(true);
 
@@ -760,19 +765,26 @@
       panel.lineStyle(3, 0x6b95aa, 0.9);
       panel.strokeRoundedRect(-251, -121, 502, 242, 13);
 
+      const backHitbox = this.add.zone(-188, -100, 185, 48)
+        .setInteractive({ useHandCursor: true });
+
       const back = this.add.text(-228, -103, "← ZURÜCK", {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: "9px",
         color: "#23485d",
         backgroundColor: "#d5e7e6",
-        padding: { x: 8, y: 7 }
-      })
-        .setInteractive({ useHandCursor: true });
-
-      back.on("pointerdown", (pointer) => {
-        pointer.event?.preventDefault?.();
-        this.closeTicketModal();
+        padding: { x: 12, y: 10 }
       });
+
+      const closeFromBack = (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.closeTicketModal();
+      };
+
+      backHitbox.on("pointerdown", closeFromBack);
+      back.setInteractive({ useHandCursor: true });
+      back.on("pointerdown", closeFromBack);
 
       const title = this.add.text(0, -72, "TICKETAUTOMAT", {
         fontFamily: '"Press Start 2P", monospace',
@@ -824,6 +836,7 @@
       modal.add([
         shade,
         panel,
+        backHitbox,
         back,
         title,
         ticketLine,
@@ -865,7 +878,7 @@
       this.ticketModal.destroy(true);
       this.ticketModal = null;
       this.ticketStatusText = null;
-      this.setUILocked(false);
+      this.setUILocked(this.bouncerDialogueActive || this.fightActive);
     }
 
     createSpeechBubble(x, y, text, tailOffset = 0) {
@@ -923,7 +936,12 @@
     }
 
     startBouncerDialogue() {
-      if (this.ticketModal || this.bouncerDialogueActive) return;
+      if (
+        this.ticketModal ||
+        this.bouncerDialogueActive ||
+        this.fightActive ||
+        this.fightFinished
+      ) return;
 
       this.setUILocked(true);
       this.bouncerDialogueActive = true;
@@ -937,12 +955,16 @@
 
       if (!this.bouncer || !this.player) return;
 
+      const bouncerX = this.bouncer.x - 52;
+      const bouncerY = this.bouncer.y - 122;
+      const simonY = this.player.y - 118;
+
       if (this.bouncerDialogueStep === 0) {
         this.bouncerDialogueBubble = this.createSpeechBubble(
-          this.bouncer.x - 42,
-          this.bouncer.y - 112,
+          bouncerX,
+          bouncerY,
           "was wetsch?",
-          55
+          58
         );
         return;
       }
@@ -950,7 +972,7 @@
       if (this.bouncerDialogueStep === 1) {
         this.bouncerDialogueBubble = this.createSpeechBubble(
           this.player.x,
-          this.player.y - 112,
+          simonY,
           "Wer wür Günne: 5 Türsteher, oder ein Leu?",
           0
         );
@@ -959,10 +981,40 @@
 
       if (this.bouncerDialogueStep === 2) {
         this.bouncerDialogueBubble = this.createSpeechBubble(
-          this.bouncer.x - 54,
-          this.bouncer.y - 122,
+          bouncerX,
+          bouncerY,
           "Was isch das für e Frag? Safe 5 Türsteher!",
           62
+        );
+        return;
+      }
+
+      if (this.bouncerDialogueStep === 3) {
+        this.bouncerDialogueBubble = this.createSpeechBubble(
+          this.player.x,
+          simonY,
+          "Ich glaub dir nöd",
+          0
+        );
+        return;
+      }
+
+      if (this.bouncerDialogueStep === 4) {
+        this.bouncerDialogueBubble = this.createSpeechBubble(
+          bouncerX - 18,
+          bouncerY - 4,
+          "Du huere Sackgsicht! Lueg guet ane, ich zeigs dir!",
+          76
+        );
+        return;
+      }
+
+      if (this.bouncerDialogueStep === 5) {
+        this.bouncerDialogueBubble = this.createSpeechBubble(
+          bouncerX - 25,
+          bouncerY - 8,
+          "Jungs chömed use, mir münd mal wieder en Leu zerstöre!",
+          76
         );
       }
     }
@@ -970,9 +1022,9 @@
     advanceBouncerDialogue() {
       if (!this.bouncerDialogueActive) return;
 
-      if (this.bouncerDialogueStep < 2) {
+      if (this.bouncerDialogueStep < 5) {
         this.bouncerDialogueStep += 1;
-        this.dialogueIgnoreUntil = this.time.now + 180;
+        this.dialogueIgnoreUntil = this.time.now + 190;
         this.showBouncerDialogueStep();
         return;
       }
@@ -980,7 +1032,365 @@
       this.clearBouncerBubble();
       this.bouncerDialogueActive = false;
       this.bouncerDialogueStep = 0;
-      this.setUILocked(false);
+      this.startFightSequence();
+    }
+
+    createFightBouncer(x, y, variant = 0) {
+      const container = this.add.container(x, y).setDepth(13);
+      const g = this.add.graphics();
+
+      const skinColors = [0xc99473, 0xb98264, 0xd0a181, 0xa9765b];
+      const hairColors = [0x221f22, 0x3a2c25, 0x17191c, 0x4a372a];
+      const skin = skinColors[variant % skinColors.length];
+      const hair = hairColors[variant % hairColors.length];
+
+      // Boots + Beine.
+      g.fillStyle(0x0b0c0f, 1);
+      g.fillRect(-17, 28, 13, 39);
+      g.fillRect(4, 28, 13, 39);
+      g.fillRect(-21, 64, 20, 9);
+      g.fillRect(1, 64, 22, 9);
+
+      // Schwarzes Security-Outfit.
+      g.fillStyle(0x15161a, 1);
+      g.fillRoundedRect(-29, -24, 58, 58, 9);
+      g.fillStyle(0x24262b, 1);
+      g.fillTriangle(-25, -18, -39, 9, -22, 12);
+      g.fillTriangle(25, -18, 39, 9, 22, 12);
+
+      // Kopf.
+      g.fillStyle(skin, 1);
+      g.fillRect(-7, -35, 14, 11);
+      g.fillRoundedRect(-15, -60, 30, 29, 7);
+
+      // Haare + Bart.
+      g.fillStyle(hair, 1);
+      g.fillRect(-14, -62, 28, 7);
+      g.fillRect(-12, -46, 24, 11);
+      g.fillTriangle(-11, -35, 0, -29, 11, -35);
+
+      // Genervte Augenbrauen.
+      g.lineStyle(3, hair, 1);
+      g.lineBetween(-11, -56, -4, -53);
+      g.lineBetween(4, -53, 11, -56);
+
+      g.fillStyle(0x151515, 1);
+      g.fillRect(-8, -51, 3, 2);
+      g.fillRect(5, -51, 3, 2);
+
+      // Fäuste / Arme.
+      g.fillStyle(skin, 1);
+      g.fillRoundedRect(-36, -8, 14, 36, 6);
+      g.fillRoundedRect(22, -8, 14, 36, 6);
+      g.fillCircle(-28, 25, 8);
+      g.fillCircle(28, 25, 8);
+
+      container.add(g);
+      container.setSize(78, 140);
+
+      return container;
+    }
+
+    createLion(x, y) {
+      const lion = this.add.container(x, y).setDepth(14);
+      const g = this.add.graphics();
+
+      // Schwanz.
+      g.lineStyle(7, 0xc78527, 1);
+      g.beginPath();
+      g.moveTo(33, 4);
+      g.lineTo(54, -10);
+      g.lineTo(61, -27);
+      g.strokePath();
+      g.fillStyle(0x70411f, 1);
+      g.fillCircle(62, -29, 7);
+
+      // Körper.
+      g.fillStyle(0xd99a31, 1);
+      g.fillRoundedRect(-15, -12, 58, 34, 12);
+
+      // Hinter- und Vorderbeine.
+      g.fillRect(20, 14, 10, 28);
+      g.fillRect(-8, 14, 10, 28);
+      g.fillStyle(0xbd7822, 1);
+      g.fillRect(18, 38, 15, 6);
+      g.fillRect(-10, 38, 15, 6);
+
+      // Mähne.
+      g.fillStyle(0x75411f, 1);
+      g.fillCircle(-23, -9, 29);
+      g.fillCircle(-34, -14, 17);
+      g.fillCircle(-17, -27, 18);
+
+      // Gesicht.
+      g.fillStyle(0xe5aa43, 1);
+      g.fillRoundedRect(-41, -23, 35, 31, 11);
+      g.fillStyle(0x2a2119, 1);
+      g.fillRect(-34, -12, 4, 3);
+      g.fillRect(-18, -12, 4, 3);
+      g.fillTriangle(-26, -4, -21, -4, -23, 1);
+
+      // Ohren.
+      g.fillStyle(0xc9852d, 1);
+      g.fillCircle(-38, -28, 8);
+      g.fillCircle(-10, -29, 8);
+
+      lion.add(g);
+      lion.setSize(115, 92);
+
+      // Kleine Laufbewegung.
+      this.tweens.add({
+        targets: lion,
+        y: y - 3,
+        duration: 240,
+        yoyo: true,
+        repeat: -1
+      });
+
+      return lion;
+    }
+
+    showImpact(x, y, word = "POW!") {
+      const hit = this.add.text(x, y, word, {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "11px",
+        color: "#fff1a8",
+        stroke: "#6b1f2b",
+        strokeThickness: 5
+      })
+        .setOrigin(0.5)
+        .setDepth(95)
+        .setAngle(-8);
+
+      this.tweens.add({
+        targets: hit,
+        y: y - 22,
+        scale: 1.25,
+        alpha: 0,
+        duration: 420,
+        onComplete: () => hit.destroy()
+      });
+    }
+
+    startFightSequence() {
+      if (this.fightActive || this.fightFinished) return;
+
+      this.fightActive = true;
+      this.setUILocked(true);
+
+      if (this.bouncer) {
+        this.tweens.killTweensOf(this.bouncer);
+        this.bouncer.disableInteractive();
+        this.bouncer.setScale(1);
+      }
+
+      // Kamera bleibt beim HIVE und Simon wird zum Zuschauer.
+      this.cameras.main.stopFollow();
+      this.cameras.main.pan(1745, GAME_HEIGHT / 2, 650, "Sine.easeInOut");
+
+      const doorX = 1700;
+      const exitY = GROUND_TOP - 63;
+      const targetXs = [1615, 1655, 1695, 1735];
+
+      const extras = targetXs.map((targetX, index) => {
+        const guard = this.createFightBouncer(doorX, exitY, index + 1);
+        guard.setAlpha(0);
+        guard.setScale(0.8);
+
+        this.tweens.add({
+          targets: guard,
+          alpha: 1,
+          scale: 1,
+          x: targetX,
+          duration: 520,
+          delay: index * 190,
+          ease: "Back.easeOut"
+        });
+
+        return guard;
+      });
+
+      this.fightBouncers = [...extras, this.bouncer].filter(Boolean);
+
+      // Der Löwe kommt klar von rechts ins Bild.
+      this.time.delayedCall(1250, () => {
+        const lion = this.createLion(2170, GROUND_TOP - 44);
+        this.fightLion = lion;
+
+        this.tweens.add({
+          targets: lion,
+          x: 1905,
+          duration: 1450,
+          ease: "Sine.easeInOut",
+          onComplete: () => {
+            this.time.delayedCall(280, () => this.runFightRounds());
+          }
+        });
+      });
+    }
+
+    runFightRounds() {
+      if (!this.fightLion || this.fightBouncers.length === 0) {
+        this.finishFightSequence();
+        return;
+      }
+
+      // Vor dem eigentlichen KO werfen alle kurz die Fäuste.
+      this.fightBouncers.forEach((guard, index) => {
+        if (!guard?.active) return;
+
+        this.tweens.add({
+          targets: guard,
+          x: guard.x + 12,
+          duration: 120,
+          yoyo: true,
+          repeat: 2,
+          delay: index * 65,
+          onYoyo: () => {
+            this.showImpact(
+              Math.min(guard.x + 45, this.fightLion.x - 28),
+              GROUND_TOP - 92,
+              index % 2 === 0 ? "POW!" : "BAM!"
+            );
+          }
+        });
+      });
+
+      this.time.delayedCall(850, () => {
+        const order = [...this.fightBouncers];
+        this.knockOutNextBouncer(order, 0);
+      });
+    }
+
+    knockOutNextBouncer(order, index) {
+      if (index >= order.length) {
+        this.time.delayedCall(550, () => this.finishFightSequence());
+        return;
+      }
+
+      const guard = order[index];
+      if (!guard?.active || !this.fightLion) {
+        this.knockOutNextBouncer(order, index + 1);
+        return;
+      }
+
+      const lion = this.fightLion;
+      const attackX = lion.x - 73 - (index % 2) * 12;
+
+      // Türsteher stürmt vor und schlägt.
+      this.tweens.add({
+        targets: guard,
+        x: attackX,
+        duration: 330,
+        ease: "Sine.easeIn",
+        onComplete: () => {
+          this.showImpact(lion.x - 42, lion.y - 28, "POW!");
+
+          this.tweens.add({
+            targets: guard,
+            x: guard.x + 12,
+            duration: 95,
+            yoyo: true,
+            repeat: 1
+          });
+
+          // Löwe kontert.
+          this.tweens.add({
+            targets: lion,
+            x: lion.x - 23,
+            angle: -4,
+            duration: 125,
+            yoyo: true,
+            onYoyo: () => {
+              this.showImpact(guard.x + 15, guard.y - 22, "RARR!");
+            },
+            onComplete: () => {
+              const fallDirection = index % 2 === 0 ? -1 : 1;
+
+              this.tweens.add({
+                targets: guard,
+                x: guard.x + fallDirection * (58 + index * 5),
+                y: GROUND_TOP - 15,
+                angle: fallDirection * (82 + index * 3),
+                duration: 420,
+                ease: "Quad.easeOut",
+                onComplete: () => {
+                  guard.y = GROUND_TOP - 15;
+                  this.time.delayedCall(
+                    260,
+                    () => this.knockOutNextBouncer(order, index + 1)
+                  );
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+
+    finishFightSequence() {
+      if (!this.fightLion) {
+        this.fightActive = false;
+        this.fightFinished = true;
+        this.setUILocked(false);
+        return;
+      }
+
+      const lion = this.fightLion;
+      this.tweens.killTweensOf(lion);
+
+      // Der Löwe setzt sich zwischen die besiegten Türsteher.
+      this.tweens.add({
+        targets: lion,
+        x: 1740,
+        y: GROUND_TOP - 37,
+        angle: 0,
+        duration: 720,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          lion.setScale(1.05, 0.9);
+
+          this.purrText = this.add.text(
+            lion.x + 8,
+            lion.y - 70,
+            "prrrr...",
+            {
+              fontFamily: '"Press Start 2P", monospace',
+              fontSize: "9px",
+              color: "#fff2c7",
+              stroke: "#5d3b22",
+              strokeThickness: 4
+            }
+          )
+            .setOrigin(0.5)
+            .setDepth(90);
+
+          this.tweens.add({
+            targets: [lion, this.purrText],
+            y: "-=2",
+            duration: 650,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+          });
+
+          this.tweens.add({
+            targets: this.purrText,
+            alpha: { from: 0.45, to: 1 },
+            duration: 700,
+            yoyo: true,
+            repeat: -1
+          });
+
+          this.fightActive = false;
+          this.fightFinished = true;
+          this.setUILocked(false);
+
+          // Wieder normale Kamera-Steuerung.
+          this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
+          this.cameras.main.setDeadzone(240, 80);
+        }
+      });
     }
 
     createGround() {
