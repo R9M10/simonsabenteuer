@@ -2,150 +2,17 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Simons Abenteuer">
   <meta name="theme-color" content="#060812">
-
   <title>Simons Abenteuer</title>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="dialog-fix.css?v=8">
-
-  <!-- DEVELOPER MODE START — kann später als Block entfernt werden -->
-  <style id="developer-mode-styles">
-    #developer-gate-screen,
-    #developer-menu-screen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 18px;
-      text-align: center;
-      padding: 24px;
-      background:
-        radial-gradient(circle at 50% 0%, #263a6f 0%, #111a35 48%, #080b17 100%);
-    }
-
-    .dev-title {
-      margin: 0;
-      color: #fff2c4;
-      font-size: clamp(1rem, 3.2vw, 1.65rem);
-      line-height: 1.35;
-      text-shadow: 4px 4px 0 #252b5e;
-    }
-
-    .dev-note {
-      margin: 0;
-      max-width: 560px;
-      color: #b9c3d4;
-      font-size: clamp(0.48rem, 1.2vw, 0.65rem);
-      line-height: 1.65;
-    }
-
-    .dev-toggle,
-    .dev-action {
-      appearance: none;
-      border: 3px solid #fff1c6;
-      background: #232a3a;
-      color: #fff1c6;
-      min-height: 48px;
-      padding: 10px 16px;
-      box-shadow: 5px 5px 0 #11162a;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-
-    .dev-toggle {
-      width: min(86%, 390px);
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-      gap: 18px;
-      text-align: left;
-      font-size: clamp(0.52rem, 1.35vw, 0.72rem);
-    }
-
-    #developer-toggle-state {
-      min-width: 58px;
-      padding: 8px 9px;
-      text-align: center;
-      background: #61353d;
-      color: #ffd6d6;
-      border: 2px solid #d98787;
-    }
-
-    .dev-toggle.is-on {
-      border-color: #c5f4ca;
-      background: #1d3528;
-    }
-
-    .dev-toggle.is-on #developer-toggle-state {
-      background: #2f6a43;
-      color: #d8ffe0;
-      border-color: #8fe0a1;
-    }
-
-    .dev-action {
-      min-width: 190px;
-      font-size: clamp(0.52rem, 1.35vw, 0.72rem);
-    }
-
-    .dev-action:active,
-    .dev-toggle:active {
-      transform: translate(3px, 3px);
-      box-shadow: 2px 2px 0 #11162a;
-    }
-
-    .dev-destinations {
-      width: min(92%, 560px);
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-
-    .dev-destination {
-      width: 100%;
-      text-align: left;
-      line-height: 1.45;
-    }
-
-    .dev-destination small {
-      display: block;
-      margin-top: 7px;
-      color: #b8c2d2;
-      font-size: 0.72em;
-      line-height: 1.5;
-    }
-
-    @media (max-height: 430px) {
-      #developer-gate-screen,
-      #developer-menu-screen {
-        gap: 11px;
-        padding: 15px 20px;
-      }
-
-      .dev-action,
-      .dev-toggle {
-        min-height: 42px;
-        padding-top: 7px;
-        padding-bottom: 7px;
-      }
-
-      .dev-destinations {
-        gap: 7px;
-      }
-    }
-  </style>
-  <!-- DEVELOPER MODE END -->
+  <link rel="stylesheet" href="dialog-fix.css?v=9">
 </head>
 <body>
   <div id="app-shell">
@@ -154,85 +21,20 @@
       <button id="start-button" type="button">Start</button>
     </main>
 
-
-    <!-- DEVELOPER MODE START — später zusammen mit dem CSS/JS-Block entfernbar -->
-    <main id="developer-gate-screen" class="screen hidden" aria-hidden="true">
-      <h2 class="dev-title">Developer Mode</h2>
-      <p class="dev-note">
-        Für normales Spielen auf AUS lassen. Auf AN kannst du direkt zu Testpunkten springen.
-      </p>
-
-      <button
-        id="developer-toggle"
-        class="dev-toggle"
-        type="button"
-        aria-pressed="false"
-      >
-        <span>DEVELOPER MODE</span>
-        <span id="developer-toggle-state">AUS</span>
-      </button>
-
-      <button id="developer-continue" class="dev-action" type="button">
-        WEITER
-      </button>
-    </main>
-
-    <main id="developer-menu-screen" class="screen hidden" aria-hidden="true">
-      <h2 class="dev-title">Sprungziel</h2>
-
-      <div class="dev-destinations">
-        <button
-          class="dev-action dev-destination"
-          type="button"
-          data-dev-target="lion-choice"
-        >
-          1. ZUR LÖWENAUSWAHL
-          <small>Direkt zu JA / NEIN / KÄMPFEN vor dem HIVE.</small>
-        </button>
-
-        <button
-          class="dev-action dev-destination"
-          type="button"
-          data-dev-target="hb"
-        >
-          2. BAHNHOFQUAI / HB
-          <small>Direkt die neue Ankunfts- und Aussteigsequenz testen.</small>
-        </button>
-
-        <button
-          class="dev-action dev-destination"
-          type="button"
-          data-dev-target="normal"
-        >
-          NORMALER START
-          <small>Zur ersten Dialogszene.</small>
-        </button>
-      </div>
-    </main>
-    <!-- DEVELOPER MODE END -->
-
     <main id="scene-screen" class="screen hidden" aria-hidden="true">
       <div class="scene-frame" id="scene-tap-area" role="button" aria-label="Szene antippen">
         <div class="scene-background" aria-hidden="true"></div>
         <div class="water-wall" aria-hidden="true"></div>
-
         <div class="characters" aria-hidden="true">
           <div class="dialog-character dialog-character-simon">
-            <img
-              src="simon-dialog-back-clean.png?v=8"
-              alt=""
-              class="dialog-character-image"
-              draggable="false"
-            >
+            <img src="simon-dialog-back-clean.png?v=9" alt="" class="dialog-character-image" draggable="false">
           </div>
-
           <div class="character character-right">
             <div class="head"></div>
             <div class="body"></div>
             <div class="legs"></div>
           </div>
         </div>
-
         <div class="speech-bubble" id="speech-bubble">
           <p id="speech-text">Dini Schueh sind nice!</p>
         </div>
@@ -251,8 +53,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-  <script src="game.js?v=10"></script>
-  <script src="animation-fix.js?v=10"></script>
-  <script src="script.js?v=10"></script>
+  <script src="game.js"></script>
+  <script src="animation-fix.js?v=9"></script>
+  <script src="hive-expansion.js?v=9"></script>
+  <script src="script.js"></script>
 </body>
 </html>
