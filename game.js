@@ -415,6 +415,23 @@
         return;
       }
 
+      const hiveScene = this.game.scene.keys.HiveInteriorScene;
+
+      // HiveInteriorScene is reused by Phaser. v14.2 sets __leaving=true
+      // when leaving and otherwise keeps that value forever, making the
+      // STRASSE button inert on the next visit. Reset all transient exit/UI
+      // flags before starting the existing latest HIVE scene again.
+      if (hiveScene) {
+        hiveScene.__leaving = false;
+        hiveScene.modalOpen = false;
+        hiveScene.currentModal = null;
+        hiveScene.actionLocked = false;
+        hiveScene.touchLeft = false;
+        hiveScene.touchRight = false;
+        hiveScene.touchDance = false;
+        hiveScene.introDancing = false;
+      }
+
       this.setUILocked(true);
       this.scene.pause();
 
@@ -1232,13 +1249,14 @@
         g.fillStyle(0xf2c7a1, 0.85);
         g.fillRect(-7, -15, 14, 2);
       } else if (key === "camel") {
-        // Einzelne Zigarette als Item-Symbol.
-        g.fillStyle(0xf3efe2, 1);
-        g.fillRoundedRect(-16, -4, 23, 8, 2);
+        // Einzelne Zigarette als Item-Symbol, von links nach rechts:
+        // Filter links, glühende Spitze rechts.
         g.fillStyle(0xc58a48, 1);
-        g.fillRect(7, -4, 9, 8);
+        g.fillRect(-16, -4, 9, 8);
+        g.fillStyle(0xf3efe2, 1);
+        g.fillRoundedRect(-7, -4, 23, 8, 2);
         g.fillStyle(0xe34f35, 1);
-        g.fillRect(-19, -3, 3, 6);
+        g.fillRect(16, -3, 3, 6);
         g.lineStyle(1, 0x675b48, 1);
         g.strokeRoundedRect(-16, -4, 32, 8, 2);
       }
@@ -1363,19 +1381,19 @@
         const filter = document.createElement("span");
         Object.assign(filter.style, {
           position: "absolute",
-          right: "-1px",
+          left: "-1px",
           top: "-1px",
           width: "10px",
           height: "8px",
           background: "#c58a48",
-          borderLeft: "1px solid #795730",
+          borderRight: "1px solid #795730",
           boxSizing: "border-box"
         });
 
         const ember = document.createElement("span");
         Object.assign(ember.style, {
           position: "absolute",
-          left: "-4px",
+          right: "-4px",
           top: "1px",
           width: "4px",
           height: "4px",
@@ -1795,12 +1813,12 @@
       ).setDepth(85);
 
       const cig = this.add.graphics();
-      cig.fillStyle(0xf1eee2, 1);
-      cig.fillRect(-9, -2, 15, 4);
       cig.fillStyle(0xc78a44, 1);
-      cig.fillRect(6, -2, 5, 4);
+      cig.fillRect(-11, -2, 5, 4);
+      cig.fillStyle(0xf1eee2, 1);
+      cig.fillRect(-6, -2, 15, 4);
       cig.fillStyle(0xe34f35, 1);
-      cig.fillRect(-11, -2, 2, 4);
+      cig.fillRect(9, -2, 2, 4);
       cigarette.add(cig);
 
       const startPlayerY = this.player.y;
@@ -1934,18 +1952,18 @@
         const filter = document.createElement("span");
         Object.assign(filter.style, {
           position: "absolute",
-          right: "-1px",
+          left: "-1px",
           top: "-1px",
           width: "9px",
           height: "6px",
           background: "#c78a44",
-          borderLeft: "1px solid #75522e"
+          borderRight: "1px solid #75522e"
         });
 
         const ember = document.createElement("span");
         Object.assign(ember.style, {
           position: "absolute",
-          left: "-4px",
+          right: "-4px",
           top: "0px",
           width: "4px",
           height: "4px",
@@ -4293,6 +4311,7 @@
       this.milkmanLootModal = null;
       this.milkBottles = [];
       this.nextMilkBottleAt = 0;
+      this.milkBottleThrowCount = 0;
       this.nextMilkmanPunchAt = 0;
     }
 
@@ -6189,7 +6208,9 @@
 
       this.milkmanFightActive = true;
       this.milkmanHp = this.milkmanMaxHp;
-      this.nextMilkBottleAt = this.time.now + 750;
+      this.milkBottleThrowCount = 0;
+      this.nextMilkBottleAt =
+        this.time.now + Phaser.Math.Between(1000, 3000);
       this.nextMilkmanPunchAt = 0;
 
       this.createMilkmanHealthBar();
@@ -6259,30 +6280,69 @@
         return;
       }
 
+      this.milkBottleThrowCount += 1;
+      const isSuperMilk = this.milkBottleThrowCount % 3 === 0;
+      const damage = isSuperMilk ? 20 : 10;
+
       const direction = this.player.x < this.milkman.x ? -1 : 1;
       this.faceMilkmanTowardSimon();
 
       const bottle = this.add.container(
         this.milkman.x + direction * 28,
-        GROUND_TOP - 30
+        GROUND_TOP - (isSuperMilk ? 35 : 30)
       ).setDepth(28);
 
       const g = this.add.graphics();
-      g.fillStyle(0xf5f6ef, 1);
-      g.fillRoundedRect(-7, -12, 14, 24, 4);
-      g.fillRect(-4, -18, 8, 7);
-      g.fillStyle(0x80acd1, 1);
-      g.fillRect(-5, -3, 10, 8);
-      g.lineStyle(2, 0x80919a, 1);
-      g.strokeRoundedRect(-7, -12, 14, 24, 4);
-      bottle.add(g);
+
+      if (isSuperMilk) {
+        // Every third projectile is visibly larger and more dangerous.
+        g.fillStyle(0xffffff, 1);
+        g.fillRoundedRect(-10, -17, 20, 34, 5);
+        g.fillRect(-6, -26, 12, 10);
+        g.fillStyle(0x70c7ff, 1);
+        g.fillRect(-8, -5, 16, 12);
+        g.fillStyle(0xffdf5b, 1);
+        g.fillRect(-8, 8, 16, 5);
+        g.lineStyle(3, 0x4e86a8, 1);
+        g.strokeRoundedRect(-10, -17, 20, 34, 5);
+
+        const superLabel = this.add.text(0, -39, "SUPER MILCH", {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "5.5px",
+          color: "#fff5b8",
+          stroke: "#235a79",
+          strokeThickness: 3
+        })
+          .setOrigin(0.5)
+          .setDepth(29);
+
+        bottle.add([g, superLabel]);
+      } else {
+        g.fillStyle(0xf5f6ef, 1);
+        g.fillRoundedRect(-7, -12, 14, 24, 4);
+        g.fillRect(-4, -18, 8, 7);
+        g.fillStyle(0x80acd1, 1);
+        g.fillRect(-5, -3, 10, 8);
+        g.lineStyle(2, 0x80919a, 1);
+        g.strokeRoundedRect(-7, -12, 14, 24, 4);
+        bottle.add(g);
+      }
 
       this.physics.add.existing(bottle);
-      bottle.body.setSize(16, 34);
+
+      if (isSuperMilk) {
+        bottle.body.setSize(24, 48);
+      } else {
+        bottle.body.setSize(16, 34);
+      }
+
       bottle.body.setAllowGravity(false);
-      bottle.body.setVelocityX(direction * 225);
+      bottle.body.setVelocityX(direction * (isSuperMilk ? 205 : 225));
 
       bottle.__milkHit = false;
+      bottle.__milkDamage = damage;
+      bottle.__superMilk = isSuperMilk;
+
       this.milkBottles.push(bottle);
 
       this.physics.add.overlap(
@@ -6305,12 +6365,23 @@
       }
 
       bottle.__milkHit = true;
+
+      const damage = Number(bottle.__milkDamage) || 10;
+      const isSuperMilk = Boolean(bottle.__superMilk);
+
       bottle.destroy(true);
 
-      this.hp = Math.max(0, this.hp - 10);
+      this.hp = Math.max(0, this.hp - damage);
       this.updateHpBar();
-      this.showImpact(this.player.x, this.player.y - 55, "-10");
-      this.cameras.main.shake(110, 0.006);
+      this.showImpact(
+        this.player.x,
+        this.player.y - 55,
+        isSuperMilk ? "-20 SUPER!" : "-10"
+      );
+      this.cameras.main.shake(
+        isSuperMilk ? 170 : 110,
+        isSuperMilk ? 0.010 : 0.006
+      );
 
       if (this.hp <= 0) {
         this.killSimonAndRestart();
@@ -6389,8 +6460,11 @@
       this.updateMilkmanHealthBar();
 
       if (time >= this.nextMilkBottleAt) {
-        this.nextMilkBottleAt = time + 2000;
         this.createMilkBottleProjectile();
+
+        // Fresh random gap after each throw: inclusive 1.0–3.0 seconds.
+        this.nextMilkBottleAt =
+          time + Phaser.Math.Between(1000, 3000);
       }
 
       // Remove projectiles that have left the active world/camera area.
