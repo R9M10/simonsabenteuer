@@ -1,85 +1,90 @@
-# Simons Abenteuer – Bahnhofstrasse/HB + Der Inder
+# Simons Abenteuer – Store Items, Drink-System, Developer Coins
 
-Diese Änderung wurde auf Basis der unmittelbar zuvor aus GitHub gelesenen
-aktuellen Version erstellt.
+Diese Änderung wurde **nach erneutem Lesen des aktuellen GitHub-Standes** gebaut.
 
-Verifizierte Ausgangs-Blobs:
+Verifizierter Ausgangsstand:
 
-- `game.js`: `9e6cf2e15c16dfdd0b413d11c4e883ccade5ef7f`
-- `index.html`: `5dedcbd0cee1a9baec2ead0a3fd49f23dc6a708b`
+- `game.js`: `6294ecac35c6fac0fad6f692c2a98ac7a9c3e865`
+- `index.html`: `33c38745473e3760d10b416023a279397df7f33d`
 - `script.js`: `039f3ab8e7127a8bd145e23e7be069d00a181df0`
-- `animation-fix.js`: `fa867f55cf726be98c9cdecae59eb952ebb18b14`
 
-Damit bleiben die zwischenzeitlichen Änderungen der anderen Bearbeiterin erhalten.
+Die neuen Dateien deiner Freundin bleiben erhalten und werden nicht ersetzt:
 
-## Dateien ersetzen
+- `hive-expansion.js?v=13`
+- `flight-intro.js?v=13`
 
-Nur:
+## Zu ersetzen
 
 - `game.js`
 - `index.html`
+- `script.js`
 
 ## Änderungen
 
-### Station
-
-Die sichtbare Station heißt jetzt:
-
-`BAHNHOFSTRASSE/HB`
-
-Der komplette Name steht in **einem einzigen blauen Haltestellenschild**.
-Die separate weiße `/ HB`-Tafel wurde entfernt.
-
-Auch das Developer-Menü nennt das Sprungziel jetzt
-`BAHNHOFSTRASSE / HB`.
-
 ### Der Inder
 
-Direkt rechts neben der Haltestelle steht ein kleiner Laden:
+- Der Laden steht jetzt deutlich weiter rechts von der Haltestelle.
+- Er liegt visuell wie das HIVE weiter hinten in der Welt.
+- Gemüseauslage und Ladenfassade liegen hinter Simon bzw. der Straßenebene.
+- Im Laden gibt es keinen sichtbaren `EINKAUFEN`-Button mehr.
+- Stattdessen öffnet ein Tap direkt auf den Verkäufer das Einkaufsfenster.
+- Während das Einkaufsfenster offen ist, liegt kein alter Ladenbutton mehr darüber.
+- Im Einkaufsfenster gibt es nur `← LADEN`.
+- Im Laden selbst bleibt `← STRASSE` erhalten.
 
-`DER INDER`
+### Neue Store-Items
 
-Die Fassade ist warm, arcadeartig und mit ornamentalen Farbbändern,
-Schaufenstern und Gemüseauslage gestaltet. Vor dem Laden liegen u.a.
-Auberginen, grüne Gemüse/Chilis, Tomaten und kleine Gewürzsäcke.
+#### Gatorade
+- giftgrüne Flasche
+- Preis: 10 Coins
+- regeneriert 10 HP
+- wird beim Trinken verbraucht
 
-Die gesamte Ladenfassade ist großzügig anklickbar.
+#### Monster Energy
+- orange Dose
+- Preis: 30 Coins
+- regeneriert 30 HP
+- wird beim Trinken verbraucht
 
-Beim Anklicken:
+Beide Items können mehrfach gekauft werden.
 
-`Betreten?`
+### Items / Ausrüsten
 
-mit:
+Gekaufte Getränke erscheinen unter `ITEMS`.
 
-- `JA`
-- `NEIN`
+Jedes Item kann dort:
+- über `AUSRÜSTEN` in die Hotbar gelegt werden
+- über das kleine `i` erklärt werden
 
-### Innenraum
+Auch das Ticket besitzt jetzt ein kleines `i`.
 
-Bei `JA` geht Simon in den Laden.
+### Hotbar / Trinken
 
-Dort:
+- Gatorade und Monster erscheinen nach dem Ausrüsten in der bestehenden Hotbar.
+- Tap auf ein Getränk in der Hotbar startet eine Trinkanimation:
+  - Flasche/Dose bewegt sich zu Simons Mund
+  - kippt sichtbar
+  - Simon bewegt sich dabei leicht
+  - anschließend wird HP regeneriert
+  - das verbrauchte Item wird aus dem Inventar abgezogen
+- Ist der Bestand danach 0, verschwindet das Item automatisch aus der Hotbar.
 
-- steht ein indischer Verkäufer hinter dem Tresen,
-- er sagt in einer Sprechblase `Guter Kunde, Guter Kunde`,
-- am Tresen gibt es den robusten Button `EINKAUFEN`,
-- oben links gibt es jederzeit `← STRASSE`.
+### Developer Mode
 
-### Einkaufen
+Wenn Developer Mode AN ist:
+- wird intern ein sehr großer Coin-Vorrat verwendet
+- das normale Coin-HUD zeigt `∞`
+- Ticketkäufe und die neuen Store-Items ziehen keine Coins ab
+- auch ein normaler Story-Start über das Developer-Menü behält den Developer-Status
 
-`EINKAUFEN` öffnet bereits ein erstes Item-Fenster mit leeren Slots.
-Die eigentlichen kaufbaren Items bauen wir später aus.
+### Info-Buttons
 
-Im Einkaufsfenster gibt es:
+Im Store und im Items-Menü hat jedes relevante Item ein kleines `i`.
+Dort werden Preis/Wirkung bzw. die Funktion des Items erklärt.
 
-- `← LADEN`
-- `STRASSE`
+## Cache
 
-Dadurch gibt es sowohl aus dem Laden als auch direkt aus dem Item-Fenster
-immer einen zuverlässigen Weg zurück auf die Straße.
+- `game.js?v=12`
+- `script.js?v=11`
 
-Alle neuen Menübuttons verwenden wieder das bereits etablierte native
-HTML-Button-System über Phaser, damit die iPhone-Touchbedienung stabil bleibt.
-
-`index.html` lädt die neue `game.js` als `game.js?v=11`, um iPhone-Caching
-der alten Spiellogik zu vermeiden.
+Die Versionen von `hive-expansion.js` und `flight-intro.js` bleiben unverändert.

@@ -7,13 +7,18 @@
   const GROUND_TOP = 338;
 
   let game = null;
-  let pendingStartOptions = { startMode: "normal" };
+  let pendingStartOptions = {
+    startMode: "normal",
+    developerMode: false
+  };
 
   class MilchbuckScene extends Phaser.Scene {
     constructor(sceneKey = "MilchbuckScene") {
       super(sceneKey);
 
       this.startMode = "normal";
+      this.developerMode = false;
+
       this.player = null;
       this.cursors = null;
       this.keyA = null;
@@ -69,8 +74,19 @@
       this.itemsButton = null;
       this.itemsModal = null;
       this.itemsTicketBadge = null;
+      this.itemInfoModal = null;
+
+      this.inventory = {
+        gatorade: 0,
+        monster: 0
+      };
+
       this.hotbarContainer = null;
-      this.hotbarTicketIcon = null;
+      this.hotbarSlotCenters = [];
+      this.hotbarItems = [null, null, null, null, null, null];
+      this.hotbarDynamicObjects = [];
+
+      this.drinkingItem = false;
 
       this.lootModal = null;
       this.bouncerTipStolen = false;
@@ -100,6 +116,12 @@
     create() {
       this.input.addPointer(3);
       this.startMode = pendingStartOptions?.startMode || "normal";
+      this.developerMode = Boolean(pendingStartOptions?.developerMode) ||
+        this.startMode !== "normal";
+
+      if (this.developerMode) {
+        this.coins = 999999;
+      }
 
       const domRoot = document.getElementById("phaser-game");
       domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
@@ -141,10 +163,13 @@
       // exakt dieselben wie im normalen Spiel.
       if (this.startMode === "hb") {
         this.scene.start("BahnhofquaiScene", {
-          coins: 0,
+          coins: 999999,
           hp: this.maxHp,
           hasCityTicket: true,
-          fromDeveloperMode: true
+          fromDeveloperMode: true,
+          developerMode: true,
+          inventory: { ...this.inventory },
+          hotbarItems: ["ticket", null, null, null, null, null]
         });
         return;
       }
@@ -853,7 +878,7 @@
 
     updateCoinHUD() {
       if (this.coinText) {
-        this.coinText.setText(String(this.coins));
+        this.coinText.setText(this.developerMode ? "∞" : String(this.coins));
       }
     }
 
@@ -895,6 +920,175 @@
       return icon;
     }
 
+    getItemDefinition(key) {
+      const definitions = {
+        ticket: {
+          name: "Ticket",
+          description: "Erlaubt Simon, die Tram zu benutzen. Das Ticket wird nicht verbraucht."
+        },
+        gatorade: {
+          name: "Gatorade",
+          price: 10,
+          heal: 10,
+          description: "Giftgrünes Gatorade. Regeneriert 10 Leben und wird danach verbraucht."
+        },
+        monster: {
+          name: "Monster Energy",
+          price: 30,
+          heal: 30,
+          description: "Orange Dose Monster Energy. Regeneriert 30 Leben und wird danach verbraucht."
+        }
+      };
+
+      return definitions[key] || null;
+    }
+
+    getItemCount(key) {
+      if (key === "ticket") return this.hasCityTicket ? 1 : 0;
+      return Math.max(0, Number(this.inventory?.[key]) || 0);
+    }
+
+    createWorldItemIcon(key, x = 0, y = 0, scale = 1) {
+      if (key === "ticket") {
+        return this.createTicketIcon(x, y, scale);
+      }
+
+      const icon = this.add.container(x, y);
+      const g = this.add.graphics();
+
+      if (key === "gatorade") {
+        // Giftgrüne Flasche.
+        g.fillStyle(0x15181a, 1);
+        g.fillRect(-4, -17, 8, 5);
+        g.fillStyle(0xa8ff2d, 1);
+        g.fillRect(-6, -13, 12, 7);
+        g.fillRoundedRect(-10, -7, 20, 26, 4);
+        g.fillStyle(0xd7ff68, 1);
+        g.fillRect(-6, -3, 12, 8);
+        g.lineStyle(2, 0x33411d, 1);
+        g.strokeRoundedRect(-10, -7, 20, 26, 4);
+      } else if (key === "monster") {
+        // Orange Dose.
+        g.fillStyle(0xe97824, 1);
+        g.fillRoundedRect(-10, -18, 20, 37, 4);
+        g.lineStyle(2, 0x512714, 1);
+        g.strokeRoundedRect(-10, -18, 20, 37, 4);
+        g.fillStyle(0x1e1d1d, 1);
+        g.fillRect(-5, -9, 3, 20);
+        g.fillRect(1, -12, 3, 23);
+        g.fillRect(6, -7, 2, 17);
+        g.fillStyle(0xf2c7a1, 0.85);
+        g.fillRect(-7, -15, 14, 2);
+      }
+
+      icon.add(g);
+      icon.setScale(scale);
+      return icon;
+    }
+
+    createDOMItemIcon(key, size = 44) {
+      const outer = document.createElement("div");
+
+      Object.assign(outer.style, {
+        width: `${size}px`,
+        height: `${size}px`,
+        display: "grid",
+        placeItems: "center",
+        margin: "0 auto",
+        position: "relative",
+        flex: "0 0 auto"
+      });
+
+      if (key === "ticket") {
+        const ticket = document.createElement("div");
+        Object.assign(ticket.style, {
+          width: "34px",
+          height: "23px",
+          background: "#ffe1a1",
+          border: "2px solid #6c5230",
+          borderRadius: "5px",
+          boxSizing: "border-box",
+          position: "relative"
+        });
+
+        const cut = document.createElement("div");
+        Object.assign(cut.style, {
+          position: "absolute",
+          left: "10px",
+          top: "2px",
+          bottom: "2px",
+          borderLeft: "2px dashed #b68b48"
+        });
+
+        ticket.appendChild(cut);
+        outer.appendChild(ticket);
+        return outer;
+      }
+
+      if (key === "gatorade") {
+        const bottle = document.createElement("div");
+        Object.assign(bottle.style, {
+          width: "20px",
+          height: "31px",
+          marginTop: "8px",
+          background: "#a8ff2d",
+          border: "2px solid #33411d",
+          borderRadius: "5px 5px 6px 6px",
+          position: "relative",
+          boxSizing: "border-box"
+        });
+
+        const neck = document.createElement("div");
+        Object.assign(neck.style, {
+          position: "absolute",
+          left: "4px",
+          top: "-9px",
+          width: "8px",
+          height: "9px",
+          background: "#a8ff2d",
+          border: "2px solid #33411d",
+          borderBottom: "0"
+        });
+
+        const label = document.createElement("div");
+        Object.assign(label.style, {
+          position: "absolute",
+          left: "3px",
+          right: "3px",
+          top: "9px",
+          height: "8px",
+          background: "#d7ff68"
+        });
+
+        bottle.append(neck, label);
+        outer.appendChild(bottle);
+        return outer;
+      }
+
+      if (key === "monster") {
+        const can = document.createElement("div");
+        Object.assign(can.style, {
+          width: "21px",
+          height: "37px",
+          background: "#e97824",
+          border: "2px solid #512714",
+          borderRadius: "5px",
+          boxSizing: "border-box",
+          color: "#1d1b1b",
+          display: "grid",
+          placeItems: "center",
+          fontFamily: "monospace",
+          fontWeight: "900",
+          fontSize: "16px"
+        });
+        can.textContent = "M";
+        outer.appendChild(can);
+        return outer;
+      }
+
+      return outer;
+    }
+
     createHotbar() {
       this.hotbarContainer = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 25)
         .setScrollFactor(0)
@@ -910,31 +1104,258 @@
       bar.fillStyle(0x15171a, 0.78);
       bar.fillRoundedRect(startX - 6, -24, totalWidth + 12, 48, 5);
 
+      this.hotbarSlotCenters = [];
+
       for (let i = 0; i < slotCount; i += 1) {
-        const x = startX + i * (slotSize + gap);
+        const left = startX + i * (slotSize + gap);
+        const center = left + slotSize / 2;
+        this.hotbarSlotCenters.push(center);
+
         bar.fillStyle(i === 0 ? 0x3b3b35 : 0x292b2d, 0.94);
-        bar.fillRect(x, -19, slotSize, slotSize);
+        bar.fillRect(left, -19, slotSize, slotSize);
         bar.lineStyle(i === 0 ? 3 : 2, i === 0 ? 0xf3e3a5 : 0x858585, 0.9);
-        bar.strokeRect(x, -19, slotSize, slotSize);
+        bar.strokeRect(left, -19, slotSize, slotSize);
       }
 
       this.hotbarContainer.add(bar);
+      this.refreshHotbar();
+    }
 
-      this.hotbarTicketIcon = this.createTicketIcon(startX + slotSize / 2, 0, 0.8)
-        .setVisible(false);
-      this.hotbarContainer.add(this.hotbarTicketIcon);
+    refreshHotbar() {
+      if (!this.hotbarContainer) return;
+
+      this.hotbarDynamicObjects.forEach((object) => {
+        object?.destroy?.(true);
+      });
+      this.hotbarDynamicObjects = [];
+
+      this.hotbarItems = Array.isArray(this.hotbarItems)
+        ? this.hotbarItems.slice(0, 6)
+        : [];
+
+      while (this.hotbarItems.length < 6) {
+        this.hotbarItems.push(null);
+      }
+
+      // Nicht mehr vorhandene Verbrauchsitems verschwinden aus der Hotbar.
+      this.hotbarItems = this.hotbarItems.map((key) => {
+        if (!key) return null;
+        if (key === "ticket") return this.hasCityTicket ? key : null;
+        return this.getItemCount(key) > 0 ? key : null;
+      });
+
+      this.hotbarItems.forEach((key, index) => {
+        if (!key) return;
+
+        const x = this.hotbarSlotCenters[index] ?? 0;
+        const icon = this.createWorldItemIcon(key, x, 0, key === "ticket" ? 0.72 : 0.72);
+        this.hotbarContainer.add(icon);
+        this.hotbarDynamicObjects.push(icon);
+
+        const count = this.getItemCount(key);
+        if (key !== "ticket" && count > 1) {
+          const qty = this.add.text(x + 11, 12, String(count), {
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "6px",
+            color: "#ffffff",
+            stroke: "#171717",
+            strokeThickness: 3
+          })
+            .setOrigin(0.5)
+            .setDepth(320);
+
+          this.hotbarContainer.add(qty);
+          this.hotbarDynamicObjects.push(qty);
+        }
+
+        const zone = this.add.zone(x, 0, 36, 36)
+          .setInteractive({ useHandCursor: key !== "ticket" });
+
+        if (key !== "ticket") {
+          zone.on("pointerup", (pointer) => {
+            pointer.event?.preventDefault?.();
+            pointer.event?.stopPropagation?.();
+            this.consumeHotbarItem(index);
+          });
+        }
+
+        this.hotbarContainer.add(zone);
+        this.hotbarDynamicObjects.push(zone);
+      });
     }
 
     updateInventoryUI() {
-      const hasTicket = Boolean(this.hasCityTicket);
+      this.itemsTicketBadge?.setVisible(Boolean(this.hasCityTicket));
 
-      this.itemsTicketBadge?.setVisible(hasTicket);
-      this.hotbarTicketIcon?.setVisible(hasTicket);
+      if (this.hasCityTicket) {
+        this.equipTicketToHotbar();
+      }
+
+      this.refreshHotbar();
     }
 
     equipTicketToHotbar() {
       if (!this.hasCityTicket) return;
-      this.hotbarTicketIcon?.setVisible(true);
+
+      const currentIndex = this.hotbarItems.indexOf("ticket");
+      if (currentIndex === 0) {
+        this.refreshHotbar();
+        return;
+      }
+
+      if (currentIndex > 0) {
+        this.hotbarItems[currentIndex] = this.hotbarItems[0] || null;
+      } else if (this.hotbarItems[0] && this.hotbarItems[0] !== "ticket") {
+        const free = this.hotbarItems.findIndex((item, index) => index > 0 && !item);
+        if (free > 0) this.hotbarItems[free] = this.hotbarItems[0];
+      }
+
+      this.hotbarItems[0] = "ticket";
+      this.refreshHotbar();
+    }
+
+    equipItemToHotbar(key) {
+      if (!["gatorade", "monster"].includes(key)) return;
+      if (this.getItemCount(key) <= 0) return;
+
+      const existing = this.hotbarItems.indexOf(key);
+      if (existing >= 0) {
+        this.refreshHotbar();
+        return;
+      }
+
+      const startIndex = this.hasCityTicket ? 1 : 0;
+      let free = -1;
+
+      for (let i = startIndex; i < this.hotbarItems.length; i += 1) {
+        if (!this.hotbarItems[i]) {
+          free = i;
+          break;
+        }
+      }
+
+      if (free < 0) {
+        // Falls alle Slots voll sind, wird der letzte Verbrauchs-Slot ersetzt.
+        free = this.hotbarItems.length - 1;
+      }
+
+      this.hotbarItems[free] = key;
+      this.refreshHotbar();
+    }
+
+    removeItemFromHotbar(key) {
+      this.hotbarItems = this.hotbarItems.map((item) => item === key ? null : item);
+      this.refreshHotbar();
+    }
+
+    consumeHotbarItem(index) {
+      if (
+        this.uiLocked ||
+        this.drinkingItem ||
+        this.playerDying ||
+        !this.player?.visible
+      ) {
+        return;
+      }
+
+      const key = this.hotbarItems[index];
+      if (!["gatorade", "monster"].includes(key)) return;
+      if (this.getItemCount(key) <= 0) return;
+
+      this.playDrinkAnimation(key);
+    }
+
+    playDrinkAnimation(key) {
+      const item = this.getItemDefinition(key);
+      if (!item || this.getItemCount(key) <= 0) return;
+
+      this.drinkingItem = true;
+      this.refreshUILock();
+
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+
+      const direction = this.facing < 0 ? -1 : 1;
+      const startX = this.player.x + direction * 28;
+      const startY = this.player.y - 52;
+      const icon = this.createWorldItemIcon(key, startX, startY, 0.85)
+        .setDepth(55);
+
+      const originalAngle = this.player.angle;
+
+      this.tweens.add({
+        targets: this.player,
+        angle: -direction * 6,
+        y: this.player.y - 3,
+        duration: 220,
+        yoyo: true,
+        repeat: 1,
+        ease: "Sine.easeInOut"
+      });
+
+      this.tweens.add({
+        targets: icon,
+        x: this.player.x + direction * 8,
+        y: this.player.y - 84,
+        angle: direction * 72,
+        duration: 330,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          this.tweens.add({
+            targets: icon,
+            y: icon.y + 4,
+            angle: direction * 95,
+            duration: 210,
+            yoyo: true,
+            repeat: 1,
+            onComplete: () => {
+              this.inventory[key] = Math.max(0, this.getItemCount(key) - 1);
+
+              const oldHp = this.hp;
+              this.hp = Math.min(this.maxHp, this.hp + item.heal);
+              const healed = this.hp - oldHp;
+              this.updateHpBar();
+
+              if (this.getItemCount(key) <= 0) {
+                this.removeItemFromHotbar(key);
+              } else {
+                this.refreshHotbar();
+              }
+
+              const healText = this.add.text(
+                this.player.x,
+                this.player.y - 98,
+                `+${healed} HP`,
+                {
+                  fontFamily: '"Press Start 2P", monospace',
+                  fontSize: "8px",
+                  color: "#b9ff8b",
+                  stroke: "#24411d",
+                  strokeThickness: 4
+                }
+              )
+                .setOrigin(0.5)
+                .setDepth(70);
+
+              this.tweens.add({
+                targets: healText,
+                y: healText.y - 22,
+                alpha: 0,
+                duration: 780,
+                onComplete: () => healText.destroy()
+              });
+
+              icon.destroy(true);
+              this.player.setAngle(originalAngle);
+              this.player.play("simon-idle", true);
+
+              this.drinkingItem = false;
+              this.updateInventoryUI();
+              this.refreshUILock();
+            }
+          });
+        }
+      });
     }
 
     getDOMUIRoot() {
@@ -1136,21 +1557,162 @@
       return button;
     }
 
+    createInfoButton(itemKey) {
+      return this.createDOMButton("i", () => this.openItemInfo(itemKey), {
+        color: "#fff5d6",
+        background: "#3d4854",
+        border: "#8c9bab",
+        width: "34px",
+        minHeight: "34px",
+        fontSize: "10px",
+        padding: "4px"
+      });
+    }
+
+    openItemInfo(itemKey) {
+      const item = this.getItemDefinition(itemKey);
+      if (!item || this.itemInfoModal) return;
+
+      const modal = this.createDOMModal({
+        key: "item-info",
+        width: "min(86%, 410px)",
+        background: "#ece1c4",
+        border: "#4b5560",
+        shade: "rgba(5, 6, 11, 0.58)",
+        padding: "18px"
+      });
+
+      if (!modal) return;
+
+      modal.overlay.style.zIndex = "100040";
+      this.itemInfoModal = modal;
+
+      const icon = this.createDOMItemIcon(itemKey, 52);
+
+      const title = this.createDOMText(item.name, {
+        fontSize: "13px",
+        color: "#2f363c",
+        margin: "6px 0 13px"
+      });
+
+      const description = this.createDOMText(item.description, {
+        fontSize: "7px",
+        color: "#4f4940",
+        margin: "0 0 16px",
+        lineHeight: "1.75"
+      });
+
+      const close = this.createDOMButton("OK", () => this.closeItemInfo(), {
+        color: "#fff4cf",
+        background: "#3d4854",
+        border: "#8c9bab",
+        width: "120px",
+        fontSize: "9px"
+      });
+      close.style.margin = "0 auto";
+
+      modal.panel.append(icon, title, description, close);
+      this.refreshUILock();
+    }
+
+    closeItemInfo() {
+      if (!this.itemInfoModal) return;
+
+      this.destroyDOMModal(this.itemInfoModal);
+      this.itemInfoModal = null;
+      this.refreshUILock();
+    }
+
+    createInventoryCard(itemKey) {
+      const item = this.getItemDefinition(itemKey);
+      const count = this.getItemCount(itemKey);
+      if (!item || count <= 0) return null;
+
+      const card = document.createElement("div");
+      Object.assign(card.style, {
+        minWidth: "0",
+        padding: "9px 7px",
+        border: "2px solid #68727b",
+        background: "#111418",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "6px",
+        boxSizing: "border-box"
+      });
+
+      const header = document.createElement("div");
+      Object.assign(header.style, {
+        width: "100%",
+        display: "grid",
+        gridTemplateColumns: "1fr 34px",
+        gap: "4px",
+        alignItems: "start"
+      });
+
+      const name = this.createDOMText(item.name, {
+        fontSize: "6px",
+        color: "#fff0bd",
+        lineHeight: "1.45"
+      });
+
+      const info = this.createInfoButton(itemKey);
+      header.append(name, info);
+
+      const icon = this.createDOMItemIcon(itemKey, 45);
+
+      const qty = this.createDOMText(
+        itemKey === "ticket" ? "1x" : `${count}x`,
+        {
+          fontSize: "6px",
+          color: "#aeb7b7"
+        }
+      );
+
+      const equip = this.createDOMButton("AUSRÜSTEN", () => {
+        if (itemKey === "ticket") {
+          this.equipTicketToHotbar();
+        } else {
+          this.equipItemToHotbar(itemKey);
+        }
+
+        const hint = this.itemsModal?.panel?.querySelector("[data-items-hint]");
+        if (hint) hint.textContent = `${item.name.toUpperCase()} AUSGERÜSTET`;
+      }, {
+        color: "#e9f1e8",
+        background: "#324438",
+        border: "#6d8c73",
+        minHeight: "34px",
+        fontSize: "5.5px",
+        padding: "5px 4px"
+      });
+
+      card.append(header, icon, qty, equip);
+      return card;
+    }
+
     openItemsModal() {
-      if (this.itemsModal || this.ticketModal || this.lootModal || this.lionChoiceModal) {
+      if (
+        this.itemsModal ||
+        this.ticketModal ||
+        this.lootModal ||
+        this.lionChoiceModal ||
+        this.shopModal
+      ) {
         return;
       }
-      if (this.playerDying || this.danceOverlay) return;
+
+      if (this.playerDying || this.danceOverlay || this.indianStoreOverlay) return;
 
       this.setUILocked(true);
 
       const modal = this.createDOMModal({
         key: "items",
-        width: "min(90%, 470px)",
+        width: "min(92%, 540px)",
         background: "#20252b",
         border: "#d7c892",
         shade: "rgba(5, 6, 11, 0.72)",
-        padding: "17px"
+        padding: "15px"
       });
 
       if (!modal) {
@@ -1166,7 +1728,7 @@
         alignItems: "center",
         justifyContent: "space-between",
         gap: "12px",
-        marginBottom: "18px"
+        marginBottom: "12px"
       });
 
       const title = this.createDOMText("ITEMS", {
@@ -1187,59 +1749,33 @@
 
       top.append(title, close);
 
-      const slots = document.createElement("div");
-      Object.assign(slots.style, {
+      const grid = document.createElement("div");
+      Object.assign(grid.style, {
         display: "grid",
-        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: "8px",
-        margin: "0 auto 16px",
-        width: "100%"
+        width: "100%",
+        margin: "0 0 12px"
       });
 
-      for (let i = 0; i < 5; i += 1) {
-        const slot = document.createElement("div");
-        Object.assign(slot.style, {
-          height: "58px",
-          border: "2px solid #7d8387",
-          background: "#111418",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxSizing: "border-box"
-        });
+      ["ticket", "gatorade", "monster"].forEach((itemKey) => {
+        const card = this.createInventoryCard(itemKey);
+        if (card) grid.appendChild(card);
+      });
 
-        if (i === 0 && this.hasCityTicket) {
-          const ticket = this.createDOMButton("🎟", () => {
-            this.equipTicketToHotbar();
-
-            const hint = modal.panel.querySelector("[data-items-hint]");
-            if (hint) hint.textContent = "TICKET IST IN DER HOTBAR";
-          }, {
-            background: "#ffe1a1",
-            border: "#6c5230",
-            color: "#513d25",
-            minHeight: "42px",
-            padding: "4px",
-            fontSize: "18px"
-          });
-          ticket.setAttribute("aria-label", "Ticket ausrüsten");
-          slot.appendChild(ticket);
-        }
-
-        slots.appendChild(slot);
-      }
+      const empty = grid.childElementCount === 0;
 
       const hint = this.createDOMText(
-        this.hasCityTicket ? "TICKET IST IN DER HOTBAR" : "NOCH KEINE ITEMS",
+        empty ? "NOCH KEINE ITEMS" : "ITEM ANTIPpen → AUSRÜSTEN",
         {
-          fontSize: "7px",
+          fontSize: "6px",
           color: "#aeb7b7",
           margin: "2px 0 0"
         }
       );
       hint.dataset.itemsHint = "true";
 
-      modal.panel.append(top, slots, hint);
+      modal.panel.append(top, grid, hint);
       this.refreshUILock();
     }
 
@@ -1264,6 +1800,8 @@
         this.fightActive ||
         this.lionExitActive ||
         this.tramTransitActive ||
+        this.itemInfoModal ||
+        this.drinkingItem ||
         this.playerDying
       );
 
@@ -1357,10 +1895,13 @@
             this.cameras.main.once(
               Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
               () => this.scene.start("BahnhofquaiScene", {
-                coins: this.coins,
+                coins: this.developerMode ? 999999 : this.coins,
                 hp: this.hp,
                 hasCityTicket: this.hasCityTicket,
-                fromDeveloperMode: false
+                fromDeveloperMode: this.developerMode,
+                developerMode: this.developerMode,
+                inventory: { ...this.inventory },
+                hotbarItems: [...this.hotbarItems]
               })
             );
 
@@ -1492,8 +2033,8 @@
       });
 
       const buy = this.createDOMButton("KAUFEN", () => this.tryBuyTicket(), {
-        color: this.coins >= 10 ? "#215f3f" : "#73706a",
-        background: this.coins >= 10 ? "#bfe0c6" : "#cbc5b8",
+        color: (this.developerMode || this.coins >= 10) ? "#215f3f" : "#73706a",
+        background: (this.developerMode || this.coins >= 10) ? "#bfe0c6" : "#cbc5b8",
         border: "#6b705f",
         width: "180px",
         minHeight: "46px",
@@ -1506,10 +2047,14 @@
       this.ticketStatusText = this.createDOMText(
         this.hasCityTicket
           ? "TICKET BEREITS GEKAUFT"
-          : (this.coins < 10 ? `${this.coins} COINS · DU HÄSCH NO Z'WENIG` : `${this.coins} COINS`),
+          : (
+              this.developerMode
+                ? "∞ COINS · DEVELOPER"
+                : (this.coins < 10 ? `${this.coins} COINS · DU HÄSCH NO Z'WENIG` : `${this.coins} COINS`)
+            ),
         {
           fontSize: "7px",
-          color: this.hasCityTicket || this.coins >= 10 ? "#315d43" : "#8b3a36",
+          color: this.hasCityTicket || this.developerMode || this.coins >= 10 ? "#315d43" : "#8b3a36",
           margin: "15px 0 0"
         }
       );
@@ -1529,7 +2074,7 @@
         return;
       }
 
-      if (this.coins < 10) {
+      if (!this.developerMode && this.coins < 10) {
         if (this.ticketStatusText) {
           this.ticketStatusText.textContent = "NÖD GNUEG COINS!";
           this.ticketStatusText.style.color = "#8b3a36";
@@ -1537,7 +2082,10 @@
         return;
       }
 
-      this.coins -= 10;
+      if (!this.developerMode) {
+        this.coins -= 10;
+      }
+
       this.hasCityTicket = true;
       this.updateCoinHUD();
       this.updateInventoryUI();
@@ -2945,9 +3493,26 @@
 
     init(data = {}) {
       this.arrivalData = data;
-      this.coins = Number.isFinite(data.coins) ? data.coins : 0;
+      this.developerMode = Boolean(data.developerMode || data.fromDeveloperMode);
+      this.coins = this.developerMode
+        ? 999999
+        : (Number.isFinite(data.coins) ? data.coins : 0);
+
       this.hp = Number.isFinite(data.hp) ? data.hp : this.maxHp;
       this.hasCityTicket = data.hasCityTicket !== false;
+
+      this.inventory = {
+        gatorade: Math.max(0, Number(data.inventory?.gatorade) || 0),
+        monster: Math.max(0, Number(data.inventory?.monster) || 0)
+      };
+
+      this.hotbarItems = Array.isArray(data.hotbarItems)
+        ? data.hotbarItems.slice(0, 6)
+        : [this.hasCityTicket ? "ticket" : null, null, null, null, null, null];
+
+      while (this.hotbarItems.length < 6) {
+        this.hotbarItems.push(null);
+      }
     }
 
     create() {
@@ -3241,12 +3806,14 @@
     }
 
     createIndianStoreExterior() {
-      const x = 995;
-      const y = 176;
-      const w = 202;
+      // Bewusst deutlich weiter rechts von der Haltestelle und wie das HIVE
+      // als Hintergrund-Fassade hinter der begehbaren Straßenebene.
+      const x = 1420;
+      const y = 154;
+      const w = 218;
       const h = GROUND_TOP - y;
 
-      const store = this.add.graphics().setDepth(2);
+      const store = this.add.graphics().setDepth(-2);
 
       // Warme, indisch inspirierte Ladenfassade mit Bögen und Ornamenten.
       store.fillStyle(0xa54f32, 1);
@@ -3295,10 +3862,10 @@
         strokeThickness: 5
       })
         .setOrigin(0.5)
-        .setDepth(7);
+        .setDepth(-1);
 
-      // Gemüseauslage vor dem Laden.
-      const veg = this.add.graphics().setDepth(5);
+      // Gemüseauslage vor dem Laden – ebenfalls hinter Simon/Straße.
+      const veg = this.add.graphics().setDepth(-1);
 
       // Holzkisten.
       veg.fillStyle(0x8b5e35, 1);
@@ -3362,7 +3929,9 @@
         this.playerDying ||
         this.storeEntryModal ||
         this.indianStoreOverlay ||
-        this.shopModal
+        this.shopModal ||
+        this.itemInfoModal ||
+        this.drinkingItem
       );
 
       this.setUILocked(locked);
@@ -3508,6 +4077,15 @@
 
       const seller = this.createIndianSeller(410, 226);
 
+      // Der Verkäufer selbst öffnet das Einkaufsfenster.
+      seller.setSize(120, 145);
+      seller.setInteractive({ useHandCursor: true });
+      seller.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openIndianShopWindow();
+      });
+
       // Sprechblase über dem Verkäufer.
       const bubble = this.add.container(410, 112).setScrollFactor(0).setDepth(675);
       const bubbleG = this.add.graphics();
@@ -3616,110 +4194,213 @@
         pointerEvents: "auto"
       });
 
-      const shop = this.createDOMButton("EINKAUFEN", () => this.openIndianShopWindow(), {
-        color: "#2f261d",
-        background: "#efc45c",
-        border: "#7a4b2e",
-        width: "180px",
-        minHeight: "44px",
-        fontSize: "9px",
-        padding: "8px 10px"
-      });
-
-      Object.assign(shop.style, {
-        position: "absolute",
-        left: "50%",
-        bottom: "42px",
-        transform: "translateX(-50%)",
-        pointerEvents: "auto"
-      });
-
-      wrapper.append(street, shop);
+      wrapper.appendChild(street);
       root.appendChild(wrapper);
 
       this.indianStoreBackUI = { overlay: wrapper };
-      this.indianStoreShopUI = shop;
+      this.indianStoreShopUI = null;
+    }
+
+    createStoreItemCard(itemKey) {
+      const item = this.getItemDefinition(itemKey);
+      if (!item) return null;
+
+      const card = document.createElement("div");
+      Object.assign(card.style, {
+        padding: "10px",
+        border: "2px solid #806246",
+        background: "#d8c295",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "7px",
+        boxSizing: "border-box"
+      });
+
+      const header = document.createElement("div");
+      Object.assign(header.style, {
+        width: "100%",
+        display: "grid",
+        gridTemplateColumns: "1fr 34px",
+        alignItems: "start",
+        gap: "5px"
+      });
+
+      const name = this.createDOMText(item.name, {
+        fontSize: "7px",
+        color: "#4b3125",
+        lineHeight: "1.45"
+      });
+
+      const info = this.createInfoButton(itemKey);
+      header.append(name, info);
+
+      const icon = this.createDOMItemIcon(itemKey, 54);
+
+      const effect = this.createDOMText(
+        `+${item.heal} HP`,
+        {
+          fontSize: "7px",
+          color: "#395530"
+        }
+      );
+
+      const owned = this.createDOMText(
+        `IM INVENTAR: ${this.getItemCount(itemKey)}`,
+        {
+          fontSize: "5.5px",
+          color: "#66503b"
+        }
+      );
+      owned.dataset.storeOwned = itemKey;
+
+      const buy = this.createDOMButton(
+        this.developerMode ? "KAUFEN · ∞" : `KAUFEN · ${item.price} COINS`,
+        () => this.purchaseStoreItem(itemKey),
+        {
+          color: "#fff5d6",
+          background: "#6a4330",
+          border: "#efc45c",
+          minHeight: "40px",
+          fontSize: "6px",
+          padding: "6px 5px"
+        }
+      );
+      buy.dataset.storeBuy = itemKey;
+
+      card.append(header, icon, effect, owned, buy);
+      return card;
+    }
+
+    purchaseStoreItem(itemKey) {
+      const item = this.getItemDefinition(itemKey);
+      if (!item || !["gatorade", "monster"].includes(itemKey)) return;
+
+      if (!this.developerMode && this.coins < item.price) {
+        const status = this.shopModal?.panel?.querySelector("[data-store-status]");
+        if (status) {
+          status.textContent = "ZU WENIG COINS!";
+          status.style.color = "#9b332d";
+        }
+        return;
+      }
+
+      if (!this.developerMode) {
+        this.coins -= item.price;
+      } else {
+        this.coins = 999999;
+      }
+
+      this.inventory[itemKey] = this.getItemCount(itemKey) + 1;
+      this.updateCoinHUD();
+      this.updateInventoryUI();
+
+      const owned = this.shopModal?.panel?.querySelector(
+        `[data-store-owned="${itemKey}"]`
+      );
+      if (owned) {
+        owned.textContent = `IM INVENTAR: ${this.getItemCount(itemKey)}`;
+      }
+
+      const wallet = this.shopModal?.panel?.querySelector("[data-store-wallet]");
+      if (wallet) {
+        wallet.textContent = this.developerMode
+          ? "COINS: ∞"
+          : `COINS: ${this.coins}`;
+      }
+
+      const status = this.shopModal?.panel?.querySelector("[data-store-status]");
+      if (status) {
+        status.textContent = `${item.name.toUpperCase()} GEKAUFT`;
+        status.style.color = "#35613c";
+      }
     }
 
     openIndianShopWindow() {
       if (!this.indianStoreOverlay || this.shopModal) return;
 
-      const modal = this.createDOMModal({
-        key: "der-inder-shop",
-        width: "min(92%, 540px)",
-        background: "#f0ddb7",
-        border: "#713524",
-        shade: "rgba(9, 6, 5, 0.72)",
-        padding: "17px"
-      });
-
-      if (!modal) return;
-
-      this.shopModal = modal;
-
-      const title = this.createDOMText("KAUFBARE ITEMS", {
-        fontSize: "14px",
-        color: "#713524",
-        margin: "0 0 15px"
-      });
-
-      const slots = document.createElement("div");
-      Object.assign(slots.style, {
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: "9px",
-        margin: "0 auto 15px",
-        maxWidth: "380px"
-      });
-
-      for (let i = 0; i < 8; i += 1) {
-        const slot = document.createElement("div");
-        Object.assign(slot.style, {
-          height: "58px",
-          background: "#bfa980",
-          border: "2px solid #765d42",
-          boxSizing: "border-box",
-          opacity: "0.72"
-        });
-        slots.appendChild(slot);
+      // Der Straßen-Button des Innenraums soll NICHT vor dem Shopfenster liegen.
+      if (this.indianStoreBackUI?.overlay) {
+        this.indianStoreBackUI.overlay.style.display = "none";
       }
 
-      const note = this.createDOMText("Wird später mit Items gefüllt.", {
-        fontSize: "7px",
-        color: "#66503b",
-        margin: "0 0 15px"
+      const modal = this.createDOMModal({
+        key: "der-inder-shop",
+        width: "min(92%, 560px)",
+        background: "#f0ddb7",
+        border: "#713524",
+        shade: "rgba(9, 6, 5, 0.78)",
+        padding: "15px"
       });
 
-      const buttons = document.createElement("div");
-      Object.assign(buttons.style, {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+      if (!modal) {
+        if (this.indianStoreBackUI?.overlay) {
+          this.indianStoreBackUI.overlay.style.display = "";
+        }
+        return;
+      }
+
+      modal.overlay.style.zIndex = "100020";
+      this.shopModal = modal;
+
+      const top = document.createElement("div");
+      Object.assign(top.style, {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
         gap: "10px",
-        maxWidth: "360px",
-        margin: "0 auto"
+        marginBottom: "10px"
       });
 
+      const title = this.createDOMText("KAUFBARE ITEMS", {
+        fontSize: "13px",
+        color: "#713524"
+      });
+      title.style.textAlign = "left";
+
+      const wallet = this.createDOMText(
+        this.developerMode ? "COINS: ∞" : `COINS: ${this.coins}`,
+        {
+          fontSize: "6px",
+          color: "#5d4937"
+        }
+      );
+      wallet.dataset.storeWallet = "true";
+
+      top.append(title, wallet);
+
+      const grid = document.createElement("div");
+      Object.assign(grid.style, {
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: "10px",
+        maxWidth: "430px",
+        margin: "0 auto 10px"
+      });
+
+      ["gatorade", "monster"].forEach((itemKey) => {
+        const card = this.createStoreItemCard(itemKey);
+        if (card) grid.appendChild(card);
+      });
+
+      const status = this.createDOMText("", {
+        fontSize: "6px",
+        color: "#35613c",
+        margin: "2px 0 10px"
+      });
+      status.dataset.storeStatus = "true";
+
+      // Nur zurück in den Laden. Kein Straßenbutton mehr im Einkaufsfenster.
       const backToShop = this.createDOMButton("← LADEN", () => this.closeIndianShopWindow(), {
         color: "#3f3127",
         background: "#d5c19b",
         border: "#85684a",
+        width: "180px",
         fontSize: "8px"
       });
+      backToShop.style.margin = "0 auto";
 
-      // Direkter Notausgang: selbst aus dem Einkaufsfenster ist die Straße
-      // immer mit genau einem weiteren Tap erreichbar.
-      const street = this.createDOMButton("STRASSE", () => {
-        this.closeIndianShopWindow();
-        this.exitIndianStore();
-      }, {
-        color: "#fff3ca",
-        background: "#713524",
-        border: "#efc45c",
-        fontSize: "8px"
-      });
-
-      buttons.append(backToShop, street);
-      modal.panel.append(title, slots, note, buttons);
+      modal.panel.append(top, grid, status, backToShop);
       this.refreshUILock();
     }
 
@@ -3728,10 +4409,25 @@
 
       this.destroyDOMModal(this.shopModal);
       this.shopModal = null;
+
+      if (this.itemInfoModal) {
+        this.destroyDOMModal(this.itemInfoModal);
+        this.itemInfoModal = null;
+      }
+
+      if (this.indianStoreBackUI?.overlay) {
+        this.indianStoreBackUI.overlay.style.display = "";
+      }
+
       this.refreshUILock();
     }
 
     exitIndianStore() {
+      if (this.itemInfoModal) {
+        this.destroyDOMModal(this.itemInfoModal);
+        this.itemInfoModal = null;
+      }
+
       if (this.shopModal) {
         this.destroyDOMModal(this.shopModal);
         this.shopModal = null;
@@ -3847,7 +4543,8 @@
 
   window.startSimonGame = function startSimonGame(options = {}) {
     pendingStartOptions = {
-      startMode: options?.startMode || "normal"
+      startMode: options?.startMode || "normal",
+      developerMode: Boolean(options?.developerMode)
     };
 
     if (game) {

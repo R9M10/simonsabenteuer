@@ -107,7 +107,10 @@ function launchGame(options = {}, { fromDialogue = false } = {}) {
     showScreen(gameScreen);
 
     if (typeof window.startSimonGame === "function") {
-      window.startSimonGame(options);
+      window.startSimonGame({
+        ...options,
+        developerMode: developerModeOn
+      });
     } else {
       console.error("startSimonGame wurde nicht gefunden.");
     }
