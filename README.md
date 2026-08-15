@@ -1,25 +1,27 @@
 # Simons Abenteuer
 
-Erster Stand des Spiels.
+Erster spielbarer Prototyp für iPhone im Querformat (besonders gedacht für eine zum Home-Bildschirm hinzugefügte HTML-Seite).
 
 ## Enthalten
 
-- Startbildschirm
-- Arcade-Titel „Simons Abenteuer“
+- Startbildschirm mit Arcade-Titel
 - Startbutton
-- Leere Spielfläche als Ausgangspunkt für den nächsten Schritt
+- Szenenansicht nach dem Start
+- Arcade-/Pixel-Version des bereitgestellten Stadtbilds als Hintergrund
+- Zwei generische Figuren von hinten auf einer Mauer am Wasser
+- Dialog per Tippen:
+  1. `Dini Schueh sind nice.`
+  2. `Aber nöd sooooo nice.`
 
-## GitHub Pages
+## Projektdateien
 
-Die Dateien können direkt in das Repository `simonsabenteuer` hochgeladen werden.
+- `index.html`
+- `style.css`
+- `script.js`
+- `assets/bg-arcade.png`
 
-Danach in GitHub:
+## Hinweise
 
-1. **Settings**
-2. **Pages**
-3. Unter **Build and deployment**: `Deploy from a branch`
-4. Branch: `main`
-5. Ordner: `/ (root)`
-6. **Save**
-
-GitHub Pages veröffentlicht anschließend die Website.
+- Die Seite ist für **iPhone Querformat** gestaltet.
+- Im Hochformat erscheint ein Hinweis zum Drehen.
+- Nach dem Hochladen ins Repository kann die Seite direkt über GitHub Pages laufen.

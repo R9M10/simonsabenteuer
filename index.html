@@ -2,7 +2,15 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+  >
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Simons Abenteuer">
+  <meta name="theme-color" content="#060812">
+
   <title>Simons Abenteuer</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,12 +20,44 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main id="start-screen" class="screen">
-    <h1>Simons Abenteuer</h1>
-    <button id="start-button" type="button">Start</button>
-  </main>
+  <div id="app-shell">
+    <main id="start-screen" class="screen">
+      <h1>Simons Abenteuer</h1>
+      <button id="start-button" type="button">Start</button>
+    </main>
 
-  <main id="game-screen" class="screen hidden" aria-hidden="true"></main>
+    <main id="scene-screen" class="screen hidden" aria-hidden="true">
+      <div class="scene-frame" id="scene-tap-area" role="button" aria-label="Szene antippen">
+        <div class="scene-background" aria-hidden="true"></div>
+        <div class="water-wall" aria-hidden="true"></div>
+
+        <div class="characters" aria-hidden="true">
+          <div class="character character-left">
+            <div class="head"></div>
+            <div class="body"></div>
+            <div class="legs"></div>
+          </div>
+
+          <div class="character character-right">
+            <div class="head"></div>
+            <div class="body"></div>
+            <div class="legs"></div>
+          </div>
+        </div>
+
+        <div class="speech-bubble" id="speech-bubble">
+          <p id="speech-text">Dini Schueh sind nice.</p>
+          <span class="tap-hint">Tippe zum Weiterklicken</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="rotate-warning">
+    <div class="rotate-card">
+      <p>Bitte iPhone ins Querformat drehen.</p>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>
