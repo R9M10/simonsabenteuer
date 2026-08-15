@@ -1879,6 +1879,7 @@
       if (this.lionChoiceShown || !this.fightLion || this.playerDying) return;
 
       this.lionChoiceShown = true;
+      this.dialogueIgnoreUntil = this.time.now + 350;
       this.setUILocked(true);
 
       this.lionQuestionBubble = this.createSpeechBubble(
@@ -1890,7 +1891,7 @@
 
       const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 92)
         .setScrollFactor(0)
-        .setDepth(460);
+        .setDepth(1000);
 
       const panel = this.add.graphics();
       panel.fillStyle(0x12151d, 0.9);
@@ -1898,31 +1899,95 @@
       panel.lineStyle(3, 0xffe6a8, 0.85);
       panel.strokeRoundedRect(-210, -35, 420, 70, 13);
 
-      const makeChoice = (x, label, color, callback) => {
-        const button = this.add.text(x, 0, label, {
+      // Die Antworten bekommen bewusst große, eigene Touch-Flächen.
+      // Nur Text als Interactive-Target war auf iPhone/Safari unzuverlässig.
+      const makeChoice = (x, label, color, callback, width = 112) => {
+        const hitbox = this.add.rectangle(
+          x,
+          0,
+          width,
+          48,
+          0x302d34,
+          1
+        )
+          .setStrokeStyle(3, 0xffe6a8, 0.55)
+          .setInteractive({ useHandCursor: true });
+
+        const labelText = this.add.text(x, 0, label, {
           fontFamily: '"Press Start 2P", monospace',
           fontSize: "9px",
           color,
-          backgroundColor: "#302d34",
-          padding: { x: 15, y: 11 }
+          align: "center"
         })
-          .setOrigin(0.5)
-          .setInteractive({ useHandCursor: true });
+          .setOrigin(0.5);
 
-        button.on("pointerdown", (pointer) => {
-          pointer.event?.preventDefault?.();
-          pointer.event?.stopPropagation?.();
+        let activated = false;
+
+        const activate = (pointer) => {
+          if (activated || !this.lionChoiceModal) return;
+          activated = true;
+
+          pointer?.event?.preventDefault?.();
+          pointer?.event?.stopPropagation?.();
+
+          hitbox.disableInteractive();
           callback();
+        };
+
+        // pointerup ist auf iOS für kurze Taps besonders zuverlässig.
+        hitbox.on("pointerup", activate);
+
+        hitbox.on("pointerdown", () => {
+          hitbox.setFillStyle(0x4a4550, 1);
+          hitbox.setScale(0.97);
         });
 
-        return button;
+        hitbox.on("pointerout", () => {
+          if (!activated) {
+            hitbox.setFillStyle(0x302d34, 1);
+            hitbox.setScale(1);
+          }
+        });
+
+        // Das Label selbst soll die Touch-Fläche nicht abfangen.
+        labelText.disableInteractive?.();
+
+        return { hitbox, labelText };
       };
 
-      const yes = makeChoice(-126, "JA", "#bff3bd", () => this.chooseDanceWithLion());
-      const no = makeChoice(0, "NEIN", "#f3ddbd", () => this.chooseNoDance());
-      const fight = makeChoice(130, "KÄMPFEN", "#ffaaa6", () => this.startLionCombat());
+      const yes = makeChoice(
+        -136,
+        "JA",
+        "#bff3bd",
+        () => this.chooseDanceWithLion(),
+        104
+      );
 
-      modal.add([panel, yes, no, fight]);
+      const no = makeChoice(
+        -12,
+        "NEIN",
+        "#f3ddbd",
+        () => this.chooseNoDance(),
+        112
+      );
+
+      const fight = makeChoice(
+        137,
+        "KÄMPFEN",
+        "#ffaaa6",
+        () => this.startLionCombat(),
+        150
+      );
+
+      modal.add([
+        panel,
+        yes.hitbox,
+        yes.labelText,
+        no.hitbox,
+        no.labelText,
+        fight.hitbox,
+        fight.labelText
+      ]);
       this.lionChoiceModal = modal;
       this.refreshUILock();
     }
