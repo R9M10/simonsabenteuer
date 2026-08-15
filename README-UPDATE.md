@@ -1,107 +1,126 @@
-# Simons Abenteuer – Fähigkeiten / General Relativity / Wurmloch v21
+# Simons Abenteuer – Tram Loop + Ewige Wiederkehr + Für sich sein v22
 
-Ausgangsstand wurde direkt vor dem Build gegen GitHub geprüft:
+Direkt vor dem Build wurde der aktuelle GitHub-Stand verifiziert:
 
-- game.js: `3c050afc610723633f3d6dcf91c6b4639e3f8d15`
-- index.html: `256c0e1f15b8a48e0878e2133181cc4c45d2dacc`
-- hive-expansion.js: `b9f89ac568cb0954cb0e72a7a897ddf95c25f98f` / v14.2
+- game.js: `59dc672524fbcc99d07a347459e1cb332aa87a4d`
+- index.html: `a8848e73e7b661f314b31b49ef80378232b0479a`
+- hive-expansion.js: `b9f89ac568cb0954cb0e72a7a897ddf95c25f98f` (v14.2)
+- game-polish-v15.js: `e51362977085d3167e40d3e93612546ebbb8bf1e`
 
-Die HIVE-Erweiterung wird nicht verändert.
+Die Dateien deiner Freundin (`hive-expansion.js`, `game-polish-v15.js`,
+`flight-intro.js`, `opening-scene-v15.css`) bleiben unangetastet.
 
 ## Dateien ersetzen
 
 - `game.js`
 - `index.html`
 
-## Super Milch
+## 1. Tram: beliebig oft hin und her
 
-- normale Milch: Geschwindigkeit 225
-- SUPER MILCH: Geschwindigkeit 337.5
-- also exakt 1.5x
-- normal 10 Schaden / SUPER MILCH 20 Schaden
-- jede dritte Flasche bleibt SUPER MILCH
-- Wurfabstand bleibt zufällig 1–3 Sekunden
+Der Bahnhofstrasse-Scene wird von Phaser wiederverwendet. `arrivalFinished`
+blieb nach dem ersten Besuch auf `true`; beim nächsten Besuch brach
+`playArrivalAnimation()` deshalb sofort ab und Simon blieb unsichtbar in der
+Tram.
 
-## HUD
+Bei **jeder** neuen Ankunft werden nun sauber zurückgesetzt:
 
-Oben links:
-1. HP-Herz + HP-Leiste
-2. direkt darunter Coins
+- `arrivalFinished = false`
+- arrival tram / door / hitbox references
+- tram transit state
+- UI locks
+- ability transient state
 
-Das alte separate `TICKET`-Label unter `ITEMS` wurde vollständig entfernt.
-Tickets werden nicht mehr im ITEMS-Tab gelistet.
+Damit kann mit jeweils einem gültigen Einzelfahrt-Ticket wiederholt gefahren
+werden:
 
-## ITEMS / FÄHIGKEITEN
+Milchbuck -> Bahnhofstrasse -> Milchbuck -> Bahnhofstrasse -> ...
 
-Das Inventar hat jetzt zwei Tabs:
+## 2. Also sprach Zarathustra -> Ewige Wiederkehr
 
-- ITEMS
-- FÄHIGKEITEN
+Beim ersten Lesen von `Also sprach Zarathustra` wird freigeschaltet:
 
-Im ITEMS-Tab liegen die normalen Gegenstände und gekaufte Bücher.
-Maximal fünf davon können weiterhin in die Hotbar gelegt werden.
+`Ewige Wiederkehr`
 
-Im FÄHIGKEITEN-Tab stehen freigeschaltete Fähigkeiten.
-Es kann genau eine Fähigkeit aktiv sein. Wird später eine andere ausgerüstet,
-ersetzt sie die zuvor aktive.
+Nur beim ersten Lesen erscheint drei Sekunden der Unlock-Banner.
 
-## Bücher
+Wenn die Fähigkeit unter FÄHIGKEITEN ausgerüstet ist:
 
-Gekaufte Bücher erscheinen im ITEMS-Tab und können wie andere Gegenstände
-mit `IN HOTBAR` in einen der fünf Slots gelegt werden.
+- oben erscheint ein goldenes Kreis-/Wiederkehrsymbol
+- über J/X erscheint der Touchbutton `W`
 
-Wird ein Buch unten ausgewählt, erscheint `LESEN · ...`.
+`W` springt auf einen gespeicherten Spielzustand ungefähr exakt drei Sekunden
+zurück.
 
-Beim Lesen:
-- Simon bleibt stehen,
-- ein geöffnetes Buch erscheint vor ihm,
-- Seiten-/Leseanimation läuft,
-- das Buch wird NICHT verbraucht.
+Zurückgesetzt werden u. a.:
 
-Die bisher anderen drei Bücher bleiben bereits kauf-/lesbar, bekommen ihre
-Abilities aber erst in einem späteren Schritt.
-
-## General Relativity -> Wurmloch
-
-Beim ERSTEN Lesen von `General Relativity`:
-
-`FÄHIGKEIT FREIGESCHALTET · WURMLOCH`
-
-erscheint drei Sekunden oben im Bild.
-
-Danach steht `Wurmloch` im Tab FÄHIGKEITEN.
-
-Wird Wurmloch ausgerüstet:
-- es ist die aktive Fähigkeit,
-- oben in der Mitte erscheint ein kleines Wurmloch-Icon.
-
-## Wurmloch benutzen
-
-Wenn Wurmloch aktiv ist:
-
-1. Simon springt.
-2. Solange er in der Luft ist, kann auf einen Punkt der Spielwelt getippt werden.
-3. Ein Wurmloch öffnet sich an Simon und am Ziel.
-4. Simon verschwindet im ersten Portal und erscheint am Zielportal.
-5. Dort fällt/landet er wieder normal auf dem Boden.
-
-Pro Sprung ist ein Wurmloch-Teleport möglich.
-
-Die Touch-Control-Flächen unten werden ausdrücklich NICHT als Wurmloch-Ziele
-interpretiert. Storefassaden werden bei einem gültigen Luft-Wurmloch-Tap
-ebenfalls nicht ausgelöst.
-
-## Persistenz
-
-Folgendes wird durch Tramfahrten Milchbuck <-> Bahnhofstrasse mitgenommen:
-
-- gekaufte Bücher
-- ob General Relativity bereits gelesen wurde
-- freigeschaltete Fähigkeiten
-- aktive Fähigkeit
+- Simons Position und Bewegung
+- HP
+- Coins
+- Verbrauchsitems
 - Hotbar
-- bestehende Consumables/Sprintzustand
+- Ticketzustand
+- Sprint-Restzeit
+- Milchmann-HP / Position
+- aktuell fliegende Milchflaschen
+- Super-Milch-Zustand
+- nächster Milch-Wurf
+
+Der Milchmann benutzt nun für seine ohnehin zufälligen 1–3-Sekunden-Abstände
+einen lokalen deterministischen Zufallszustand. Dieser wird ebenfalls
+zurückgespult. Dadurch läuft der zufällige Wurfrhythmus nach der Wiederkehr
+wieder gleich weiter, während Simon anders reagieren kann.
+
+Nach einer Wiederkehr wird die alte Zeitlinie verworfen; erst nach drei neu
+gespielten Sekunden ist W wieder verfügbar.
+
+## 3. Phänomenologie des Geistes -> Für sich sein
+
+Beim ersten Lesen wird freigeschaltet:
+
+`Für sich sein`
+
+Ist die Fähigkeit aktiv:
+
+- oben erscheint ein Void-/Einzelsymbol
+- über J/X erscheint `F`
+
+Mit F betritt Simon einen dunklen Void.
+
+Dort:
+- die Außenwelt steht still
+- Simon bleibt sichtbar
+- Hotbar bleibt benutzbar
+- ITEMS bleibt erreichbar
+- Gatorade / Monster / Zigarette / Bücher können benutzt bzw. gelesen werden
+- ein nativer `← ZURÜCK`-Button bringt Simon exakt zurück auf die Map
+
+Während der Void-Zeit werden externe Milchmann-/Projectile-Timer verschoben,
+damit draußen keine Zeit "heimlich" weiterläuft.
+
+Cooldown:
+- eine Aktivierung alle 5 Minuten
+- der F-Button zeigt `BEREIT` oder die Restzeit
+- der Cooldown wird durch Tramfahrten mitgenommen
+
+## 4. Fähigkeiten
+
+Es bleibt bei genau **einer aktiven Fähigkeit gleichzeitig**.
+
+Aktuell:
+- Wurmloch
+- Ewige Wiederkehr
+- Für sich sein
+
+Jede besitzt ein eigenes Symbol oben in der Mitte.
+
+## 5. Super Milch
+
+Unverändert korrekt:
+- normale Milch: 225
+- SUPER MILCH: 337.5
+- exakt 1.5x Geschwindigkeit
+- 10 bzw. 20 Schaden
 
 ## Cache
 
-`game.js?v=21`
+`game.js?v=22`

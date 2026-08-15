@@ -101,7 +101,9 @@
       };
 
       this.abilitiesUnlocked = {
-        wormhole: false
+        wormhole: false,
+        eternalReturn: false,
+        forItself: false
       };
       this.activeAbility = null;
       this.itemsModalTab = "items";
@@ -109,10 +111,29 @@
       this.readingBook = false;
       this.abilityIndicatorDOM = null;
       this.abilityUnlockBannerDOM = null;
+      this.abilityControlObjects = [];
+      this.abilityCooldownText = null;
 
       this.wormholeTeleporting = false;
       this.wormholeUsedThisJump = false;
       this.__wormholePointerHandler = null;
+
+      // Ewige Wiederkehr: rolling 3-second gameplay history.
+      this.rewindHistory = [];
+      this.lastRewindCaptureAt = -Infinity;
+      this.rewindActive = false;
+      this.rewindHorizonMs = 4200;
+      this.__rewindSuppressMilkmanUntil = 0;
+
+      // Für sich sein: isolated void, one activation every five minutes.
+      this.inVoid = false;
+      this.voidOverlay = null;
+      this.voidBlocker = null;
+      this.voidBackUI = null;
+      this.voidEnteredSceneTime = 0;
+      this.voidBottleStates = [];
+      this.voidPlayerState = null;
+      this.forItselfCooldownUntil = 0;
 
       this.hotbarContainer = null;
       this.hotbarBackground = null;
@@ -169,6 +190,15 @@
       this.wormholeTeleporting = false;
       this.wormholeUsedThisJump = false;
       this.itemsModalContent = null;
+      this.rewindHistory = [];
+      this.lastRewindCaptureAt = -Infinity;
+      this.rewindActive = false;
+      this.inVoid = false;
+      this.voidOverlay = null;
+      this.voidBlocker = null;
+      this.voidBackUI = null;
+      this.abilityControlObjects = [];
+      this.abilityCooldownText = null;
 
       // A Scene instance is reused by Phaser after scene.start(). Any old
       // modal/combat/travel lock must be reset explicitly.
@@ -225,13 +255,21 @@
       };
 
       this.abilitiesUnlocked = {
-        wormhole: Boolean(data.abilitiesUnlocked?.wormhole)
+        wormhole: Boolean(data.abilitiesUnlocked?.wormhole),
+        eternalReturn: Boolean(data.abilitiesUnlocked?.eternalReturn),
+        forItself: Boolean(data.abilitiesUnlocked?.forItself)
       };
 
       this.activeAbility =
-        data.activeAbility === "wormhole" && this.abilitiesUnlocked.wormhole
-          ? "wormhole"
+        typeof data.activeAbility === "string" &&
+        this.abilitiesUnlocked[data.activeAbility]
+          ? data.activeAbility
           : null;
+
+      this.forItselfCooldownUntil =
+        Number.isFinite(data.forItselfCooldownUntil)
+          ? data.forItselfCooldownUntil
+          : 0;
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
@@ -326,6 +364,7 @@
           .forEach((node) => node.remove());
         this.cleanupSprintIndicator();
         this.cleanupAbilityIndicator();
+        this.cleanupVoid();
       });
 
       if (this.travelArrivalFrom === "bahnhofstrasse") {
@@ -388,6 +427,7 @@
           booksRead: { ...this.booksRead },
           abilitiesUnlocked: { ...this.abilitiesUnlocked },
           activeAbility: this.activeAbility,
+          forItselfCooldownUntil: this.forItselfCooldownUntil,
           hotbarItems: ["ticket", null, null, null, null]
         });
         return;
@@ -1282,6 +1322,14 @@
         wormhole: {
           name: "Wurmloch",
           description: "Springe und tippe während Simon in der Luft ist auf einen Punkt der Welt. Ein Wurmloch versetzt ihn dorthin."
+        },
+        eternalReturn: {
+          name: "Ewige Wiederkehr",
+          description: "Drücke W. Der Spielzustand springt drei Sekunden zurück. Simon kann danach anders handeln."
+        },
+        forItself: {
+          name: "Für sich sein",
+          description: "Drücke F. Simon zieht sich in einen Void zurück und kann dort in Ruhe Items benutzen. Nur einmal alle fünf Minuten."
         }
       };
 
@@ -1886,7 +1934,7 @@
       const startX = this.player.x + direction * 28;
       const startY = this.player.y - 52;
       const icon = this.createWorldItemIcon(key, startX, startY, 0.85)
-        .setDepth(55);
+        .setDepth(this.getActionEffectDepth(55));
 
       const originalAngle = this.player.angle;
 
@@ -1942,7 +1990,7 @@
                 }
               )
                 .setOrigin(0.5)
-                .setDepth(70);
+                .setDepth(this.getActionEffectDepth(70));
 
               this.tweens.add({
                 targets: healText,
@@ -1990,7 +2038,7 @@
       const book = this.add.container(
         this.player.x + direction * 22,
         this.player.y - 58
-      ).setDepth(90);
+      ).setDepth(this.getActionEffectDepth(90));
 
       const pages = this.add.graphics();
       pages.fillStyle(0xf6edcf, 1);
@@ -2077,13 +2125,33 @@
         this.player.setAngle(0);
         this.player.play("simon-idle", true);
 
+        let unlockedAbilityName = null;
+
         if (
           item.bookKey === "generalRelativity" &&
           !this.booksRead.generalRelativity
         ) {
           this.booksRead.generalRelativity = true;
           this.abilitiesUnlocked.wormhole = true;
-          this.showAbilityUnlockedBanner("Wurmloch");
+          unlockedAbilityName = "Wurmloch";
+        } else if (
+          item.bookKey === "zarathustra" &&
+          !this.booksRead.zarathustra
+        ) {
+          this.booksRead.zarathustra = true;
+          this.abilitiesUnlocked.eternalReturn = true;
+          unlockedAbilityName = "Ewige Wiederkehr";
+        } else if (
+          item.bookKey === "phaenomenologie" &&
+          !this.booksRead.phaenomenologie
+        ) {
+          this.booksRead.phaenomenologie = true;
+          this.abilitiesUnlocked.forItself = true;
+          unlockedAbilityName = "Für sich sein";
+        }
+
+        if (unlockedAbilityName) {
+          this.showAbilityUnlockedBanner(unlockedAbilityName);
         }
 
         this.readingBook = false;
@@ -2132,13 +2200,202 @@
       }, 3000);
     }
 
+    createDOMAbilityIcon(key, size = 40) {
+      const outer = document.createElement("div");
+
+      Object.assign(outer.style, {
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: "50%",
+        display: "grid",
+        placeItems: "center",
+        boxSizing: "border-box",
+        position: "relative",
+        flex: "0 0 auto"
+      });
+
+      if (key === "wormhole") {
+        Object.assign(outer.style, {
+          background:
+            "radial-gradient(circle, #07040e 0 27%, #724dd2 31% 45%, #62c8ff 50% 59%, #2a153f 63% 100%)",
+          border: "2px solid #d8c9ff",
+          boxShadow: "0 0 8px #7054cf"
+        });
+        return outer;
+      }
+
+      if (key === "eternalReturn") {
+        Object.assign(outer.style, {
+          background:
+            "radial-gradient(circle, #17100a 0 35%, #513b1c 37% 54%, #d6b34e 57% 63%, #21170d 66% 100%)",
+          border: "2px solid #f0d67b",
+          boxShadow: "0 0 8px rgba(224,183,76,.72)",
+          color: "#fff0a5",
+          fontFamily: "Georgia, serif",
+          fontSize: `${Math.round(size * 0.66)}px`,
+          fontWeight: "700",
+          lineHeight: "1"
+        });
+        outer.textContent = "↻";
+        return outer;
+      }
+
+      if (key === "forItself") {
+        Object.assign(outer.style, {
+          background:
+            "radial-gradient(circle, #050608 0 48%, #19202b 51% 68%, #080a0e 72% 100%)",
+          border: "2px solid #dce5ef",
+          boxShadow: "0 0 8px rgba(190,210,235,.42)"
+        });
+
+        const figure = document.createElement("div");
+        Object.assign(figure.style, {
+          width: `${Math.max(4, Math.round(size * 0.12))}px`,
+          height: `${Math.round(size * 0.34)}px`,
+          background: "#edf2f6",
+          borderRadius: "50% 50% 3px 3px",
+          position: "relative"
+        });
+
+        const head = document.createElement("span");
+        Object.assign(head.style, {
+          position: "absolute",
+          width: `${Math.round(size * 0.16)}px`,
+          height: `${Math.round(size * 0.16)}px`,
+          borderRadius: "50%",
+          background: "#edf2f6",
+          left: "50%",
+          top: `${-Math.round(size * 0.15)}px`,
+          transform: "translateX(-50%)"
+        });
+
+        figure.appendChild(head);
+        outer.appendChild(figure);
+        return outer;
+      }
+
+      return outer;
+    }
+
+    cleanupAbilityTouchControl() {
+      const doomed = new Set(this.abilityControlObjects || []);
+
+      (this.abilityControlObjects || []).forEach((object) => {
+        object?.destroy?.();
+      });
+
+      this.controlObjects = (this.controlObjects || [])
+        .filter((object) => !doomed.has(object));
+
+      this.abilityControlObjects = [];
+      this.abilityCooldownText = null;
+    }
+
+    refreshAbilityTouchControl() {
+      this.cleanupAbilityTouchControl();
+
+      if (
+        this.uiLocked ||
+        this.inVoid ||
+        this.rewindActive ||
+        !this.player?.visible
+      ) {
+        return;
+      }
+
+      if (
+        this.activeAbility !== "eternalReturn" &&
+        this.activeAbility !== "forItself"
+      ) {
+        return;
+      }
+
+      const label =
+        this.activeAbility === "eternalReturn"
+          ? "W"
+          : "F";
+
+      const button = this.makeTouchButton(
+        GAME_WIDTH - 100,
+        GAME_HEIGHT - 137,
+        label,
+        () => {
+          if (this.activeAbility === "eternalReturn") {
+            this.rewindGameThreeSeconds();
+          } else if (this.activeAbility === "forItself") {
+            this.enterForItselfVoid();
+          }
+        },
+        () => {}
+      );
+
+      button.circle.setScale(0.88);
+      button.text.setScale(0.88);
+
+      this.abilityControlObjects.push(button.circle, button.text);
+
+      if (this.activeAbility === "forItself") {
+        const cooldown = this.add.text(
+          GAME_WIDTH - 100,
+          GAME_HEIGHT - 181,
+          "",
+          {
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "5px",
+            color: "#e6edf5",
+            stroke: "#10151b",
+            strokeThickness: 3
+          }
+        )
+          .setOrigin(0.5)
+          .setScrollFactor(0)
+          .setDepth(1002);
+
+        this.controlObjects.push(cooldown);
+        this.abilityControlObjects.push(cooldown);
+        this.abilityCooldownText = cooldown;
+        this.updateAbilityCooldownLabel();
+      }
+    }
+
+    updateAbilityCooldownLabel() {
+      if (
+        !this.abilityCooldownText ||
+        this.activeAbility !== "forItself"
+      ) {
+        return;
+      }
+
+      const remaining = Math.max(
+        0,
+        this.forItselfCooldownUntil - Date.now()
+      );
+
+      if (remaining <= 0) {
+        this.abilityCooldownText.setText("BEREIT");
+        this.abilityCooldownText.setColor("#c9ffd2");
+        return;
+      }
+
+      const totalSeconds = Math.ceil(remaining / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+
+      this.abilityCooldownText.setText(
+        `${minutes}:${String(seconds).padStart(2, "0")}`
+      );
+      this.abilityCooldownText.setColor("#ffd6aa");
+    }
+
     cleanupAbilityIndicator() {
+      this.cleanupAbilityTouchControl();
+
       this.abilityIndicatorDOM?.remove?.();
       this.abilityIndicatorDOM = null;
 
       const root = document.getElementById("phaser-game");
       root?.querySelectorAll(
-        "[data-simon-ui='ability-indicator'], [data-simon-ui='ability-unlock-banner']"
+        "[data-simon-ui='ability-indicator'], [data-simon-ui='ability-unlock-banner'], [data-simon-ui='ability-status-banner']"
       ).forEach((node) => node.remove());
 
       this.abilityUnlockBannerDOM = null;
@@ -2154,15 +2411,25 @@
       this.abilityIndicatorDOM = null;
 
       if (
-        this.activeAbility !== "wormhole" ||
-        !this.abilitiesUnlocked?.wormhole
+        !this.activeAbility ||
+        !this.abilitiesUnlocked?.[this.activeAbility]
       ) {
+        this.refreshAbilityTouchControl();
+        return;
+      }
+
+      const ability = this.getAbilityDefinition(this.activeAbility);
+      if (!ability) {
+        this.refreshAbilityTouchControl();
         return;
       }
 
       const wrapper = document.createElement("div");
       wrapper.dataset.simonUi = "ability-indicator";
-      wrapper.setAttribute("aria-label", "Aktive Fähigkeit: Wurmloch");
+      wrapper.setAttribute(
+        "aria-label",
+        `Aktive Fähigkeit: ${ability.name}`
+      );
 
       Object.assign(wrapper.style, {
         position: "absolute",
@@ -2170,38 +2437,63 @@
         top: "9px",
         transform: "translateX(-50%)",
         zIndex: "99972",
-        width: "38px",
-        height: "38px",
+        width: "42px",
+        height: "42px",
         borderRadius: "50%",
-        border: "2px solid rgba(229,215,255,.9)",
-        background: "rgba(17,13,28,.82)",
+        background: "rgba(17,13,28,.72)",
         display: "grid",
         placeItems: "center",
         pointerEvents: "none",
-        boxSizing: "border-box",
-        boxShadow: "0 0 9px rgba(143,92,255,.55)"
+        boxSizing: "border-box"
       });
 
-      const portal = document.createElement("div");
-      Object.assign(portal.style, {
-        width: "25px",
-        height: "25px",
-        borderRadius: "50%",
-        background:
-          "radial-gradient(circle, #07040e 0 28%, #724dd2 31% 45%, #62c8ff 49% 58%, #2a153f 62% 100%)",
-        boxShadow:
-          "0 0 7px #7c5ee8, inset 0 0 5px rgba(255,255,255,.45)"
-      });
+      wrapper.appendChild(
+        this.createDOMAbilityIcon(this.activeAbility, 32)
+      );
 
-      wrapper.appendChild(portal);
       root.appendChild(wrapper);
       this.abilityIndicatorDOM = wrapper;
+      this.refreshAbilityTouchControl();
+    }
+
+    showAbilityStatusMessage(message, duration = 1300) {
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      root.querySelectorAll("[data-simon-ui='ability-status-banner']")
+        .forEach((node) => node.remove());
+
+      const banner = document.createElement("div");
+      banner.dataset.simonUi = "ability-status-banner";
+      banner.textContent = message;
+
+      Object.assign(banner.style, {
+        position: "absolute",
+        left: "50%",
+        top: "56px",
+        transform: "translateX(-50%)",
+        zIndex: "100051",
+        maxWidth: "76%",
+        padding: "8px 10px",
+        border: "2px solid #baa8dd",
+        background: "rgba(22,17,34,.94)",
+        color: "#fff0c8",
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "6px",
+        lineHeight: "1.5",
+        textAlign: "center",
+        pointerEvents: "none"
+      });
+
+      root.appendChild(banner);
+
+      window.setTimeout(() => banner.remove(), duration);
     }
 
     equipAbility(key) {
       if (!this.abilitiesUnlocked?.[key]) return;
 
-      // Exactly one active ability. Equipping another later simply replaces it.
+      // Exactly one active ability.
       this.activeAbility = key;
       this.updateAbilityIndicator();
 
@@ -2209,6 +2501,279 @@
         this.itemsModalTab = "abilities";
         this.renderItemsModalTab();
       }
+    }
+
+    recordRewindSnapshot(time) {
+      if (
+        !this.abilitiesUnlocked?.eternalReturn ||
+        this.uiLocked ||
+        this.playerDying ||
+        this.rewindActive ||
+        this.inVoid ||
+        this.readingBook ||
+        this.drinkingItem ||
+        this.wormholeTeleporting ||
+        this.tramTransitActive ||
+        !this.player?.body ||
+        !this.player.visible
+      ) {
+        return;
+      }
+
+      if (
+        Number(this.__milkmanV15ActionUntil) > time
+      ) {
+        // Avoid storing the tiny delayed throw-release window from the polish
+        // wrapper; it cannot be rewound independently from its delayed callback.
+        return;
+      }
+
+      if (time - this.lastRewindCaptureAt < 100) return;
+      this.lastRewindCaptureAt = time;
+
+      const body = this.player.body;
+
+      const snapshot = {
+        time,
+        player: {
+          x: this.player.x,
+          y: this.player.y,
+          vx: body.velocity.x,
+          vy: body.velocity.y,
+          facing: this.facing,
+          alpha: this.player.alpha
+        },
+        hp: this.hp,
+        coins: this.coins,
+        inventory: {
+          gatorade: this.getItemCount("gatorade"),
+          monster: this.getItemCount("monster"),
+          camel: this.getItemCount("camel")
+        },
+        hasCityTicket: Boolean(this.hasCityTicket),
+        hotbarItems: [...this.hotbarItems],
+        selectedHotbarIndex: this.selectedHotbarIndex,
+        sprintRemainingMs: Math.max(
+          0,
+          this.sprintExpiresAt - Date.now()
+        ),
+        milkmanState: this.captureMilkmanRewindState?.(time) || null
+      };
+
+      this.rewindHistory.push(snapshot);
+
+      const cutoff = time - this.rewindHorizonMs;
+      while (
+        this.rewindHistory.length > 0 &&
+        this.rewindHistory[0].time < cutoff
+      ) {
+        this.rewindHistory.shift();
+      }
+    }
+
+    findThreeSecondRewindSnapshot() {
+      if (!this.rewindHistory?.length) return null;
+
+      const target = this.time.now - 3000;
+      let best = null;
+
+      for (const snapshot of this.rewindHistory) {
+        if (snapshot.time <= target + 80) {
+          best = snapshot;
+        } else {
+          break;
+        }
+      }
+
+      if (!best) return null;
+
+      const age = this.time.now - best.time;
+      return age >= 2750 && age <= 3900 ? best : null;
+    }
+
+    restoreRewindSnapshot(snapshot) {
+      if (!snapshot || !this.player?.body) return;
+
+      this.hp = Phaser.Math.Clamp(
+        Number(snapshot.hp) || 0,
+        0,
+        this.maxHp
+      );
+
+      this.coins = this.developerMode
+        ? 999999
+        : Math.max(0, Number(snapshot.coins) || 0);
+
+      this.inventory.gatorade =
+        Math.max(0, Number(snapshot.inventory?.gatorade) || 0);
+      this.inventory.monster =
+        Math.max(0, Number(snapshot.inventory?.monster) || 0);
+      this.inventory.camel =
+        Math.max(0, Number(snapshot.inventory?.camel) || 0);
+
+      this.hasCityTicket = Boolean(snapshot.hasCityTicket);
+      this.hotbarItems = Array.isArray(snapshot.hotbarItems)
+        ? snapshot.hotbarItems.slice(0, HOTBAR_SIZE)
+        : Array(HOTBAR_SIZE).fill(null);
+
+      while (this.hotbarItems.length < HOTBAR_SIZE) {
+        this.hotbarItems.push(null);
+      }
+
+      this.selectedHotbarIndex = Phaser.Math.Clamp(
+        Number(snapshot.selectedHotbarIndex) || 0,
+        0,
+        HOTBAR_SIZE - 1
+      );
+
+      this.sprintExpiresAt =
+        Number(snapshot.sprintRemainingMs) > 0
+          ? Date.now() + Number(snapshot.sprintRemainingMs)
+          : 0;
+
+      this.facing =
+        snapshot.player?.facing < 0 ? -1 : 1;
+
+      this.player.setVisible(true);
+      this.player.setActive(true);
+      this.player.setAlpha(
+        Number.isFinite(snapshot.player?.alpha)
+          ? snapshot.player.alpha
+          : 1
+      );
+      this.player.setPosition(
+        Number(snapshot.player?.x) || this.player.x,
+        Number(snapshot.player?.y) || this.player.y
+      );
+      this.player.setFlipX(this.facing < 0);
+      this.player.clearTint();
+      this.player.setAngle(0);
+      this.player.setScale(0.42);
+
+      this.player.body.enable = true;
+      this.player.setVelocity(
+        Number(snapshot.player?.vx) || 0,
+        Number(snapshot.player?.vy) || 0
+      );
+
+      this.playerHitUntil = 0;
+      this.shootingUntil = 0;
+
+      this.restoreMilkmanRewindState?.(
+        snapshot.milkmanState,
+        this.time.now
+      );
+
+      this.updateHpBar();
+      this.updateCoinHUD();
+      this.updateInventoryUI();
+      this.updateSprintIndicator(true);
+      this.ensureTicketMachineInteractive?.();
+      this.ensureTramBoardingInteractive?.();
+
+      const onGround =
+        this.player.body.blocked.down ||
+        this.player.body.touching.down;
+
+      this.player.play(
+        onGround ? "simon-idle" : "simon-jump",
+        true
+      );
+    }
+
+    rewindGameThreeSeconds() {
+      if (
+        this.activeAbility !== "eternalReturn" ||
+        !this.abilitiesUnlocked?.eternalReturn ||
+        this.uiLocked ||
+        this.playerDying ||
+        this.rewindActive ||
+        this.inVoid ||
+        this.tramTransitActive
+      ) {
+        return;
+      }
+
+      const snapshot = this.findThreeSecondRewindSnapshot();
+
+      if (!snapshot) {
+        this.showAbilityStatusMessage(
+          "EWIGE WIEDERKEHR · NOCH KEINE 3 SEKUNDEN GESPEICHERT"
+        );
+        return;
+      }
+
+      this.rewindActive = true;
+      this.__rewindSuppressMilkmanUntil =
+        this.time.now + 700;
+
+      this.setControlsVisible(false);
+
+      if (this.hotbarDOM) {
+        this.hotbarDOM.style.pointerEvents = "none";
+        this.hotbarDOM.style.opacity = "0.58";
+      }
+
+      this.showAbilityStatusMessage(
+        "EWIGE WIEDERKEHR · −3 SEK.",
+        900
+      );
+
+      this.cameras.main.flash(180, 186, 153, 255);
+
+      const x = this.player.x;
+      const y = this.player.y - 38;
+
+      const rings = [
+        this.add.circle(x, y, 17, 0x000000, 0)
+          .setStrokeStyle(4, 0xe8cf74, 0.92)
+          .setDepth(190),
+        this.add.circle(x, y, 28, 0x000000, 0)
+          .setStrokeStyle(3, 0x9c76df, 0.78)
+          .setDepth(189),
+        this.add.circle(x, y, 39, 0x000000, 0)
+          .setStrokeStyle(2, 0x67d3ff, 0.66)
+          .setDepth(188)
+      ];
+
+      rings.forEach((ring, index) => {
+        this.tweens.add({
+          targets: ring,
+          scale: { from: 0.5, to: 2.0 + index * 0.22 },
+          alpha: { from: 1, to: 0 },
+          angle: index % 2 === 0 ? -120 : 120,
+          duration: 460,
+          ease: "Quad.easeOut",
+          onComplete: () => ring.destroy()
+        });
+      });
+
+      this.tweens.add({
+        targets: this.player,
+        alpha: { from: 1, to: 0.18 },
+        scaleX: { from: this.player.scaleX, to: 0.2 },
+        duration: 210,
+        yoyo: true,
+        ease: "Quad.easeInOut"
+      });
+
+      this.time.delayedCall(470, () => {
+        this.restoreRewindSnapshot(snapshot);
+
+        // The old timeline is discarded. Three new seconds have to develop
+        // before W can rewind again.
+        this.rewindHistory = [];
+        this.lastRewindCaptureAt = -Infinity;
+        this.rewindActive = false;
+
+        if (this.hotbarDOM) {
+          this.hotbarDOM.style.pointerEvents = "auto";
+          this.hotbarDOM.style.opacity = "1";
+        }
+
+        this.setControlsVisible(true);
+        this.updateAbilityIndicator();
+      });
     }
 
     canUseWormholeNow() {
@@ -2381,6 +2946,292 @@
       });
     }
 
+    getActionEffectDepth(baseDepth) {
+      return this.inVoid
+        ? 4250 + Math.max(0, baseDepth)
+        : baseDepth;
+    }
+
+    enterForItselfVoid() {
+      if (
+        this.activeAbility !== "forItself" ||
+        !this.abilitiesUnlocked?.forItself ||
+        this.uiLocked ||
+        this.playerDying ||
+        this.rewindActive ||
+        this.inVoid ||
+        this.tramTransitActive
+      ) {
+        return;
+      }
+
+      const remaining =
+        this.forItselfCooldownUntil - Date.now();
+
+      if (remaining > 0) {
+        const seconds = Math.ceil(remaining / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const rest = seconds % 60;
+
+        this.showAbilityStatusMessage(
+          `FÜR SICH SEIN · NOCH ${minutes}:${String(rest).padStart(2, "0")}`
+        );
+        return;
+      }
+
+      this.forItselfCooldownUntil =
+        Date.now() + 5 * 60 * 1000;
+
+      this.inVoid = true;
+      this.voidEnteredSceneTime = this.time.now;
+
+      this.voidPlayerState = {
+        x: this.player.x,
+        y: this.player.y,
+        vx: this.player.body?.velocity?.x || 0,
+        vy: this.player.body?.velocity?.y || 0,
+        depth: this.player.depth
+      };
+
+      this.player.setVelocity(0, 0);
+      if (this.player.body) {
+        this.player.body.enable = false;
+      }
+
+      this.voidBottleStates = [];
+
+      (this.milkBottles || []).forEach((bottle) => {
+        if (!bottle?.active || !bottle.body) return;
+
+        this.voidBottleStates.push({
+          bottle,
+          vx: bottle.body.velocity.x,
+          vy: bottle.body.velocity.y,
+          enabled: bottle.body.enable
+        });
+
+        bottle.body.enable = false;
+      });
+
+      this.setControlsVisible(false);
+      this.cleanupAbilityTouchControl();
+
+      if (this.itemsButton) {
+        this.itemsButton.setDepth(4300);
+      }
+
+      const overlay = this.add.container(0, 0)
+        .setScrollFactor(0)
+        .setDepth(4000);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0x020307, 0.985);
+      bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+      // Sparse timeless void.
+      const points = [
+        [76,56],[154,126],[244,70],[338,143],[435,73],[517,164],
+        [626,76],[731,131],[792,54],[107,247],[205,308],[313,253],
+        [423,315],[541,268],[655,326],[755,246]
+      ];
+
+      points.forEach(([x, y], index) => {
+        bg.fillStyle(
+          index % 3 === 0 ? 0xb7c9e7 : 0x67758d,
+          index % 2 === 0 ? 0.55 : 0.32
+        );
+        bg.fillCircle(x, y, index % 4 === 0 ? 2 : 1);
+      });
+
+      bg.lineStyle(2, 0x4a5870, 0.22);
+      bg.strokeEllipse(GAME_WIDTH / 2, 205, 510, 210);
+      bg.strokeEllipse(GAME_WIDTH / 2, 205, 330, 132);
+
+      const title = this.add.text(
+        GAME_WIDTH / 2,
+        62,
+        "FÜR SICH SEIN",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "15px",
+          color: "#e9edf2",
+          stroke: "#090b10",
+          strokeThickness: 5
+        }
+      )
+        .setOrigin(0.5);
+
+      const note = this.add.text(
+        GAME_WIDTH / 2,
+        92,
+        "DIE WELT DRAUSSEN STEHT STILL",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "6px",
+          color: "#8f9aac"
+        }
+      )
+        .setOrigin(0.5);
+
+      overlay.add([bg, title, note]);
+      this.voidOverlay = overlay;
+
+      this.voidBlocker = this.add.zone(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2,
+        GAME_WIDTH,
+        GAME_HEIGHT
+      )
+        .setScrollFactor(0)
+        .setDepth(4050)
+        .setInteractive();
+
+      this.voidBlocker.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+      });
+
+      // Simon stays visible above the void.
+      this.player.setDepth(4100);
+      this.player.play("simon-idle", true);
+
+      this.createVoidBackButton();
+      this.refreshHotbar();
+      this.updateHotbarActionUI();
+      this.updateAbilityIndicator();
+    }
+
+    createVoidBackButton() {
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      root.querySelectorAll("[data-simon-ui='void-back']")
+        .forEach((node) => node.remove());
+
+      const wrapper = document.createElement("div");
+      wrapper.dataset.simonUi = "void-back";
+
+      Object.assign(wrapper.style, {
+        position: "absolute",
+        left: "12px",
+        top: "12px",
+        zIndex: "100060",
+        pointerEvents: "auto"
+      });
+
+      const back = this.createDOMButton(
+        "← ZURÜCK",
+        () => this.exitForItselfVoid(),
+        {
+          color: "#eef2f6",
+          background: "#151922",
+          border: "#8794a8",
+          width: "145px",
+          minHeight: "40px",
+          fontSize: "7px"
+        }
+      );
+
+      wrapper.appendChild(back);
+      root.appendChild(wrapper);
+      this.voidBackUI = { overlay: wrapper };
+    }
+
+    shiftPausedWorldTimers(elapsed) {
+      if (!Number.isFinite(elapsed) || elapsed <= 0) return;
+
+      [
+        "nextMilkBottleAt",
+        "nextMilkmanPunchAt",
+        "nextLionHitAt",
+        "playerHitUntil",
+        "shootingUntil",
+        "dialogueIgnoreUntil"
+      ].forEach((key) => {
+        if (Number.isFinite(this[key]) && this[key] > 0) {
+          this[key] += elapsed;
+        }
+      });
+    }
+
+    exitForItselfVoid() {
+      if (!this.inVoid) return;
+
+      const elapsed =
+        Math.max(0, this.time.now - this.voidEnteredSceneTime);
+
+      this.shiftPausedWorldTimers(elapsed);
+
+      if (this.voidBackUI) {
+        this.destroyDOMModal(this.voidBackUI);
+        this.voidBackUI = null;
+      }
+
+      this.voidBlocker?.destroy?.();
+      this.voidBlocker = null;
+
+      this.voidOverlay?.destroy?.(true);
+      this.voidOverlay = null;
+
+      this.inVoid = false;
+
+      if (this.itemsButton) {
+        this.itemsButton.setDepth(305);
+      }
+
+      this.player.setDepth(
+        Number.isFinite(this.voidPlayerState?.depth)
+          ? this.voidPlayerState.depth
+          : 10
+      );
+
+      if (this.player.body) {
+        this.player.body.enable = true;
+      }
+
+      this.player.setVelocity(
+        Number(this.voidPlayerState?.vx) || 0,
+        Number(this.voidPlayerState?.vy) || 0
+      );
+
+      this.voidBottleStates.forEach((state) => {
+        const bottle = state.bottle;
+        if (!bottle?.active || !bottle.body) return;
+
+        bottle.body.enable = Boolean(state.enabled);
+        bottle.body.setVelocity(
+          Number(state.vx) || 0,
+          Number(state.vy) || 0
+        );
+      });
+
+      this.voidBottleStates = [];
+      this.voidPlayerState = null;
+
+      this.setControlsVisible(!this.uiLocked);
+      this.refreshHotbar();
+      this.updateHotbarActionUI();
+      this.updateAbilityIndicator();
+      this.syncStreetStoreHitboxes?.();
+    }
+
+    cleanupVoid() {
+      if (this.voidBackUI) {
+        this.destroyDOMModal(this.voidBackUI);
+        this.voidBackUI = null;
+      }
+
+      this.voidBlocker?.destroy?.();
+      this.voidBlocker = null;
+
+      this.voidOverlay?.destroy?.(true);
+      this.voidOverlay = null;
+
+      this.inVoid = false;
+      this.voidBottleStates = [];
+      this.voidPlayerState = null;
+    }
+
     isSprintActive() {
       return Number.isFinite(this.sprintExpiresAt) &&
         this.sprintExpiresAt > Date.now();
@@ -2407,7 +3258,7 @@
       const cigarette = this.add.container(
         this.player.x + direction * 17,
         this.player.y - 62
-      ).setDepth(85);
+      ).setDepth(this.getActionEffectDepth(85));
 
       const cig = this.add.graphics();
       cig.fillStyle(0xc78a44, 1);
@@ -2441,7 +3292,7 @@
             4 + index,
             0xe7e4dc,
             0.72
-          ).setDepth(84);
+          ).setDepth(this.getActionEffectDepth(84));
 
           this.tweens.add({
             targets: puff,
@@ -3025,16 +3876,7 @@
           boxSizing: "border-box"
         });
 
-        const icon = document.createElement("div");
-        Object.assign(icon.style, {
-          width: "40px",
-          height: "40px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, #07040e 0 27%, #724dd2 31% 45%, #62c8ff 50% 59%, #2a153f 63% 100%)",
-          border: "2px solid #d8c9ff",
-          boxShadow: "0 0 8px #7054cf"
-        });
+        const icon = this.createDOMAbilityIcon(abilityKey, 40);
 
         const name = this.createDOMText(ability.name, {
           fontSize: "8px",
@@ -3262,6 +4104,8 @@
 
     boardTram() {
       if (
+        this.inVoid ||
+        this.rewindActive ||
         !this.hasCityTicket ||
         !this.tramBoardingEnabled ||
         this.tramTransitActive ||
@@ -3445,6 +4289,7 @@
                 booksRead: { ...this.booksRead },
                 abilitiesUnlocked: { ...this.abilitiesUnlocked },
                 activeAbility: this.activeAbility,
+                forItselfCooldownUntil: this.forItselfCooldownUntil,
                 hotbarItems: [...this.hotbarItems],
                 selectedHotbarIndex: this.selectedHotbarIndex,
                 sprintExpiresAt: this.sprintExpiresAt
@@ -3508,7 +4353,7 @@
 
     setUILocked(locked) {
       this.uiLocked = locked;
-      this.setControlsVisible(!locked);
+      this.setControlsVisible(!locked && !this.inVoid && !this.rewindActive);
 
       if (this.hotbarDOM) {
         this.hotbarDOM.style.pointerEvents = locked ? "none" : "auto";
@@ -3520,6 +4365,7 @@
       }
 
       this.updateHotbarActionUI?.();
+      this.refreshAbilityTouchControl?.();
     }
 
     openTicketModal() {
@@ -4943,8 +5789,22 @@
       const body = this.player.body;
       const onGround = body.blocked.down || body.touching.down;
 
+      this.updateAbilityCooldownLabel();
+      this.recordRewindSnapshot(time);
+
       if (onGround) {
         this.wormholeUsedThisJump = false;
+      }
+
+      if (this.inVoid) {
+        this.player.setVelocity(0, 0);
+        this.updateSprintIndicator();
+        return;
+      }
+
+      if (this.rewindActive) {
+        this.player.setVelocity(0, 0);
+        return;
       }
 
       if (this.wormholeTeleporting) {
@@ -5093,11 +5953,36 @@
       this.milkBottles = [];
       this.nextMilkBottleAt = 0;
       this.milkBottleThrowCount = 0;
+      this.milkmanRngState = 0x51a7c3d9;
       this.nextMilkmanPunchAt = 0;
     }
 
     init(data = {}) {
       this.arrivalData = data;
+
+      // BahnhofquaiScene is reused by Phaser. These arrival references/flags
+      // must be fresh on EVERY trip, otherwise playArrivalAnimation() returns
+      // immediately after the first visit and Simon stays hidden in the tram.
+      this.arrivalFinished = false;
+      this.arrivalTram = null;
+      this.arrivalDoor = null;
+      this.tram = null;
+      this.tramHitbox = null;
+      this.tramBoardingMarker = null;
+      this.tramBoardingEnabled = false;
+      this.tramTransitActive = false;
+      this.hbBoundary = null;
+      this.uiLocked = false;
+      this.rewindHistory = [];
+      this.lastRewindCaptureAt = -Infinity;
+      this.rewindActive = false;
+      this.inVoid = false;
+      this.voidOverlay = null;
+      this.voidBlocker = null;
+      this.voidBackUI = null;
+      this.abilityControlObjects = [];
+      this.abilityCooldownText = null;
+
       this.developerMode = Boolean(data.developerMode || data.fromDeveloperMode);
       this.coins = this.developerMode
         ? 999999
@@ -5131,13 +6016,21 @@
       };
 
       this.abilitiesUnlocked = {
-        wormhole: Boolean(data.abilitiesUnlocked?.wormhole)
+        wormhole: Boolean(data.abilitiesUnlocked?.wormhole),
+        eternalReturn: Boolean(data.abilitiesUnlocked?.eternalReturn),
+        forItself: Boolean(data.abilitiesUnlocked?.forItself)
       };
 
       this.activeAbility =
-        data.activeAbility === "wormhole" && this.abilitiesUnlocked.wormhole
-          ? "wormhole"
+        typeof data.activeAbility === "string" &&
+        this.abilitiesUnlocked[data.activeAbility]
+          ? data.activeAbility
           : null;
+
+      this.forItselfCooldownUntil =
+        Number.isFinite(data.forItselfCooldownUntil)
+          ? data.forItselfCooldownUntil
+          : 0;
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
@@ -5214,6 +6107,7 @@
           .forEach((node) => node.remove());
         this.cleanupSprintIndicator();
         this.cleanupAbilityIndicator();
+        this.cleanupVoid();
       });
 
       this.updateCoinHUD();
@@ -5733,6 +6627,8 @@
 
       // Absolutely no world-store interaction while any overlay/menu is open.
       if (
+        this.inVoid ||
+        this.rewindActive ||
         this.uiLocked ||
         this.itemsModal ||
         this.itemInfoModal ||
@@ -5762,6 +6658,8 @@
     syncStreetStoreHitboxes() {
       const enabled = Boolean(
         this.arrivalFinished &&
+        !this.inVoid &&
+        !this.rewindActive &&
         !this.uiLocked &&
         !this.milkmanDialogueActive &&
         !this.milkmanFightActive &&
@@ -7017,8 +7915,13 @@
       this.milkmanFightActive = true;
       this.milkmanHp = this.milkmanMaxHp;
       this.milkBottleThrowCount = 0;
+
+      if (!Number.isFinite(this.milkmanRngState)) {
+        this.milkmanRngState = 0x51a7c3d9;
+      }
+
       this.nextMilkBottleAt =
-        this.time.now + Phaser.Math.Between(1000, 3000);
+        this.time.now + this.nextMilkBottleDelay();
       this.nextMilkmanPunchAt = 0;
 
       this.createMilkmanHealthBar();
@@ -7078,8 +7981,241 @@
       }
     }
 
+    nextMilkBottleDelay() {
+      // Local deterministic PRNG. Rewinding the stored state reproduces the
+      // same 1–3 second throw rhythm.
+      this.milkmanRngState =
+        (
+          (Math.imul(1664525, this.milkmanRngState >>> 0) + 1013904223)
+          >>> 0
+        );
+
+      return 1000 + (this.milkmanRngState % 2001);
+    }
+
+    captureMilkmanRewindState(time) {
+      const milkmanExists = Boolean(this.milkman?.active);
+
+      return {
+        exists: milkmanExists,
+        encounterStarted: Boolean(this.milkmanEncounterStarted),
+        fightActive: Boolean(this.milkmanFightActive),
+        defeated: Boolean(this.milkmanDefeated),
+        hp: this.milkmanHp,
+        throwCount: this.milkBottleThrowCount,
+        rngState: this.milkmanRngState >>> 0,
+        nextBottleInMs: Number.isFinite(this.nextMilkBottleAt)
+          ? Math.max(0, this.nextMilkBottleAt - time)
+          : 0,
+        nextPunchInMs: Number.isFinite(this.nextMilkmanPunchAt)
+          ? Math.max(0, this.nextMilkmanPunchAt - time)
+          : 0,
+        milkman: milkmanExists
+          ? {
+              x: this.milkman.x,
+              y: this.milkman.y,
+              angle: this.milkman.angle,
+              scaleX: this.milkman.scaleX,
+              scaleY: this.milkman.scaleY,
+              flipX: this.milkman.flipX,
+              alpha: this.milkman.alpha,
+              depth: this.milkman.depth
+            }
+          : null,
+        bottles: (this.milkBottles || [])
+          .filter((bottle) => bottle?.active && bottle.body)
+          .map((bottle) => ({
+            x: bottle.x,
+            y: bottle.y,
+            vx: bottle.body.velocity.x,
+            vy: bottle.body.velocity.y,
+            damage: Number(bottle.__milkDamage) || 10,
+            superMilk: Boolean(bottle.__superMilk)
+          }))
+      };
+    }
+
+    createRestoredMilkBottle(data) {
+      const isSuperMilk = Boolean(data?.superMilk);
+      const damage = isSuperMilk ? 20 : 10;
+
+      const bottle = this.add.container(
+        Number(data?.x) || this.player.x,
+        Number(data?.y) || (GROUND_TOP - 30)
+      ).setDepth(28);
+
+      const g = this.add.graphics();
+
+      if (isSuperMilk) {
+        g.fillStyle(0xffffff, 1);
+        g.fillRoundedRect(-10, -17, 20, 34, 5);
+        g.fillRect(-6, -26, 12, 10);
+        g.fillStyle(0x70c7ff, 1);
+        g.fillRect(-8, -5, 16, 12);
+        g.fillStyle(0xffdf5b, 1);
+        g.fillRect(-8, 8, 16, 5);
+        g.lineStyle(3, 0x4e86a8, 1);
+        g.strokeRoundedRect(-10, -17, 20, 34, 5);
+
+        const label = this.add.text(
+          0,
+          -39,
+          "SUPER MILCH",
+          {
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "5.5px",
+            color: "#fff5b8",
+            stroke: "#235a79",
+            strokeThickness: 3
+          }
+        )
+          .setOrigin(0.5)
+          .setDepth(29);
+
+        bottle.add([g, label]);
+      } else {
+        g.fillStyle(0xf5f6ef, 1);
+        g.fillRoundedRect(-7, -12, 14, 24, 4);
+        g.fillRect(-4, -18, 8, 7);
+        g.fillStyle(0x80acd1, 1);
+        g.fillRect(-5, -3, 10, 8);
+        g.lineStyle(2, 0x80919a, 1);
+        g.strokeRoundedRect(-7, -12, 14, 24, 4);
+        bottle.add(g);
+      }
+
+      this.physics.add.existing(bottle);
+      bottle.body.setSize(
+        isSuperMilk ? 24 : 16,
+        isSuperMilk ? 48 : 34
+      );
+      bottle.body.setAllowGravity(false);
+      bottle.body.setVelocity(
+        Number(data?.vx) || 0,
+        Number(data?.vy) || 0
+      );
+
+      bottle.__milkHit = false;
+      bottle.__milkDamage = damage;
+      bottle.__superMilk = isSuperMilk;
+
+      this.milkBottles.push(bottle);
+
+      this.physics.add.overlap(
+        this.player,
+        bottle,
+        () => this.hitSimonWithMilkBottle(bottle),
+        null,
+        this
+      );
+
+      return bottle;
+    }
+
+    restoreMilkmanRewindState(state, now) {
+      if (!state) return;
+
+      this.milkBottles.forEach((bottle) => {
+        bottle?.destroy?.(true);
+      });
+      this.milkBottles = [];
+
+      this.milkmanEncounterStarted =
+        Boolean(state.encounterStarted);
+      this.milkmanFightActive =
+        Boolean(state.fightActive);
+      this.milkmanDefeated =
+        Boolean(state.defeated);
+      this.milkmanHp = Phaser.Math.Clamp(
+        Number(state.hp) || 0,
+        0,
+        this.milkmanMaxHp
+      );
+      this.milkBottleThrowCount =
+        Math.max(0, Number(state.throwCount) || 0);
+      this.milkmanRngState =
+        Number(state.rngState) >>> 0;
+
+      this.nextMilkBottleAt =
+        now + Math.max(0, Number(state.nextBottleInMs) || 0);
+      this.nextMilkmanPunchAt =
+        now + Math.max(0, Number(state.nextPunchInMs) || 0);
+
+      if (state.exists) {
+        if (!this.milkman?.active) {
+          this.milkman = this.createMilkman(
+            Number(state.milkman?.x) || this.player.x + 230,
+            GROUND_TOP - 8
+          );
+        }
+
+        this.milkman.setPosition(
+          Number(state.milkman?.x) || this.milkman.x,
+          Number(state.milkman?.y) || this.milkman.y
+        );
+        this.milkman.setAngle(
+          Number(state.milkman?.angle) || 0
+        );
+        this.milkman.setScale(
+          Number.isFinite(state.milkman?.scaleX)
+            ? Math.abs(state.milkman.scaleX)
+            : Math.abs(this.milkman.scaleX || 1),
+          Number.isFinite(state.milkman?.scaleY)
+            ? Math.abs(state.milkman.scaleY)
+            : Math.abs(this.milkman.scaleY || 1)
+        );
+        this.milkman.setFlipX(Boolean(state.milkman?.flipX));
+        this.milkman.setAlpha(
+          Number.isFinite(state.milkman?.alpha)
+            ? state.milkman.alpha
+            : 1
+        );
+        this.milkman.setDepth(
+          Number.isFinite(state.milkman?.depth)
+            ? state.milkman.depth
+            : 32
+        );
+
+        if (this.milkmanDefeated) {
+          this.milkman.setInteractive({ useHandCursor: true });
+        } else {
+          this.milkman.disableInteractive?.();
+          this.milkman.setAngle(0);
+
+          if (this.milkman.__milkmanV15) {
+            this.milkman
+              .setScale(0.78)
+              .setSize(104, 184);
+            this.milkman.play("milkman-v15-idle", true);
+          }
+        }
+      }
+
+      (state.bottles || []).forEach((bottleData) => {
+        this.createRestoredMilkBottle(bottleData);
+      });
+
+      if (
+        this.milkmanFightActive &&
+        this.milkman?.active &&
+        !this.milkmanDefeated
+      ) {
+        if (!this.milkmanHealthBar) {
+          this.createMilkmanHealthBar();
+        }
+        this.updateMilkmanHealthBar();
+      } else {
+        this.destroyMilkmanHealthBar();
+      }
+
+      this.syncStreetStoreHitboxes();
+    }
+
     createMilkBottleProjectile() {
       if (
+        this.time.now < this.__rewindSuppressMilkmanUntil ||
+        this.inVoid ||
+        this.rewindActive ||
         !this.milkmanFightActive ||
         !this.milkman ||
         this.milkmanDefeated ||
@@ -7252,6 +8388,8 @@
 
     updateMilkmanFight(time, delta) {
       if (
+        this.inVoid ||
+        this.rewindActive ||
         !this.milkmanFightActive ||
         !this.milkman ||
         this.milkmanDefeated ||
@@ -7276,9 +8414,10 @@
       if (time >= this.nextMilkBottleAt) {
         this.createMilkBottleProjectile();
 
-        // Fresh random gap after each throw: inclusive 1.0–3.0 seconds.
+        // Same 1–3 s range, now deterministic so Ewige Wiederkehr can
+        // reproduce the same environmental timing after a rewind.
         this.nextMilkBottleAt =
-          time + Phaser.Math.Between(1000, 3000);
+          time + this.nextMilkBottleDelay();
       }
 
       // Remove projectiles that have left the active world/camera area.
@@ -7534,6 +8673,7 @@
                   booksRead: { ...this.booksRead },
                   abilitiesUnlocked: { ...this.abilitiesUnlocked },
                   activeAbility: this.activeAbility,
+                  forItselfCooldownUntil: this.forItselfCooldownUntil,
                   hotbarItems: [...this.hotbarItems],
                   selectedHotbarIndex: this.selectedHotbarIndex,
                   sprintExpiresAt: this.sprintExpiresAt
