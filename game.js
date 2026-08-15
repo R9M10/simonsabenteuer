@@ -93,6 +93,12 @@
         zarathustra: false
       };
 
+      // Bahnhofstrasse story progression. These flags are carried through
+      // tram journeys so the encounter cannot accidentally repeat.
+      this.gandhiStoryEligible = false;
+      this.gandhiEncounterFinished = false;
+      this.gandhiDead = false;
+
       this.booksRead = {
         generalRelativity: false,
         phaenomenologie: false,
@@ -246,6 +252,13 @@
         playbook: Boolean(data.booksOwned?.playbook),
         zarathustra: Boolean(data.booksOwned?.zarathustra)
       };
+
+      this.gandhiStoryEligible =
+        Boolean(data.gandhiStoryEligible);
+      this.gandhiEncounterFinished =
+        Boolean(data.gandhiEncounterFinished);
+      this.gandhiDead =
+        Boolean(data.gandhiDead);
 
       this.booksRead = {
         generalRelativity: Boolean(data.booksRead?.generalRelativity),
@@ -424,6 +437,9 @@
           developerMode: true,
           inventory: { ...this.inventory },
           booksOwned: { ...this.booksOwned },
+          gandhiStoryEligible: this.gandhiStoryEligible,
+          gandhiEncounterFinished: this.gandhiEncounterFinished,
+          gandhiDead: this.gandhiDead,
           booksRead: { ...this.booksRead },
           abilitiesUnlocked: { ...this.abilitiesUnlocked },
           activeAbility: this.activeAbility,
@@ -4286,6 +4302,9 @@
                 developerMode: this.developerMode,
                 inventory: { ...this.inventory },
                 booksOwned: { ...this.booksOwned },
+                gandhiStoryEligible: this.gandhiStoryEligible,
+                gandhiEncounterFinished: this.gandhiEncounterFinished,
+                gandhiDead: this.gandhiDead,
                 booksRead: { ...this.booksRead },
                 abilitiesUnlocked: { ...this.abilitiesUnlocked },
                 activeAbility: this.activeAbility,
@@ -5955,6 +5974,18 @@
       this.milkBottleThrowCount = 0;
       this.milkmanRngState = 0x51a7c3d9;
       this.nextMilkmanPunchAt = 0;
+
+      // Gandhi encounter.
+      this.gandhi = null;
+      this.gandhiDialogueBubble = null;
+      this.gandhiDialogueActive = false;
+      this.gandhiDialogueStep = 0;
+      this.gandhiChoiceModal = null;
+      this.gandhiNukeActive = false;
+      this.gandhiTriggerArmed = false;
+      this.gandhiEncounterStarted = false;
+      this.gandhiBomb = null;
+      this.gandhiExplosionObjects = [];
     }
 
     init(data = {}) {
@@ -5983,6 +6014,17 @@
       this.abilityControlObjects = [];
       this.abilityCooldownText = null;
 
+      this.gandhi = null;
+      this.gandhiDialogueBubble = null;
+      this.gandhiDialogueActive = false;
+      this.gandhiDialogueStep = 0;
+      this.gandhiChoiceModal = null;
+      this.gandhiNukeActive = false;
+      this.gandhiTriggerArmed = false;
+      this.gandhiEncounterStarted = false;
+      this.gandhiBomb = null;
+      this.gandhiExplosionObjects = [];
+
       this.developerMode = Boolean(data.developerMode || data.fromDeveloperMode);
       this.coins = this.developerMode
         ? 999999
@@ -6007,6 +6049,13 @@
         playbook: Boolean(data.booksOwned?.playbook),
         zarathustra: Boolean(data.booksOwned?.zarathustra)
       };
+
+      this.gandhiStoryEligible =
+        Boolean(data.gandhiStoryEligible || this.gandhiStoryEligible);
+      this.gandhiEncounterFinished =
+        Boolean(data.gandhiEncounterFinished || this.gandhiEncounterFinished);
+      this.gandhiDead =
+        Boolean(data.gandhiDead || this.gandhiDead);
 
       this.booksRead = {
         generalRelativity: Boolean(data.booksRead?.generalRelativity),
@@ -6108,6 +6157,18 @@
         this.cleanupSprintIndicator();
         this.cleanupAbilityIndicator();
         this.cleanupVoid();
+
+        if (this.gandhiChoiceModal) {
+          this.destroyDOMModal(this.gandhiChoiceModal);
+          this.gandhiChoiceModal = null;
+        }
+
+        this.clearGandhiDialogue?.();
+
+        (this.gandhiExplosionObjects || []).forEach((object) => {
+          object?.destroy?.();
+        });
+        this.gandhiExplosionObjects = [];
       });
 
       this.updateCoinHUD();
@@ -6130,9 +6191,27 @@
       this.time.delayedCall(320, () => this.playArrivalAnimation());
 
       this.input.on("pointerup", (pointer, currentlyOver) => {
+        // Gandhi dialogue uses the same simple "tap anywhere" rhythm as the
+        // milkman dialogue, but DOM menus still swallow their own taps.
+        if (this.gandhiDialogueActive) {
+          if (
+            this.itemsModal ||
+            this.ticketModal ||
+            this.storeEntryModal ||
+            this.bookstoreEntryModal ||
+            this.indianStoreOverlay ||
+            this.bookstoreOverlay ||
+            this.gandhiChoiceModal
+          ) {
+            return;
+          }
+
+          this.advanceGandhiDialogue();
+          return;
+        }
+
         if (!this.milkmanDialogueActive) return;
 
-        // Don't advance dialogue when a DOM UI element is actually active.
         if (
           this.itemsModal ||
           this.ticketModal ||
@@ -6647,7 +6726,10 @@
         this.milkmanFightActive ||
         this.milkmanDialogueActive ||
         this.milkmanFightActive ||
-        this.milkmanLootModal
+        this.milkmanLootModal ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiNukeActive
       ) {
         return false;
       }
@@ -6663,6 +6745,9 @@
         !this.uiLocked &&
         !this.milkmanDialogueActive &&
         !this.milkmanFightActive &&
+        !this.gandhiDialogueActive &&
+        !this.gandhiChoiceModal &&
+        !this.gandhiNukeActive &&
         !this.playerDying
       );
 
@@ -6699,7 +6784,10 @@
         this.playerDying ||
         this.bookstoreEntryModal ||
         this.bookstoreOverlay ||
-        this.bookstoreCatalogModal
+        this.bookstoreCatalogModal ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiNukeActive
       ) {
         return;
       }
@@ -7180,7 +7268,10 @@
         this.drinkingItem ||
         this.readingBook ||
         this.milkmanDialogueActive ||
-        this.milkmanLootModal
+        this.milkmanLootModal ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiNukeActive
       );
 
       this.setUILocked(locked);
@@ -7200,7 +7291,10 @@
         this.bookstoreCatalogModal ||
         this.readingBook ||
         this.milkmanDialogueActive ||
-        this.milkmanFightActive
+        this.milkmanFightActive ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiNukeActive
       ) {
         return;
       }
@@ -7716,6 +7810,552 @@
       this.refreshUILock();
       this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
       this.cameras.main.setDeadzone(240, 80);
+    }
+
+    updateGandhiStory() {
+      if (
+        !this.gandhiStoryEligible ||
+        this.gandhiEncounterFinished ||
+        this.gandhiEncounterStarted ||
+        this.playerDying ||
+        !this.arrivalFinished
+      ) {
+        return;
+      }
+
+      const triggerLeft = 1300;
+      const triggerRight = 1760;
+      const insideTrigger =
+        this.player.x >= triggerLeft &&
+        this.player.x <= triggerRight;
+
+      if (!insideTrigger) {
+        this.gandhiTriggerArmed = true;
+        return;
+      }
+
+      if (
+        !this.gandhiTriggerArmed ||
+        this.uiLocked ||
+        this.milkmanFightActive ||
+        this.milkmanDialogueActive ||
+        this.milkmanLootModal ||
+        this.indianStoreOverlay ||
+        this.shopModal ||
+        this.bookstoreOverlay ||
+        this.bookstoreCatalogModal
+      ) {
+        return;
+      }
+
+      this.startGandhiEncounter();
+    }
+
+    createGandhi(x, groundY) {
+      const gandhi = this.add.container(
+        x,
+        groundY - 67
+      ).setDepth(34);
+
+      const g = this.add.graphics();
+
+      g.fillStyle(0x9b704f, 1);
+      g.fillRect(-14, 35, 9, 33);
+      g.fillRect(5, 35, 9, 33);
+      g.fillStyle(0x5f4835, 1);
+      g.fillRect(-18, 65, 16, 5);
+      g.fillRect(2, 65, 16, 5);
+
+      g.fillStyle(0xf1eee1, 1);
+      g.fillRoundedRect(-24, -13, 48, 53, 9);
+      g.fillTriangle(-22, 29, -2, 72, 5, 29);
+      g.fillTriangle(22, 29, 2, 72, -5, 29);
+
+      g.fillStyle(0xded8c9, 1);
+      g.fillTriangle(-25, -11, 4, -9, -18, 36);
+      g.lineStyle(2, 0xbcb4a3, 1);
+      g.lineBetween(-16, -3, 4, 30);
+
+      g.fillStyle(0xaa7b58, 1);
+      g.fillRoundedRect(-31, -3, 10, 42, 5);
+      g.fillRoundedRect(21, -3, 10, 42, 5);
+      g.fillCircle(-26, 38, 6);
+      g.fillCircle(26, 38, 6);
+
+      g.fillStyle(0xb68460, 1);
+      g.fillRoundedRect(-18, -53, 36, 36, 11);
+      g.fillCircle(-19, -35, 5);
+      g.fillCircle(19, -35, 5);
+
+      g.lineStyle(2, 0x3f3933, 1);
+      g.strokeCircle(-8, -38, 7);
+      g.strokeCircle(8, -38, 7);
+      g.lineBetween(-1, -38, 1, -38);
+
+      g.fillStyle(0x2b2622, 1);
+      g.fillCircle(-8, -38, 1.5);
+      g.fillCircle(8, -38, 1.5);
+      g.lineStyle(2, 0x5d3d31, 1);
+      g.beginPath();
+      g.arc(0, -27, 7, 0.18, Math.PI - 0.18);
+      g.strokePath();
+
+      g.lineStyle(4, 0x6e4b2f, 1);
+      g.lineBetween(31, -3, 37, 70);
+      g.lineBetween(31, -3, 26, -7);
+
+      gandhi.add(g);
+      gandhi.setSize(82, 150);
+
+      return gandhi;
+    }
+
+    startGandhiEncounter() {
+      if (
+        this.gandhiEncounterStarted ||
+        this.gandhiEncounterFinished ||
+        this.playerDying
+      ) {
+        return;
+      }
+
+      this.gandhiEncounterStarted = true;
+      this.gandhiDialogueActive = true;
+      this.gandhiDialogueStep = 0;
+      this.setUILocked(true);
+      this.syncStreetStoreHitboxes();
+
+      const doorX = 1521;
+      const targetX =
+        this.player.x < doorX
+          ? doorX - 92
+          : doorX + 92;
+
+      this.gandhi = this.createGandhi(
+        doorX,
+        GROUND_TOP - 8
+      )
+        .setAlpha(0)
+        .setScale(0.72);
+
+      this.tweens.add({
+        targets: this.gandhi,
+        alpha: 1,
+        scale: 1,
+        x: targetX,
+        duration: 720,
+        ease: "Back.easeOut",
+        onComplete: () => {
+          this.faceGandhiTowardSimon();
+          this.showGandhiDialogue(
+            "Namaste, Simon."
+          );
+          this.dialogueIgnoreUntil =
+            this.time.now + 300;
+        }
+      });
+    }
+
+    faceGandhiTowardSimon() {
+      if (!this.gandhi || !this.player) return;
+
+      this.gandhi.scaleX =
+        this.player.x < this.gandhi.x ? -1 : 1;
+      this.gandhi.scaleY =
+        Math.abs(this.gandhi.scaleY || 1);
+    }
+
+    clearGandhiDialogue() {
+      if (this.gandhiDialogueBubble) {
+        this.gandhiDialogueBubble.destroy(true);
+        this.gandhiDialogueBubble = null;
+      }
+    }
+
+    showGandhiDialogue(message) {
+      this.clearGandhiDialogue();
+
+      if (!this.gandhi) return;
+
+      this.gandhiDialogueBubble =
+        this.createSpeechBubble(
+          this.gandhi.x,
+          this.gandhi.y - 116,
+          message,
+          0
+        ).setDepth(125);
+    }
+
+    advanceGandhiDialogue() {
+      if (
+        !this.gandhiDialogueActive ||
+        this.time.now < this.dialogueIgnoreUntil
+      ) {
+        return false;
+      }
+
+      if (this.gandhiDialogueStep === 0) {
+        this.gandhiDialogueStep = 1;
+        this.showGandhiDialogue(
+          "Friede fangt nöd bi de andere a. Er fangt bi dir a."
+        );
+        this.dialogueIgnoreUntil =
+          this.time.now + 250;
+        return true;
+      }
+
+      if (this.gandhiDialogueStep === 1) {
+        this.gandhiDialogueStep = 2;
+        this.showGandhiDialogue(
+          "Wer Gewalt mit Gewalt beantwortet, macht d'Welt nur dunkler."
+        );
+        this.dialogueIgnoreUntil =
+          this.time.now + 250;
+        return true;
+      }
+
+      this.clearGandhiDialogue();
+      this.gandhiDialogueActive = false;
+      this.openGandhiChoice();
+      return true;
+    }
+
+    openGandhiChoice() {
+      if (
+        this.gandhiChoiceModal ||
+        !this.gandhi ||
+        this.gandhiDead
+      ) {
+        return;
+      }
+
+      this.setUILocked(true);
+
+      const modal = this.createDOMModal({
+        key: "gandhi-choice",
+        width: "min(92%, 500px)",
+        placement: "bottom",
+        background: "#16171b",
+        border: "#ded8bf",
+        shade: "rgba(0, 0, 0, 0)",
+        padding: "10px"
+      });
+
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.gandhiChoiceModal = modal;
+
+      const title = this.createDOMText(
+        "WAS MACHT SIMON?",
+        {
+          fontSize: "8px",
+          color: "#eee9d8",
+          margin: "0 0 9px"
+        }
+      );
+
+      const buttons = document.createElement("div");
+      Object.assign(buttons.style, {
+        display: "grid",
+        gridTemplateColumns: "1.35fr 1fr",
+        gap: "8px"
+      });
+
+      const nuke = this.createDOMButton(
+        "NUKE GANDHI",
+        () => this.nukeGandhi(),
+        {
+          color: "#ffe7c7",
+          background: "#7a2626",
+          border: "#f0a16e",
+          minHeight: "43px",
+          fontSize: "8px"
+        }
+      );
+
+      const spare = this.createDOMButton(
+        "WEITERGEHEN",
+        () => this.spareGandhi(),
+        {
+          color: "#e7eadf",
+          background: "#364139",
+          border: "#84947e",
+          minHeight: "43px",
+          fontSize: "6px"
+        }
+      );
+
+      buttons.append(nuke, spare);
+      modal.panel.append(title, buttons);
+      this.refreshUILock();
+    }
+
+    closeGandhiChoice() {
+      if (!this.gandhiChoiceModal) return;
+
+      this.destroyDOMModal(this.gandhiChoiceModal);
+      this.gandhiChoiceModal = null;
+    }
+
+    spareGandhi() {
+      if (!this.gandhi || this.gandhiDead) return;
+
+      this.closeGandhiChoice();
+      this.gandhiEncounterFinished = true;
+
+      const targetX = 1521;
+
+      this.tweens.add({
+        targets: this.gandhi,
+        x: targetX,
+        alpha: 0,
+        scale: 0.72,
+        duration: 720,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          this.gandhi?.destroy?.(true);
+          this.gandhi = null;
+          this.refreshUILock();
+          this.syncStreetStoreHitboxes();
+        }
+      });
+    }
+
+    createAtomicBomb(x, y) {
+      const bomb = this.add.container(x, y)
+        .setDepth(210);
+
+      const g = this.add.graphics();
+
+      g.fillStyle(0x25292d, 1);
+      g.fillEllipse(0, 0, 34, 72);
+      g.fillStyle(0x3f474d, 1);
+      g.fillRoundedRect(-12, -38, 24, 13, 4);
+
+      g.fillStyle(0xa43b2f, 1);
+      g.fillTriangle(-17, 20, -34, 40, -8, 35);
+      g.fillTriangle(17, 20, 34, 40, 8, 35);
+
+      g.fillStyle(0xf4ce52, 1);
+      g.fillCircle(0, 2, 10);
+      g.fillStyle(0x25292d, 1);
+      g.fillCircle(0, 2, 4);
+
+      const label = this.add.text(
+        0,
+        2,
+        "☢",
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "13px",
+          color: "#2b2b24"
+        }
+      ).setOrigin(0.5);
+
+      bomb.add([g, label]);
+      return bomb;
+    }
+
+    nukeGandhi() {
+      if (
+        !this.gandhi ||
+        this.gandhiDead ||
+        this.gandhiNukeActive
+      ) {
+        return;
+      }
+
+      this.closeGandhiChoice();
+
+      this.gandhiNukeActive = true;
+      this.setUILocked(true);
+      this.syncStreetStoreHitboxes();
+
+      this.cameras.main.stopFollow();
+
+      const targetX = this.gandhi.x;
+      const targetY = this.gandhi.y - 18;
+      const startY =
+        this.cameras.main.worldView.top - 110;
+
+      this.gandhiBomb =
+        this.createAtomicBomb(
+          targetX,
+          startY
+        );
+
+      this.tweens.add({
+        targets: this.gandhiBomb,
+        y: targetY,
+        angle: 28,
+        duration: 920,
+        ease: "Quad.easeIn",
+        onComplete: () => {
+          this.gandhiBomb?.destroy?.(true);
+          this.gandhiBomb = null;
+          this.runGandhiNukeExplosion();
+        }
+      });
+    }
+
+    runGandhiNukeExplosion() {
+      if (!this.gandhi) return;
+
+      const x = this.gandhi.x;
+      const y = GROUND_TOP - 48;
+
+      this.cameras.main.flash(
+        330,
+        255,
+        244,
+        205
+      );
+      this.cameras.main.shake(
+        720,
+        0.020
+      );
+
+      const flash = this.add.circle(
+        x,
+        y,
+        28,
+        0xfff8d8,
+        0.98
+      ).setDepth(230);
+
+      const fire = this.add.circle(
+        x,
+        y,
+        22,
+        0xff9b32,
+        0.95
+      ).setDepth(229);
+
+      const shock = this.add.circle(
+        x,
+        y,
+        24,
+        0x000000,
+        0
+      )
+        .setStrokeStyle(
+          8,
+          0xffd76a,
+          0.92
+        )
+        .setDepth(228);
+
+      this.gandhiExplosionObjects.push(
+        flash,
+        fire,
+        shock
+      );
+
+      this.tweens.add({
+        targets: flash,
+        scale: 8.2,
+        alpha: 0,
+        duration: 680,
+        ease: "Quad.easeOut",
+        onComplete: () => flash.destroy()
+      });
+
+      this.tweens.add({
+        targets: fire,
+        scale: 5.6,
+        alpha: 0,
+        duration: 760,
+        ease: "Quad.easeOut",
+        onComplete: () => fire.destroy()
+      });
+
+      this.tweens.add({
+        targets: shock,
+        scale: 7.4,
+        alpha: 0,
+        duration: 820,
+        ease: "Quad.easeOut",
+        onComplete: () => shock.destroy()
+      });
+
+      const smokeData = [
+        [0, -18, 28],
+        [-22, -34, 22],
+        [22, -34, 22],
+        [0, -52, 30],
+        [-28, -57, 21],
+        [28, -57, 21],
+        [0, -79, 27]
+      ];
+
+      smokeData.forEach(
+        ([dx, dy, radius], index) => {
+          const puff = this.add.circle(
+            x + dx,
+            y + dy,
+            radius,
+            index < 3
+              ? 0x5b5148
+              : 0x777067,
+            0.9
+          ).setDepth(224 + index);
+
+          this.gandhiExplosionObjects.push(puff);
+
+          this.tweens.add({
+            targets: puff,
+            y: puff.y - 34 - index * 5,
+            scale: 1.45 + index * 0.05,
+            alpha: 0,
+            duration: 1550 + index * 90,
+            ease: "Sine.easeOut",
+            onComplete: () => puff.destroy()
+          });
+        }
+      );
+
+      this.tweens.killTweensOf(this.gandhi);
+      this.gandhiDead = true;
+      this.gandhiEncounterFinished = true;
+
+      this.gandhi
+        .setTint(0x292929)
+        .setAlpha(0.72)
+        .setAngle(88)
+        .setY(GROUND_TOP - 16)
+        .setDepth(24)
+        .disableInteractive?.();
+
+      const scorch = this.add.ellipse(
+        x,
+        GROUND_TOP - 3,
+        135,
+        23,
+        0x231c19,
+        0.48
+      ).setDepth(5);
+
+      this.gandhiExplosionObjects.push(scorch);
+
+      this.time.delayedCall(1450, () => {
+        this.gandhiNukeActive = false;
+        this.setUILocked(false);
+        this.syncStreetStoreHitboxes();
+
+        this.cameras.main.startFollow(
+          this.player,
+          true,
+          0.11,
+          0.11
+        );
+        this.cameras.main.setDeadzone(
+          240,
+          80
+        );
+      });
     }
 
     startMilkmanEncounter() {
@@ -8443,6 +9083,13 @@
       this.milkmanDefeated = true;
       this.milkmanFightActive = false;
 
+      // Next story beat: Gandhi can appear the next time Simon genuinely
+      // passes Der Inder. If Simon is already at the shop, he must leave the
+      // trigger area once before it can fire.
+      this.gandhiStoryEligible = true;
+      this.gandhiTriggerArmed =
+        this.player.x < 1300 || this.player.x > 1760;
+
       this.milkBottles.forEach((bottle) => bottle?.destroy?.(true));
       this.milkBottles = [];
 
@@ -8583,7 +9230,16 @@
     // During the encounter, transit and stores are intentionally blocked so
     // the boss fight cannot be escaped into another scene/modal.
     boardTram() {
-      if (this.milkmanDialogueActive || this.milkmanFightActive) return;
+      if (
+        this.milkmanDialogueActive ||
+        this.milkmanFightActive ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiNukeActive
+      ) {
+        return;
+      }
+
       super.boardTram();
     }
 
@@ -8608,6 +9264,7 @@
 
       super.update(time, delta);
       this.updateMilkmanFight(time, delta);
+      this.updateGandhiStory();
     }
 
     getTramDestinations() {
@@ -8670,6 +9327,9 @@
                   developerMode: this.developerMode,
                   inventory: { ...this.inventory },
                   booksOwned: { ...this.booksOwned },
+                  gandhiStoryEligible: this.gandhiStoryEligible,
+                  gandhiEncounterFinished: this.gandhiEncounterFinished,
+                  gandhiDead: this.gandhiDead,
                   booksRead: { ...this.booksRead },
                   abilitiesUnlocked: { ...this.abilitiesUnlocked },
                   activeAbility: this.activeAbility,

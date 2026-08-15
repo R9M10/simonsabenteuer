@@ -1,126 +1,65 @@
-# Simons Abenteuer – Tram Loop + Ewige Wiederkehr + Für sich sein v22
+# Simons Abenteuer – Gandhi Story v23
 
-Direkt vor dem Build wurde der aktuelle GitHub-Stand verifiziert:
+Ausgangsstand direkt vor dem Build:
 
-- game.js: `59dc672524fbcc99d07a347459e1cb332aa87a4d`
-- index.html: `a8848e73e7b661f314b31b49ef80378232b0479a`
-- hive-expansion.js: `b9f89ac568cb0954cb0e72a7a897ddf95c25f98f` (v14.2)
-- game-polish-v15.js: `e51362977085d3167e40d3e93612546ebbb8bf1e`
+- game.js: `cfc6f2f2fff260eb8607d8edfe939eb3ff3ed651`
+- index.html: `a7c6a6510da4edc4cff1fce5d541c7e37120c863`
+- HIVE bleibt v14.2
+- game-polish-v15.js bleibt v15
+- flight-intro bleibt v15
 
-Die Dateien deiner Freundin (`hive-expansion.js`, `game-polish-v15.js`,
-`flight-intro.js`, `opening-scene-v15.css`) bleiben unangetastet.
+## Story-Auslöser
 
-## Dateien ersetzen
+Nachdem der Milchmann besiegt wurde, ist der Gandhi-Storypunkt freigeschaltet.
 
-- `game.js`
-- `index.html`
+Er startet nicht sofort. Simon muss zunächst außerhalb des Bereichs von
+`Der Inder` sein und danach erneut am Laden vorbeilaufen.
 
-## 1. Tram: beliebig oft hin und her
+## Gandhi
 
-Der Bahnhofstrasse-Scene wird von Phaser wiederverwendet. `arrivalFinished`
-blieb nach dem ersten Besuch auf `true`; beim nächsten Besuch brach
-`playArrivalAnimation()` deshalb sofort ab und Simon blieb unsichtbar in der
-Tram.
+Gandhi kommt aus der Tür von `Der Inder`, läuft auf Simon zu und begrüßt ihn.
 
-Bei **jeder** neuen Ankunft werden nun sauber zurückgesetzt:
+Dialog per Bildschirmtap:
 
-- `arrivalFinished = false`
-- arrival tram / door / hitbox references
-- tram transit state
-- UI locks
-- ability transient state
+1. `Namaste, Simon.`
+2. `Friede fangt nöd bi de andere a. Er fangt bi dir a.`
+3. `Wer Gewalt mit Gewalt beantwortet, macht d'Welt nur dunkler.`
 
-Damit kann mit jeweils einem gültigen Einzelfahrt-Ticket wiederholt gefahren
-werden:
+Die Sätze sind für das Spiel neu formuliert und keine Gandhi-Zitate.
 
-Milchbuck -> Bahnhofstrasse -> Milchbuck -> Bahnhofstrasse -> ...
+Danach:
 
-## 2. Also sprach Zarathustra -> Ewige Wiederkehr
+- `NUKE GANDHI`
+- `WEITERGEHEN`
 
-Beim ersten Lesen von `Also sprach Zarathustra` wird freigeschaltet:
+## Nuke Gandhi
 
-`Ewige Wiederkehr`
+Bei `NUKE GANDHI`:
 
-Nur beim ersten Lesen erscheint drei Sekunden der Unlock-Banner.
+- eine stilisierte Atombombe fällt von oben direkt auf Gandhi,
+- weißer Flash + Kamerashake,
+- Feuer-/Schockwelle,
+- stilisierte Rauch-/Pilzwolke,
+- Gandhi stirbt und bleibt als dunkle umgefallene Figur zurück,
+- kein Gore.
 
-Wenn die Fähigkeit unter FÄHIGKEITEN ausgerüstet ist:
+Danach wird Simon wieder freigegeben.
 
-- oben erscheint ein goldenes Kreis-/Wiederkehrsymbol
-- über J/X erscheint der Touchbutton `W`
+Bei `WEITERGEHEN` geht Gandhi zurück in den Laden.
 
-`W` springt auf einen gespeicherten Spielzustand ungefähr exakt drei Sekunden
-zurück.
+## Persistenz
 
-Zurückgesetzt werden u. a.:
+Die Storyflags werden über Tramfahrten mitgenommen:
 
-- Simons Position und Bewegung
-- HP
-- Coins
-- Verbrauchsitems
-- Hotbar
-- Ticketzustand
-- Sprint-Restzeit
-- Milchmann-HP / Position
-- aktuell fliegende Milchflaschen
-- Super-Milch-Zustand
-- nächster Milch-Wurf
+- Gandhi-Story freigeschaltet
+- Encounter abgeschlossen
+- Gandhi tot
 
-Der Milchmann benutzt nun für seine ohnehin zufälligen 1–3-Sekunden-Abstände
-einen lokalen deterministischen Zufallszustand. Dieser wird ebenfalls
-zurückgespult. Dadurch läuft der zufällige Wurfrhythmus nach der Wiederkehr
-wieder gleich weiter, während Simon anders reagieren kann.
+## Interaktionsschutz
 
-Nach einer Wiederkehr wird die alte Zeitlinie verworfen; erst nach drei neu
-gespielten Sekunden ist W wieder verfügbar.
-
-## 3. Phänomenologie des Geistes -> Für sich sein
-
-Beim ersten Lesen wird freigeschaltet:
-
-`Für sich sein`
-
-Ist die Fähigkeit aktiv:
-
-- oben erscheint ein Void-/Einzelsymbol
-- über J/X erscheint `F`
-
-Mit F betritt Simon einen dunklen Void.
-
-Dort:
-- die Außenwelt steht still
-- Simon bleibt sichtbar
-- Hotbar bleibt benutzbar
-- ITEMS bleibt erreichbar
-- Gatorade / Monster / Zigarette / Bücher können benutzt bzw. gelesen werden
-- ein nativer `← ZURÜCK`-Button bringt Simon exakt zurück auf die Map
-
-Während der Void-Zeit werden externe Milchmann-/Projectile-Timer verschoben,
-damit draußen keine Zeit "heimlich" weiterläuft.
-
-Cooldown:
-- eine Aktivierung alle 5 Minuten
-- der F-Button zeigt `BEREIT` oder die Restzeit
-- der Cooldown wird durch Tramfahrten mitgenommen
-
-## 4. Fähigkeiten
-
-Es bleibt bei genau **einer aktiven Fähigkeit gleichzeitig**.
-
-Aktuell:
-- Wurmloch
-- Ewige Wiederkehr
-- Für sich sein
-
-Jede besitzt ein eigenes Symbol oben in der Mitte.
-
-## 5. Super Milch
-
-Unverändert korrekt:
-- normale Milch: 225
-- SUPER MILCH: 337.5
-- exakt 1.5x Geschwindigkeit
-- 10 bzw. 20 Schaden
+Während Gandhi-Dialog, Auswahl und Nuklearanimation sind Der Inder,
+Orell Füssli und die Tram blockiert.
 
 ## Cache
 
-`game.js?v=22`
+`game.js?v=23`
