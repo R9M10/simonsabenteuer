@@ -46,9 +46,13 @@
         </div>
 
         <div class="speech-bubble" id="speech-bubble">
-          <p id="speech-text">Dini Schueh sind nice.</p>
-</div>
+          <p id="speech-text">Dini Schueh sind nice!</p>
+        </div>
       </div>
+    </main>
+
+    <main id="game-screen" class="screen hidden" aria-hidden="true">
+      <div id="phaser-game" aria-label="Spielbereich"></div>
     </main>
   </div>
 
@@ -58,6 +62,10 @@
     </div>
   </div>
 
+  <!-- Phaser bleibt bewusst per CDN eingebunden, damit das bestehende
+       einfache GitHub-Pages-Projekt keinen Build-Step benötigt. -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+  <script src="game.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
