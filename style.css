@@ -233,35 +233,37 @@ h1 {
 
 .speech-bubble {
   position: absolute;
-  left: 62%;
-  bottom: 42%;
-  transform: rotate(1deg);
+  left: calc(50% + 4px);
+  bottom: 39%;
   width: auto;
-  max-width: min(46%, 280px);
-  min-width: 150px;
-  background: #fff0c9;
+  max-width: min(34%, 220px);
+  min-width: 120px;
+  background: #ffe7ad;
   color: #2a1d12;
-  padding: 10px 14px;
+  padding: 9px 12px;
   border: 3px solid #7a4f22;
   border-radius: 18px 18px 18px 8px;
   box-shadow:
-    0 0 0 3px rgba(255, 251, 240, 0.85),
-    6px 7px 0 rgba(76, 49, 116, 0.8);
+    0 0 0 3px rgba(255, 250, 237, 0.85),
+    5px 6px 0 rgba(76, 49, 116, 0.75);
   text-align: center;
   z-index: 4;
+  transform: rotate(-2deg);
+  transform-origin: bottom left;
 }
 
 .speech-bubble::after {
   content: "";
   position: absolute;
-  left: 74%;
-  bottom: -14px;
+  left: 24px;
+  bottom: -13px;
   width: 16px;
   height: 16px;
-  background: #fff0c9;
-  border-right: 3px solid #7a4f22;
+  background: #ffe7ad;
+  border-left: 3px solid #7a4f22;
   border-bottom: 3px solid #7a4f22;
-  transform: rotate(36deg) skew(-6deg, -6deg);
+  border-radius: 0 0 0 2px;
+  transform: rotate(-35deg) skew(2deg, 2deg);
 }
 
 .speech-bubble p {
@@ -314,11 +316,11 @@ h1 {
 
 @media (max-height: 430px) {
   .speech-bubble {
-    left: 62%;
-    bottom: 40%;
-    padding: 8px 12px;
-    min-width: 140px;
-    max-width: min(44%, 250px);
+    left: calc(50% + 2px);
+    bottom: 37%;
+    padding: 8px 10px;
+    min-width: 110px;
+    max-width: min(32%, 200px);
   }
 
   .characters {

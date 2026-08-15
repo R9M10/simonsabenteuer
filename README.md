@@ -11,7 +11,7 @@ Erster spielbarer Prototyp für iPhone im Querformat (besonders gedacht für ein
 - Zwei generische Figuren von hinten auf einer Mauer am Wasser
 - Dialog per Tippen:
   1. `Dini Schueh sind nice!`
-  2. `Aber`
+  2. `Aber...`
   3. `nöd sooooo nice...`
 - Kleinere, comicartige Sprechblase ohne Weiterklick-Hinweis
 - Beide Figuren vollständig sichtbar

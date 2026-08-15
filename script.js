@@ -6,7 +6,7 @@ const speechText = document.getElementById("speech-text");
 
 const dialogue = [
   "Dini Schueh sind nice!",
-  "Aber",
+  "Aber...",
   "nöd sooooo nice..."
 ];
 
