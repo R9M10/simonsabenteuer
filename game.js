@@ -54,8 +54,15 @@
       this.hp = 100;
       this.hpBarFill = null;
       this.playerDying = false;
+      this.playerHitUntil = 0;
 
       this.ticketHitbox = null;
+
+      this.tram = null;
+      this.tramHitbox = null;
+      this.tramBoardingMarker = null;
+      this.tramBoardingEnabled = false;
+      this.tramTransitActive = false;
 
       this.itemsButton = null;
       this.itemsModal = null;
@@ -74,6 +81,7 @@
       this.nextLionHitAt = 0;
 
       this.danceOverlay = null;
+      this.danceBackUI = null;
     }
 
     preload() {
@@ -333,7 +341,8 @@
       g.fillRect(434, 266, 8, 22);
 
       // VBZ-artige Tram links, dekorativ und bewusst vereinfacht.
-      const tram = this.add.graphics().setDepth(1);
+      this.tram = this.add.graphics().setDepth(1);
+      const tram = this.tram;
       tram.fillStyle(0xe8eced, 1);
       tram.fillRect(12, 222, 210, 92);
       tram.fillStyle(0x1766a6, 1);
@@ -348,6 +357,37 @@
       tram.lineStyle(4, 0x282d31, 1);
       tram.lineBetween(116, 221, 137, 190);
       tram.lineBetween(137, 190, 160, 221);
+
+      // Sobald Simon ein Ticket besitzt, wird die Tram als nächster
+      // Interaktionspunkt freigeschaltet. Die Hitbox ist absichtlich
+      // deutlich größer als einzelne Fenster/Türen.
+      this.tramHitbox = this.add.zone(117, 262, 226, 118)
+        .setDepth(170)
+        .setInteractive({ useHandCursor: true });
+
+      this.tramHitbox.input.enabled = false;
+
+      this.tramHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.boardTram();
+      });
+
+      // Weißer blinkender Punkt über der mittleren Tür.
+      this.tramBoardingMarker = this.add.circle(137, 216, 6, 0xffffff, 1)
+        .setStrokeStyle(2, 0xe8f6ff, 0.95)
+        .setDepth(175)
+        .setVisible(false);
+
+      this.tweens.add({
+        targets: this.tramBoardingMarker,
+        alpha: { from: 0.2, to: 1 },
+        scale: { from: 0.82, to: 1.18 },
+        duration: 520,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
 
       // Haltestellenschild – soll unmissverständlich lesbar sein.
       g.fillStyle(0x6b7175, 1);
@@ -1190,6 +1230,7 @@
       this.itemsModal = null;
       this.refreshUILock();
       this.ensureTicketMachineInteractive();
+      this.ensureTramBoardingInteractive();
     }
 
     refreshUILock() {
@@ -1202,6 +1243,7 @@
         this.bouncerDialogueActive ||
         this.fightActive ||
         this.lionExitActive ||
+        this.tramTransitActive ||
         this.playerDying
       );
 
@@ -1217,6 +1259,90 @@
 
       this.ticketHitbox.input.enabled = true;
       this.ticketHitbox.setDepth(150);
+    }
+
+    enableTramBoarding() {
+      if (!this.hasCityTicket || this.tramTransitActive) return;
+
+      this.tramBoardingEnabled = true;
+
+      if (this.tramHitbox) {
+        if (!this.tramHitbox.input) {
+          this.tramHitbox.setInteractive({ useHandCursor: true });
+        }
+        this.tramHitbox.input.enabled = true;
+        this.tramHitbox.setDepth(170);
+      }
+
+      this.tramBoardingMarker?.setVisible(true);
+    }
+
+    ensureTramBoardingInteractive() {
+      if (!this.hasCityTicket || this.tramTransitActive) return;
+      this.enableTramBoarding();
+    }
+
+    boardTram() {
+      if (
+        !this.hasCityTicket ||
+        !this.tramBoardingEnabled ||
+        this.tramTransitActive ||
+        this.uiLocked ||
+        this.playerDying ||
+        !this.tram
+      ) {
+        return;
+      }
+
+      this.tramTransitActive = true;
+      this.tramBoardingEnabled = false;
+
+      if (this.tramHitbox?.input) {
+        this.tramHitbox.input.enabled = false;
+      }
+
+      this.tramBoardingMarker?.setVisible(false);
+
+      this.setUILocked(true);
+      this.player.setVelocity(0, 0);
+
+      // Simon geht kurz zur Tram und verschwindet dann sichtbar "im" Fahrzeug.
+      this.cameras.main.stopFollow();
+      this.cameras.main.pan(410, GAME_HEIGHT / 2, 360, "Sine.easeInOut");
+
+      this.tweens.add({
+        targets: this.player,
+        x: 137,
+        y: 250,
+        duration: 430,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          this.player.setVisible(false);
+          if (this.player.body) this.player.body.enable = false;
+
+          // Die Tram fährt einige Meter nach rechts.
+          this.tweens.add({
+            targets: this.tram,
+            x: 520,
+            duration: 2350,
+            ease: "Sine.easeIn",
+            onUpdate: () => {
+              // leichter Fahrt-Eindruck
+              this.tram.y = Math.sin(this.time.now / 72) * 1.2;
+            }
+          });
+
+          // Nach einem kurzen sichtbaren Stück Fahrt blendet die Szene aus.
+          this.time.delayedCall(1150, () => {
+            this.cameras.main.once(
+              Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
+              () => this.scene.start("NextScenePlaceholder")
+            );
+
+            this.cameras.main.fadeOut(850, 0, 0, 0);
+          });
+        }
+      });
     }
 
     animateCoinGain(amount) {
@@ -1391,6 +1517,7 @@
       this.updateCoinHUD();
       this.updateInventoryUI();
       this.equipTicketToHotbar();
+      this.enableTramBoarding();
 
       if (this.ticketStatusText) {
         this.ticketStatusText.textContent = "TICKET GEKAUFT!";
@@ -1413,6 +1540,7 @@
       this.ticketStatusText = null;
       this.refreshUILock();
       this.ensureTicketMachineInteractive();
+      this.ensureTramBoardingInteractive();
     }
 
     makeDeadBouncersLootable() {
@@ -1550,6 +1678,7 @@
       this.lootModal = null;
       this.refreshUILock();
       this.ensureTicketMachineInteractive();
+      this.ensureTramBoardingInteractive();
     }
 
     createSpeechBubble(x, y, text, tailOffset = 0) {
@@ -2263,7 +2392,74 @@
       });
 
       this.danceOverlay = overlay;
+      this.createDanceBackButton();
       this.refreshUILock();
+    }
+
+    createDanceBackButton() {
+      const root = this.getDOMUIRoot();
+      if (!root) return;
+
+      root.querySelectorAll("[data-simon-ui='dance-back']")
+        .forEach((node) => node.remove());
+
+      const wrapper = document.createElement("div");
+      wrapper.dataset.simonUi = "dance-back";
+
+      Object.assign(wrapper.style, {
+        position: "absolute",
+        left: "12px",
+        top: "12px",
+        zIndex: "100001",
+        pointerEvents: "auto",
+        touchAction: "manipulation"
+      });
+
+      const back = this.createDOMButton("← STRASSE", () => this.exitHiveDance(), {
+        color: "#fff3ca",
+        background: "#352540",
+        border: "#c69ce8",
+        width: "150px",
+        minHeight: "42px",
+        fontSize: "8px",
+        padding: "7px 9px"
+      });
+
+      wrapper.appendChild(back);
+      root.appendChild(wrapper);
+      this.danceBackUI = { overlay: wrapper };
+    }
+
+    exitHiveDance() {
+      if (!this.danceOverlay) return;
+
+      if (this.danceBackUI) {
+        this.destroyDOMModal(this.danceBackUI);
+        this.danceBackUI = null;
+      }
+
+      // Stoppe alle endlosen Tanz-Tweens, bevor die Figuren zerstört werden.
+      this.danceOverlay.list?.forEach((child) => {
+        this.tweens.killTweensOf(child);
+      });
+
+      this.danceOverlay.destroy(true);
+      this.danceOverlay = null;
+
+      // Simon kommt allein wieder auf die Straße; der Löwe bleibt im Club.
+      if (this.fightLion) {
+        this.tweens.killTweensOf(this.fightLion);
+        this.fightLion.destroy(true);
+        this.fightLion = null;
+      }
+
+      this.player.setVisible(true);
+      if (this.player.body) this.player.body.enable = true;
+      this.player.play("simon-idle", true);
+
+      this.refreshUILock();
+      this.ensureTicketMachineInteractive();
+      this.ensureTramBoardingInteractive();
     }
 
     chooseNoDance() {
@@ -2291,6 +2487,7 @@
           this.lionExitActive = false;
           this.refreshUILock();
           this.ensureTicketMachineInteractive();
+          this.ensureTramBoardingInteractive();
         }
       });
     }
@@ -2343,14 +2540,33 @@
       this.showImpact(this.player.x + 8, this.player.y - 55, "HIT!");
       this.cameras.main.shake(130, 0.008);
 
-      this.player.setTint(0xff6767);
-      this.time.delayedCall(170, () => {
-        if (!this.playerDying) this.player.clearTint();
-      });
-
       if (this.hp <= 0) {
         this.killSimonAndRestart();
+        return;
       }
+
+      // Eigene HIT-Sequenz aus dem Spritesheet.
+      this.playerHitUntil = this.time.now + 360;
+      this.player.anims.stop();
+      this.player.play("simon-hit", true);
+      this.player.setTint(0xff8b8b);
+
+      const lionX = this.fightLion?.x ?? (this.player.x - 1);
+      const knockbackDirection = Math.sign(this.player.x - lionX) || 1;
+      this.player.setVelocityX(knockbackDirection * 115);
+
+      this.time.delayedCall(360, () => {
+        if (this.playerDying) return;
+        this.player.clearTint();
+
+        const grounded =
+          this.player.body?.blocked.down ||
+          this.player.body?.touching.down;
+
+        if (grounded) {
+          this.player.play("simon-idle", true);
+        }
+      });
     }
 
     killSimonAndRestart() {
@@ -2360,8 +2576,10 @@
       this.lionCombatActive = false;
       this.setUILocked(true);
       this.player.setVelocity(0, 0);
+      this.playerHitUntil = Number.POSITIVE_INFINITY;
       this.player.clearTint();
-      this.player.play("simon-death", true);
+      this.player.anims.stop();
+      this.player.play("simon-ko", true);
 
       const gameOver = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 45, "SIMON ISCH K.O.", {
         fontFamily: '"Press Start 2P", monospace',
@@ -2415,7 +2633,8 @@
       makeAnim("simon-shoot", 4, 7, 10, 0);
       makeAnim("simon-run", 8, 17, 12);
       makeAnim("simon-jump", 18, 25, 10, 0);
-      makeAnim("simon-death", 26, 31, 8, 0);
+      makeAnim("simon-hit", 26, 28, 11, 0);
+      makeAnim("simon-ko", 29, 31, 7, 0);
     }
 
     createPlayer() {
@@ -2530,11 +2749,25 @@
       const body = this.player.body;
       const onGround = body.blocked.down || body.touching.down;
 
+      if (this.playerDying) {
+        this.player.setVelocityX(0);
+        return;
+      }
+
       if (this.uiLocked) {
         this.player.setVelocityX(0);
-        if (onGround && this.player.anims.currentAnim?.key !== "simon-idle") {
+        if (
+          onGround &&
+          this.player.anims.currentAnim?.key !== "simon-idle" &&
+          this.player.anims.currentAnim?.key !== "simon-ko"
+        ) {
           this.player.play("simon-idle", true);
         }
+        return;
+      }
+
+      // Während der HIT-Frames übernimmt keine Lauf-/Idle-Animation.
+      if (time < this.playerHitUntil) {
         return;
       }
 
@@ -2611,6 +2844,24 @@
     }
   }
 
+  class NextScenePlaceholder extends Phaser.Scene {
+    constructor() {
+      super("NextScenePlaceholder");
+    }
+
+    create() {
+      this.cameras.main.setBackgroundColor("#050509");
+
+      this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, "...", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "17px",
+        color: "#d9d9df"
+      })
+        .setOrigin(0.5)
+        .setAlpha(0.65);
+    }
+  }
+
   window.startSimonGame = function startSimonGame() {
     if (game) {
       return game;
@@ -2643,7 +2894,7 @@
         width: GAME_WIDTH,
         height: GAME_HEIGHT
       },
-      scene: [MilchbuckScene]
+      scene: [MilchbuckScene, NextScenePlaceholder]
     });
 
     return game;

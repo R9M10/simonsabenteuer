@@ -1,39 +1,56 @@
-# Simons Abenteuer – stabiler UI-Fix
+# Simons Abenteuer – Tram, HIVE-Zurück, HIT/KO
 
-Diese Version wurde auf Basis der aktuellsten `game.js` aus dem Repository erstellt.
+Diese Version basiert auf der aktuellsten `game.js` aus dem Repository
+(Blob `e1a6ac0e14c9c5d670daefd70f2030ed75ad67dc`).
 
-## Grundlegende Änderung
+Bitte diese drei Dateien ersetzen:
 
-Die Menü- und Entscheidungsbuttons benutzen jetzt ein **einheitliches natives HTML-UI-System** über dem Phaser-Canvas.
+- `game.js`
+- `animation-fix.js`
+- `index.html`
 
-Damit werden nicht mehr einzelne problematische Phaser-Textobjekte als Buttons verwendet.
+Andere Dateien – insbesondere die zuletzt geänderten Dialog-Assets und
+`dialog-fix.css` – bleiben unverändert.
 
-Das neue System wird jetzt für folgende Menüs verwendet:
+## Neu
 
-- Löwe: `JA / NEIN / KÄMPFEN`
-- Türsteher ausrauben: `JA / NEIN / ZURÜCK`
-- Ticketautomat: `← ZURÜCK / KAUFEN`
-- ITEMS-Menü: `X` und Ticket-Ausrüstung
+### Tram nach Ticketkauf
 
-Jeder Button unterstützt abgesichert:
+Nach einem erfolgreichen Ticketkauf:
 
-- `touchend`
-- `pointerup`
-- `click`
-- Schutz vor Mehrfachauslösung eines einzigen iPhone-Taps
-- große Touchflächen
-- keine Weitergabe des Taps an den Phaser-Canvas
+- blinkt ein weißer Punkt an der Tram,
+- die Tram wird anklickbar,
+- Simon kann einsteigen,
+- Simon läuft kurz zur Tram und verschwindet im Wagen,
+- die Tram fährt ein Stück nach rechts,
+- danach blendet der Bildschirm schwarz aus,
+- anschließend startet die vorbereitete `NextScenePlaceholder`-Szene.
 
-Damit gibt es für zukünftige Menüs jetzt **eine einzige Button-Implementierung**, statt für jedes Menü eine andere Sonderlösung.
+Diese leere Folgeszene ist absichtlich nur ein Platzhalter für den nächsten
+Entwicklungsschritt.
 
-## Zusätzlich behoben
+### HIVE
 
-- Simon war beim gemeinsamen Tanz im HIVE nicht sichtbar, weil sein Dance-Sprite an Weltkoordinaten hing, während die Kamera noch beim HIVE stand.
-- Sein Dance-Sprite ist jetzt kamera-fixiert und Bestandteil des HIVE-Overlays.
-- Der Löwe und Simon werden gemeinsam über dem Club-Hintergrund gerendert.
+Beim Tanzen mit dem Löwen gibt es oben links einen robusten nativen Button:
 
-## Wichtig
+`← STRASSE`
 
-Nur `game.js` ersetzen.
+Damit kommt Simon wieder aus dem HIVE auf die Straße. Der Löwe bleibt im Club.
 
-Die zwischenzeitlichen Änderungen an `animation-fix.js`, `index.html`, `dialog-fix.css` und dem neuen Simon-Dialogbild bleiben unangetastet.
+### HIT und KO
+
+Die bislang zusammen verwendeten Endframes des Spritesheets wurden getrennt:
+
+- Frames `26–28`: `simon-hit`
+- Frames `29–31`: `simon-ko`
+
+Bei einem Löwentreffer spielt Simon jetzt die HIT-Sequenz.
+Beim K.O. spielt er die KO-Sequenz, bevor das Spiel neu startet.
+
+`animation-fix.js` wurde auf v9 aktualisiert, damit die bestehende
+Sprungkorrektur HIT und KO nicht überschreibt.
+
+### Cache
+
+`index.html` lädt `game.js?v=9` und `animation-fix.js?v=9`, damit das iPhone
+nicht versehentlich die alte gecachte JavaScript-Version verwendet.
