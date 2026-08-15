@@ -1,83 +1,53 @@
-# Simons Abenteuer – Hotbar-Auswahl + Einzelfahrt-Tickets + Tram-Routing
+# Simons Abenteuer – Stabilitätsfix v15
 
-Ausgangsstand wurde unmittelbar vor der Änderung gegen GitHub geprüft.
+Direkt vor dieser Änderung wurde der aktuelle GitHub-Stand geprüft:
 
-- game.js: `a39fa4b428a829046360665658cb1117abaa85fd`
-- index.html: `6f0c2e9ea8540afd8d36ad48afaf6e87874c1eae`
-- script.js: `b85d12562933e3f17fbb0bfecb936b4b8397e301`
-- hive-expansion.js: `dae204ca8f2bef85e0fb64a1f5487c224d5444e4`
+- `game.js`: `974c17827a93f1dec34dbf31b2a3e134cd5a64e4`
+- `index.html`: `c23708c7a930c0d063cc408c271a5f1b138d09b8`
+- `hive-expansion.js`: `dae204ca8f2bef85e0fb64a1f5487c224d5444e4`
 
-Die neuesten Änderungen an `hive-expansion.js` und `flight-intro.js` werden
-nicht überschrieben.
+Die aktuelle `hive-expansion.js` deiner Freundin wird nicht ersetzt.
 
-## Zu ersetzen
+## Dateien ersetzen
 
 - `game.js`
 - `index.html`
 
-## 1. Hotbar
+## Löwenauswahl
 
-Die Hotbar hat nun einen echten ausgewählten Slot.
+Beim Entfernen der Löwenauswahl wird der UI-Lock jetzt explizit gelöst.
+Die Touchsteuerung wird wieder aktiviert. Das greift auch bei den von
+`hive-expansion.js` gewrappten Löwenpfaden, ohne diese Datei zu überschreiben.
 
-- Tippen auf einen Slot verschiebt die helle Auswahlmarkierung.
-- Wird Gatorade oder Monster ausgewählt, erscheint über der Hotbar ein
-  robuster nativer Button `TRINKEN`.
-- Erst `TRINKEN` startet die Trinkanimation.
-- Beim Ausrüsten über ITEMS wird der entsprechende Getränkeslot automatisch
-  ausgewählt.
-- Leere Slots sind ebenfalls auswählbar.
-- Ticket und Getränke können damit unabhängig voneinander ausgewählt werden.
+## Rückfahrt Bahnhofstrasse -> Milchbuck
 
-## 2. Ticket = genau eine Fahrt
+Der schwarze Bildschirm wurde an der Kamera-/Szenenrückkehr abgesichert:
 
-Das Tram-Ticket gilt jetzt nur noch für **eine** Fahrt.
+- alter Fade-State von Milchbuck wird zurückgesetzt,
+- Zielkamera wird explizit sichtbar gesetzt,
+- der Wechsel hängt nicht mehr vom `FADE_OUT_COMPLETE`-Event ab,
+- alte Hotbar-DOM-Elemente werden beim Szenenwechsel entfernt.
 
-Sobald ein Ziel gewählt wurde:
+## Hotbar
 
-- Ticket wird verbraucht,
-- Ticket verschwindet aus ITEMS,
-- Ticket verschwindet aus der Hotbar,
-- der weiße Einstiegspunkt verschwindet.
+Die Hotbar ist jetzt als native HTML-Touchleiste umgesetzt:
 
-Am Ziel muss für eine weitere Fahrt ein neues Ticket gekauft werden.
+- genau 5 Slots,
+- direktes Antippen unten wählt einen Slot,
+- gelber Rahmen zeigt den aktiven Slot,
+- bei Gatorade/Monster erscheint `TRINKEN`,
+- kein ITEMS-Menü nötig, um zwischen bereits in der Hotbar liegenden Items
+  umzuschalten.
 
-## 3. Zielauswahl an der Tram
+Das ITEMS-Menü entscheidet nur noch, welche maximal 5 Items unten liegen:
+`IN HOTBAR` / `ENTFERNEN`.
 
-Mit gültigem Ticket öffnet ein Tap auf die Tram nun immer:
+Damit kann das Inventar später viel mehr als fünf Items enthalten.
 
-`WOHIN?`
+## HP
 
-Aktuelle Ziele:
-
-- Milchbuck -> Bahnhofstrasse/HB
-- Bahnhofstrasse/HB -> Milchbuck
-
-Die Struktur ist so angelegt, dass später weitere Haltestellen als weitere
-Zielbuttons ergänzt werden können.
-
-## 4. Ticketautomat Bahnhofstrasse/HB
-
-An Bahnhofstrasse/HB steht jetzt ebenfalls ein anklickbarer Ticketautomat.
-Ein dort gekauftes Ticket aktiviert den weißen Punkt an der wartenden Tram.
-
-## 5. Fahrt zurück nach Milchbuck
-
-Mit einem neuen Ticket kann Simon an Bahnhofstrasse/HB `MILCHBUCK` wählen.
-Er steigt wieder ein, die Tram fährt ab, die Szene blendet aus und Simon
-kommt wieder in Milchbuck an. Coins, HP, Getränkeinventar und Hotbar werden
-mitgenommen; das verwendete Ticket ist verbraucht.
-
-## 6. iPhone-Steuerung vor „Der Inder“
-
-Der Fehler war tatsächlich ein Layer-Konflikt:
-
-- Laden-Hitbox: jetzt niedrige Input-Ebene
-- Touch-Pfeile: sehr hohe HUD-/Input-Ebene
-- Phaser `topOnly` wird explizit aktiviert
-
-Damit gewinnt ein Tap auf ← oder → immer gegen die dahinterliegende
-Laden-Hitbox und öffnet nicht mehr versehentlich `Betreten?`.
+Das Herz wurde als sauberes Pixel-Herz neu gezeichnet.
 
 ## Cache
 
-`game.js` wird jetzt als `game.js?v=14` geladen.
+`game.js?v=15`

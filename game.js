@@ -5,6 +5,7 @@
   const GAME_HEIGHT = 390;
   const WORLD_WIDTH = 3000;
   const GROUND_TOP = 338;
+  const HOTBAR_SIZE = 5;
 
   let game = null;
   let pendingStartOptions = {
@@ -87,9 +88,10 @@
       this.hotbarContainer = null;
       this.hotbarBackground = null;
       this.hotbarSlotCenters = [];
-      this.hotbarItems = [null, null, null, null, null, null];
+      this.hotbarItems = Array(HOTBAR_SIZE).fill(null);
       this.hotbarDynamicObjects = [];
       this.selectedHotbarIndex = 0;
+      this.hotbarDOM = null;
       this.hotbarActionUI = null;
 
       this.drinkingItem = false;
@@ -117,6 +119,7 @@
       this.hotbarDynamicObjects = [];
       this.hotbarContainer = null;
       this.hotbarBackground = null;
+      this.hotbarDOM = null;
       this.hotbarActionUI = null;
       this.ticketModal = null;
       this.tramDestinationModal = null;
@@ -149,15 +152,15 @@
       };
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
-        ? data.hotbarItems.slice(0, 6)
-        : [null, null, null, null, null, null];
+        ? data.hotbarItems.slice(0, HOTBAR_SIZE)
+        : Array(HOTBAR_SIZE).fill(null);
 
-      while (this.hotbarItems.length < 6) {
+      while (this.hotbarItems.length < HOTBAR_SIZE) {
         this.hotbarItems.push(null);
       }
 
       this.selectedHotbarIndex = Number.isInteger(data.selectedHotbarIndex)
-        ? Phaser.Math.Clamp(data.selectedHotbarIndex, 0, 5)
+        ? Phaser.Math.Clamp(data.selectedHotbarIndex, 0, HOTBAR_SIZE - 1)
         : 0;
 
       // A fresh return to Milchbuck should not restart a Developer jump.
@@ -196,6 +199,8 @@
 
       this.physics.world.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
       this.cameras.main.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
+      this.cameras.main.resetFX();
+      this.cameras.main.setAlpha(1);
       this.cameras.main.setBackgroundColor("#7fc7dd");
 
       this.createWorld();
@@ -226,13 +231,21 @@
       this.createTouchControls();
       this.createHUD();
 
+      this.events.once("shutdown", () => {
+        this.cleanupHotbarDOM?.();
+        document
+          .querySelectorAll("#phaser-game [data-simon-ui='hotbar-action']")
+          .forEach((node) => node.remove());
+      });
+
       if (this.travelArrivalFrom === "bahnhofstrasse") {
         this.currentStationKey = "milchbuck";
         this.player.setPosition(250, 245);
         this.player.setVelocity(0, 0);
         this.player.setVisible(true);
         this.player.play("simon-idle", true);
-        this.cameras.main.fadeIn(520, 0, 0, 0);
+        this.cameras.main.resetFX();
+        this.cameras.main.setAlpha(1);
         this.updateCoinHUD();
         this.updateHpBar();
         this.updateInventoryUI();
@@ -249,7 +262,7 @@
           fromDeveloperMode: true,
           developerMode: true,
           inventory: { ...this.inventory },
-          hotbarItems: ["ticket", null, null, null, null, null]
+          hotbarItems: ["ticket", null, null, null, null]
         });
         return;
       }
@@ -900,22 +913,33 @@
         strokeThickness: 4
       }).setOrigin(0, 0.5);
 
-      // HP-Leiste ohne Zahlen.
+      // HP-Leiste ohne Zahlen. Sauberes Pixel-Herz.
       const heart = this.add.graphics();
-      heart.fillStyle(0xb93642, 1);
-      heart.fillRect(83, 14, 10, 10);
-      heart.fillRect(92, 14, 10, 10);
-      heart.fillTriangle(83, 23, 102, 23, 92, 32);
-      heart.fillStyle(0xf16b72, 1);
-      heart.fillRect(85, 15, 5, 4);
+      const heartPixels = [
+        [1,0],[2,0],[4,0],[5,0],
+        [0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],
+        [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+        [1,3],[2,3],[3,3],[4,3],[5,3],
+        [2,4],[3,4],[4,4],
+        [3,5]
+      ];
+
+      heart.fillStyle(0xc73c49, 1);
+      heartPixels.forEach(([px, py]) => {
+        heart.fillRect(82 + px * 3, 11 + py * 3, 3, 3);
+      });
+
+      heart.fillStyle(0xff7a82, 1);
+      heart.fillRect(85, 14, 3, 3);
+      heart.fillRect(88, 14, 3, 3);
 
       const hpFrame = this.add.graphics();
       hpFrame.fillStyle(0x15171c, 0.9);
-      hpFrame.fillRoundedRect(108, 12, 104, 16, 5);
+      hpFrame.fillRoundedRect(109, 12, 104, 16, 5);
       hpFrame.lineStyle(2, 0xffe3d1, 0.8);
-      hpFrame.strokeRoundedRect(108, 12, 104, 16, 5);
+      hpFrame.strokeRoundedRect(109, 12, 104, 16, 5);
 
-      this.hpBarFill = this.add.rectangle(112, 20, 96, 10, 0xd84e57)
+      this.hpBarFill = this.add.rectangle(113, 20, 96, 10, 0xd84e57)
         .setOrigin(0, 0.5);
 
       hud.add([coin, this.coinText, heart, hpFrame, this.hpBarFill]);
@@ -1170,143 +1194,152 @@
     }
 
     createHotbar() {
-      this.hotbarContainer = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 25)
-        .setScrollFactor(0)
-        .setDepth(290);
-
-      this.hotbarBackground = this.add.graphics();
-      this.hotbarContainer.add(this.hotbarBackground);
-
-      const slotCount = 6;
-      const slotSize = 38;
-      const gap = 3;
-      const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
-      const startX = -totalWidth / 2;
-
-      this.hotbarSlotCenters = [];
-
-      for (let i = 0; i < slotCount; i += 1) {
-        const left = startX + i * (slotSize + gap);
-        this.hotbarSlotCenters.push(left + slotSize / 2);
-      }
-
-      this.refreshHotbar();
-    }
-
-    drawHotbarBackground() {
-      if (!this.hotbarBackground) return;
-
-      const bar = this.hotbarBackground;
-      const slotCount = 6;
-      const slotSize = 38;
-      const gap = 3;
-      const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
-      const startX = -totalWidth / 2;
-
-      bar.clear();
-      bar.fillStyle(0x15171a, 0.78);
-      bar.fillRoundedRect(startX - 6, -24, totalWidth + 12, 48, 5);
-
-      for (let i = 0; i < slotCount; i += 1) {
-        const left = startX + i * (slotSize + gap);
-        const selected = i === this.selectedHotbarIndex;
-
-        bar.fillStyle(selected ? 0x514a35 : 0x292b2d, 0.96);
-        bar.fillRect(left, -19, slotSize, slotSize);
-
-        bar.lineStyle(
-          selected ? 4 : 2,
-          selected ? 0xffe98a : 0x858585,
-          selected ? 1 : 0.9
-        );
-        bar.strokeRect(left, -19, slotSize, slotSize);
-      }
-    }
-
-    refreshHotbar() {
-      if (!this.hotbarContainer) return;
-
-      this.hotbarDynamicObjects.forEach((object) => {
-        object?.destroy?.(true);
-      });
-      this.hotbarDynamicObjects = [];
-
       this.hotbarItems = Array.isArray(this.hotbarItems)
-        ? this.hotbarItems.slice(0, 6)
-        : [];
+        ? this.hotbarItems.slice(0, HOTBAR_SIZE)
+        : Array(HOTBAR_SIZE).fill(null);
 
-      while (this.hotbarItems.length < 6) {
+      while (this.hotbarItems.length < HOTBAR_SIZE) {
         this.hotbarItems.push(null);
       }
 
       this.selectedHotbarIndex = Phaser.Math.Clamp(
         Number.isInteger(this.selectedHotbarIndex) ? this.selectedHotbarIndex : 0,
         0,
-        5
+        HOTBAR_SIZE - 1
       );
 
-      // Verbrauchte Items und ungültige Tickets verschwinden.
+      this.refreshHotbar();
+    }
+
+    cleanupHotbarDOM() {
+      const root = document.getElementById("phaser-game");
+      root?.querySelectorAll("[data-simon-ui='hotbar']")
+        .forEach((node) => node.remove());
+      this.hotbarDOM = null;
+    }
+
+    refreshHotbar() {
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      this.cleanupHotbarDOM();
+
+      this.hotbarItems = Array.isArray(this.hotbarItems)
+        ? this.hotbarItems.slice(0, HOTBAR_SIZE)
+        : Array(HOTBAR_SIZE).fill(null);
+
+      while (this.hotbarItems.length < HOTBAR_SIZE) {
+        this.hotbarItems.push(null);
+      }
+
       this.hotbarItems = this.hotbarItems.map((key) => {
         if (!key) return null;
         if (key === "ticket") return this.hasCityTicket ? key : null;
         return this.getItemCount(key) > 0 ? key : null;
       });
 
-      this.drawHotbarBackground();
+      this.selectedHotbarIndex = Phaser.Math.Clamp(
+        this.selectedHotbarIndex,
+        0,
+        HOTBAR_SIZE - 1
+      );
 
-      for (let index = 0; index < 6; index += 1) {
+      const bar = document.createElement("div");
+      bar.dataset.simonUi = "hotbar";
+
+      Object.assign(bar.style, {
+        position: "absolute",
+        left: "50%",
+        bottom: "6px",
+        transform: "translateX(-50%)",
+        zIndex: "99980",
+        display: "grid",
+        gridTemplateColumns: `repeat(${HOTBAR_SIZE}, 44px)`,
+        gap: "4px",
+        padding: "5px",
+        border: "2px solid rgba(225,213,177,.75)",
+        background: "rgba(17,20,24,.90)",
+        boxSizing: "border-box",
+        pointerEvents: this.uiLocked ? "none" : "auto",
+        touchAction: "manipulation"
+      });
+
+      for (let index = 0; index < HOTBAR_SIZE; index += 1) {
         const key = this.hotbarItems[index];
-        const x = this.hotbarSlotCenters[index] ?? 0;
+        const selected = index === this.selectedHotbarIndex;
+
+        const slot = document.createElement("button");
+        slot.type = "button";
+
+        Object.assign(slot.style, {
+          appearance: "none",
+          WebkitAppearance: "none",
+          position: "relative",
+          width: "44px",
+          height: "44px",
+          padding: "2px",
+          border: selected ? "4px solid #ffe98a" : "2px solid #858585",
+          background: selected ? "#514a35" : "#292b2d",
+          boxSizing: "border-box",
+          cursor: "pointer",
+          touchAction: "manipulation",
+          WebkitTapHighlightColor: "transparent",
+          overflow: "hidden"
+        });
 
         if (key) {
-          const icon = this.createWorldItemIcon(
-            key,
-            x,
-            0,
-            key === "ticket" ? 0.72 : 0.72
-          );
-
-          this.hotbarContainer.add(icon);
-          this.hotbarDynamicObjects.push(icon);
+          const icon = this.createDOMItemIcon(key, 34);
+          icon.style.pointerEvents = "none";
+          icon.style.transform = "scale(.78)";
+          slot.appendChild(icon);
 
           const count = this.getItemCount(key);
           if (key !== "ticket" && count > 1) {
-            const qty = this.add.text(x + 11, 12, String(count), {
+            const qty = document.createElement("span");
+            qty.textContent = String(count);
+            Object.assign(qty.style, {
+              position: "absolute",
+              right: "2px",
+              bottom: "1px",
+              color: "#fff",
               fontFamily: '"Press Start 2P", monospace',
               fontSize: "6px",
-              color: "#ffffff",
-              stroke: "#171717",
-              strokeThickness: 3
-            })
-              .setOrigin(0.5)
-              .setDepth(320);
-
-            this.hotbarContainer.add(qty);
-            this.hotbarDynamicObjects.push(qty);
+              textShadow: "1px 1px 0 #000"
+            });
+            slot.appendChild(qty);
           }
         }
 
-        // JEDER Slot ist auswählbar, auch leere Slots.
-        const zone = this.add.zone(x, 0, 36, 36)
-          .setInteractive({ useHandCursor: true });
+        let lastTap = -Infinity;
+        const select = (event) => {
+          const now = performance.now();
 
-        zone.on("pointerup", (pointer) => {
-          pointer.event?.preventDefault?.();
-          pointer.event?.stopPropagation?.();
-          this.selectHotbarSlot(index);
-        });
+          event?.preventDefault?.();
+          event?.stopPropagation?.();
 
-        this.hotbarContainer.add(zone);
-        this.hotbarDynamicObjects.push(zone);
+          if (now - lastTap < 300) return;
+          lastTap = now;
+
+          if (this.uiLocked || this.playerDying || this.drinkingItem) return;
+
+          this.selectedHotbarIndex = index;
+          this.refreshHotbar();
+        };
+
+        slot.addEventListener("touchend", select, { passive: false });
+        slot.addEventListener("pointerup", select, { passive: false });
+        slot.addEventListener("click", select, { passive: false });
+
+        bar.appendChild(slot);
       }
 
+      root.appendChild(bar);
+      this.hotbarDOM = bar;
       this.updateHotbarActionUI();
     }
 
     selectHotbarSlot(index) {
-      if (this.uiLocked || this.playerDying || this.drinkingItem) return;
-
-      this.selectedHotbarIndex = Phaser.Math.Clamp(index, 0, 5);
+      this.selectedHotbarIndex = Phaser.Math.Clamp(index, 0, HOTBAR_SIZE - 1);
       this.refreshHotbar();
     }
 
@@ -1330,10 +1363,7 @@
 
       const key = this.hotbarItems?.[this.selectedHotbarIndex];
 
-      if (!["gatorade", "monster"].includes(key)) {
-        return;
-      }
-
+      if (!["gatorade", "monster"].includes(key)) return;
       if (this.getItemCount(key) <= 0) return;
 
       const item = this.getItemDefinition(key);
@@ -1343,7 +1373,7 @@
       Object.assign(wrapper.style, {
         position: "absolute",
         left: "50%",
-        bottom: "58px",
+        bottom: "62px",
         transform: "translateX(-50%)",
         zIndex: "99990",
         pointerEvents: "auto",
@@ -1371,70 +1401,46 @@
 
     updateInventoryUI() {
       this.itemsTicketBadge?.setVisible(Boolean(this.hasCityTicket));
-
-      if (this.hasCityTicket) {
-        this.equipTicketToHotbar();
-      }
-
       this.refreshHotbar();
     }
 
-    equipTicketToHotbar() {
-      if (!this.hasCityTicket) return;
-
-      const currentIndex = this.hotbarItems.indexOf("ticket");
-      if (currentIndex === 0) {
-        this.refreshHotbar();
-        return;
-      }
-
-      if (currentIndex > 0) {
-        this.hotbarItems[currentIndex] = this.hotbarItems[0] || null;
-      } else if (this.hotbarItems[0] && this.hotbarItems[0] !== "ticket") {
-        const free = this.hotbarItems.findIndex((item, index) => index > 0 && !item);
-        if (free > 0) this.hotbarItems[free] = this.hotbarItems[0];
-      }
-
-      this.hotbarItems[0] = "ticket";
-      this.selectedHotbarIndex = 0;
-      this.refreshHotbar();
-    }
-
-    equipItemToHotbar(key) {
-      if (!["gatorade", "monster"].includes(key)) return;
-      if (this.getItemCount(key) <= 0) return;
+    addItemToHotbar(key) {
+      if (!key || this.getItemCount(key) <= 0) return false;
 
       const existing = this.hotbarItems.indexOf(key);
-      if (existing >= 0) {
-        this.selectedHotbarIndex = existing;
-        this.refreshHotbar();
-        return;
-      }
+      if (existing >= 0) return true;
 
-      const startIndex = this.hasCityTicket ? 1 : 0;
-      let free = -1;
-
-      for (let i = startIndex; i < this.hotbarItems.length; i += 1) {
-        if (!this.hotbarItems[i]) {
-          free = i;
-          break;
-        }
-      }
-
-      if (free < 0) {
-        free = this.hotbarItems.length - 1;
-      }
+      const free = this.hotbarItems.findIndex((item) => !item);
+      if (free < 0) return false;
 
       this.hotbarItems[free] = key;
-
-      // Beim Ausrüsten wird der neue Slot tatsächlich ausgewählt.
-      this.selectedHotbarIndex = free;
       this.refreshHotbar();
+      return true;
     }
 
     removeItemFromHotbar(key) {
       this.hotbarItems = this.hotbarItems.map((item) => item === key ? null : item);
       this.refreshHotbar();
+    }
+
+    toggleItemInHotbar(key) {
+      const existing = this.hotbarItems.indexOf(key);
+
+      if (existing >= 0) {
+        this.hotbarItems[existing] = null;
+        this.refreshHotbar();
+        return "removed";
+      }
+
+      return this.addItemToHotbar(key) ? "added" : "full";
+    }
+
+    equipTicketToHotbar() {
+      return this.addItemToHotbar("ticket");
+    }
+
+    equipItemToHotbar(key) {
+      return this.addItemToHotbar(key);
     }
 
     consumeSelectedHotbarItem() {
@@ -1546,7 +1552,6 @@
               this.drinkingItem = false;
               this.updateInventoryUI();
               this.refreshUILock();
-              this.updateHotbarActionUI();
             }
           });
         }
@@ -1864,25 +1869,33 @@
         }
       );
 
-      const equip = this.createDOMButton("AUSRÜSTEN", () => {
-        if (itemKey === "ticket") {
-          this.equipTicketToHotbar();
-        } else {
-          this.equipItemToHotbar(itemKey);
+      const inHotbar = this.hotbarItems.includes(itemKey);
+
+      const hotbarButton = this.createDOMButton(
+        inHotbar ? "ENTFERNEN" : "IN HOTBAR",
+        () => {
+          const result = this.toggleItemInHotbar(itemKey);
+
+          if (result === "full") {
+            const hint = this.itemsModal?.panel?.querySelector("[data-items-hint]");
+            if (hint) hint.textContent = "HOTBAR VOLL · MAX. 5 ITEMS";
+            return;
+          }
+
+          this.closeItemsModal();
+          this.openItemsModal();
+        },
+        {
+          color: inHotbar ? "#ffe5cf" : "#e9f1e8",
+          background: inHotbar ? "#5b3a32" : "#324438",
+          border: inHotbar ? "#9a6b5d" : "#6d8c73",
+          minHeight: "34px",
+          fontSize: "5.5px",
+          padding: "5px 4px"
         }
+      );
 
-        const hint = this.itemsModal?.panel?.querySelector("[data-items-hint]");
-        if (hint) hint.textContent = `${item.name.toUpperCase()} AUSGERÜSTET`;
-      }, {
-        color: "#e9f1e8",
-        background: "#324438",
-        border: "#6d8c73",
-        minHeight: "34px",
-        fontSize: "5.5px",
-        padding: "5px 4px"
-      });
-
-      card.append(header, icon, qty, equip);
+      card.append(header, icon, qty, hotbarButton);
       return card;
     }
 
@@ -1961,7 +1974,7 @@
       const empty = grid.childElementCount === 0;
 
       const hint = this.createDOMText(
-        empty ? "NOCH KEINE ITEMS" : "ITEM ANTIPpen → AUSRÜSTEN",
+        empty ? "NOCH KEINE ITEMS" : "WÄHLE BIS ZU 5 ITEMS FÜR DIE HOTBAR",
         {
           fontSize: "6px",
           color: "#aeb7b7",
@@ -2291,9 +2304,16 @@
       this.uiLocked = locked;
       this.setControlsVisible(!locked);
 
+      if (this.hotbarDOM) {
+        this.hotbarDOM.style.pointerEvents = locked ? "none" : "auto";
+        this.hotbarDOM.style.opacity = locked ? "0.72" : "1";
+      }
+
       if (locked && this.player?.body) {
         this.player.setVelocityX(0);
       }
+
+      this.updateHotbarActionUI?.();
     }
 
     openTicketModal() {
@@ -2416,7 +2436,7 @@
       this.hasCityTicket = true;
       this.updateCoinHUD();
       this.updateInventoryUI();
-      this.equipTicketToHotbar();
+      this.addItemToHotbar("ticket");
       this.enableTramBoarding();
 
       if (this.ticketStatusText) {
@@ -3164,6 +3184,14 @@
         this.destroyDOMModal(this.lionChoiceModal);
         this.lionChoiceModal = null;
       }
+
+      this.lionChoiceShown = false;
+
+      // Die Auswahl sperrt Simon. Sobald sie verschwindet, wird diese
+      // spezifische Sperre sicher gelöst. Die anschließende Aktion kann
+      // bei Bedarf sofort wieder ihre eigene Sperre setzen.
+      this.setUILocked(false);
+      this.setControlsVisible(true);
     }
 
     showLionChoiceQuestion() {
@@ -3442,6 +3470,8 @@
           this.fightLion = null;
           this.lionExitActive = false;
           this.refreshUILock();
+          this.setUILocked(false);
+          this.setControlsVisible(true);
           this.ensureTicketMachineInteractive();
           this.ensureTramBoardingInteractive();
         }
@@ -3463,6 +3493,8 @@
       this.fightLion.y = GROUND_TOP - 44;
 
       this.refreshUILock();
+      this.setUILocked(false);
+      this.setControlsVisible(true);
       this.ensureTicketMachineInteractive();
     }
 
@@ -3834,15 +3866,15 @@
       };
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
-        ? data.hotbarItems.slice(0, 6)
-        : [this.hasCityTicket ? "ticket" : null, null, null, null, null, null];
+        ? data.hotbarItems.slice(0, HOTBAR_SIZE)
+        : Array(HOTBAR_SIZE).fill(null);
 
-      while (this.hotbarItems.length < 6) {
+      while (this.hotbarItems.length < HOTBAR_SIZE) {
         this.hotbarItems.push(null);
       }
 
       this.selectedHotbarIndex = Number.isInteger(data.selectedHotbarIndex)
-        ? Phaser.Math.Clamp(data.selectedHotbarIndex, 0, 5)
+        ? Phaser.Math.Clamp(data.selectedHotbarIndex, 0, HOTBAR_SIZE - 1)
         : 0;
 
       this.currentStationKey = "bahnhofstrasse";
@@ -3858,6 +3890,8 @@
 
       this.physics.world.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
       this.cameras.main.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
+      this.cameras.main.resetFX();
+      this.cameras.main.setAlpha(1);
       this.cameras.main.setBackgroundColor("#87c7d8");
 
       this.createBahnhofquaiWorld();
@@ -3890,6 +3924,14 @@
       this.createKeyboardControls();
       this.createTouchControls();
       this.createHUD();
+
+      this.events.once("shutdown", () => {
+        this.cleanupHotbarDOM?.();
+        document
+          .querySelectorAll("#phaser-game [data-simon-ui='hotbar-action']")
+          .forEach((node) => node.remove());
+      });
+
       this.updateCoinHUD();
       this.updateHpBar();
       this.updateInventoryUI();
@@ -4893,21 +4935,26 @@
               });
 
               this.time.delayedCall(900, () => {
-                this.cameras.main.once(
-                  Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
-                  () => this.scene.start("MilchbuckScene", {
-                    arrivalFrom: "bahnhofstrasse",
-                    coins: this.developerMode ? 999999 : this.coins,
-                    hp: this.hp,
-                    hasCityTicket: false,
-                    developerMode: this.developerMode,
-                    inventory: { ...this.inventory },
-                    hotbarItems: [...this.hotbarItems],
-                    selectedHotbarIndex: this.selectedHotbarIndex
-                  })
-                );
+                const returnData = {
+                  arrivalFrom: "bahnhofstrasse",
+                  coins: this.developerMode ? 999999 : this.coins,
+                  hp: this.hp,
+                  hasCityTicket: false,
+                  developerMode: this.developerMode,
+                  inventory: { ...this.inventory },
+                  hotbarItems: [...this.hotbarItems],
+                  selectedHotbarIndex: this.selectedHotbarIndex
+                };
 
-                this.cameras.main.fadeOut(760, 0, 0, 0);
+                this.cameras.main.fadeOut(520, 0, 0, 0);
+
+                this.time.delayedCall(540, () => {
+                  const target = this.scene.get("MilchbuckScene");
+                  target?.cameras?.main?.resetFX?.();
+                  target?.cameras?.main?.setAlpha?.(1);
+
+                  this.scene.start("MilchbuckScene", returnData);
+                });
               });
             }
           });
