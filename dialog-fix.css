@@ -1,4 +1,4 @@
-/* Simon im ersten Dialogframe */
+/* Update 08: Simon im ersten Dialogframe */
 .dialog-character {
   position: relative;
   width: 102px;
@@ -28,7 +28,6 @@
     height: 118px;
     flex-basis: 88px;
   }
-
   .dialog-character-image {
     height: 116px;
     max-width: 96px;
