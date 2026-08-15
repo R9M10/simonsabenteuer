@@ -1870,7 +1870,12 @@
       }
 
       if (this.lionChoiceModal) {
-        this.lionChoiceModal.destroy(true);
+        if (typeof this.lionChoiceModal.destroy === "function") {
+          this.lionChoiceModal.destroy(true);
+        } else if (typeof this.lionChoiceModal.remove === "function") {
+          this.lionChoiceModal.remove();
+        }
+
         this.lionChoiceModal = null;
       }
     }
@@ -1879,7 +1884,6 @@
       if (this.lionChoiceShown || !this.fightLion || this.playerDying) return;
 
       this.lionChoiceShown = true;
-      this.dialogueIgnoreUntil = this.time.now + 350;
       this.setUILocked(true);
 
       this.lionQuestionBubble = this.createSpeechBubble(
@@ -1889,106 +1893,138 @@
         0
       );
 
-      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 92)
-        .setScrollFactor(0)
-        .setDepth(1000);
+      /*
+       * WICHTIG:
+       * Die Antwortbuttons liegen ab hier NICHT mehr als Phaser-Objekte
+       * im Canvas. Auf iPhone/Safari gab es mit verschachtelten Phaser-
+       * Containern und Touch-Events reproduzierbare Probleme, bei denen
+       * die Buttons sichtbar reagierten, der Callback aber nicht sauber
+       * ausgelöst wurde.
+       *
+       * Deshalb verwenden wir hier echte HTML-Buttons direkt über dem
+       * Phaser-Canvas. Damit laufen Touch und Click über Safari selbst.
+       */
+      const parent = document.getElementById("phaser-game");
+      if (!parent) return;
 
-      const panel = this.add.graphics();
-      panel.fillStyle(0x12151d, 0.9);
-      panel.fillRoundedRect(-210, -35, 420, 70, 13);
-      panel.lineStyle(3, 0xffe6a8, 0.85);
-      panel.strokeRoundedRect(-210, -35, 420, 70, 13);
+      parent.querySelectorAll("[data-lion-choice='true']").forEach((node) => node.remove());
 
-      // Die Antworten bekommen bewusst große, eigene Touch-Flächen.
-      // Nur Text als Interactive-Target war auf iPhone/Safari unzuverlässig.
-      const makeChoice = (x, label, color, callback, width = 112) => {
-        const hitbox = this.add.rectangle(
-          x,
-          0,
-          width,
-          48,
-          0x302d34,
-          1
-        )
-          .setStrokeStyle(3, 0xffe6a8, 0.55)
-          .setInteractive({ useHandCursor: true });
+      const overlay = document.createElement("div");
+      overlay.dataset.lionChoice = "true";
+      overlay.setAttribute("aria-label", "Antwort auswählen");
+      overlay.style.position = "absolute";
+      overlay.style.left = "50%";
+      overlay.style.bottom = "16px";
+      overlay.style.transform = "translateX(-50%)";
+      overlay.style.width = "min(92%, 520px)";
+      overlay.style.padding = "9px";
+      overlay.style.display = "grid";
+      overlay.style.gridTemplateColumns = "1fr 1fr 1.18fr";
+      overlay.style.gap = "7px";
+      overlay.style.background = "rgba(18, 21, 29, 0.95)";
+      overlay.style.border = "3px solid rgba(255, 230, 168, 0.9)";
+      overlay.style.boxShadow = "0 4px 0 rgba(60, 42, 28, 0.8)";
+      overlay.style.zIndex = "99999";
+      overlay.style.pointerEvents = "auto";
+      overlay.style.touchAction = "manipulation";
+      overlay.style.boxSizing = "border-box";
 
-        const labelText = this.add.text(x, 0, label, {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "9px",
-          color,
-          align: "center"
-        })
-          .setOrigin(0.5);
+      const makeButton = (label, textColor, callback) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
 
-        let activated = false;
+        button.style.minWidth = "0";
+        button.style.width = "100%";
+        button.style.height = "44px";
+        button.style.padding = "0 5px";
+        button.style.border = "2px solid rgba(255, 230, 168, 0.65)";
+        button.style.borderRadius = "4px";
+        button.style.background = "#302d34";
+        button.style.color = textColor;
+        button.style.fontFamily = '"Press Start 2P", monospace';
+        button.style.fontSize = label === "KÄMPFEN"
+          ? "clamp(7px, 1.45vw, 9px)"
+          : "clamp(8px, 1.65vw, 10px)";
+        button.style.lineHeight = "1";
+        button.style.textAlign = "center";
+        button.style.whiteSpace = "nowrap";
+        button.style.overflow = "hidden";
+        button.style.boxSizing = "border-box";
+        button.style.touchAction = "manipulation";
+        button.style.webkitTapHighlightColor = "transparent";
+        button.style.cursor = "pointer";
 
-        const activate = (pointer) => {
-          if (activated || !this.lionChoiceModal) return;
-          activated = true;
+        let fired = false;
 
-          pointer?.event?.preventDefault?.();
-          pointer?.event?.stopPropagation?.();
+        const activate = (event) => {
+          if (fired || !this.lionChoiceModal) return;
+          fired = true;
 
-          hitbox.disableInteractive();
-          callback();
+          event?.preventDefault?.();
+          event?.stopPropagation?.();
+
+          // Sofort visuelles Feedback und danach die eigentliche Aktion.
+          button.style.background = "#5a5360";
+          button.style.transform = "translateY(2px)";
+
+          window.setTimeout(() => {
+            callback();
+          }, 25);
         };
 
-        // pointerup ist auf iOS für kurze Taps besonders zuverlässig.
-        hitbox.on("pointerup", activate);
+        // touchend ist für iPhone im Home-Screen-Modus die wichtigste Route.
+        button.addEventListener("touchend", activate, { passive: false });
 
-        hitbox.on("pointerdown", () => {
-          hitbox.setFillStyle(0x4a4550, 1);
-          hitbox.setScale(0.97);
+        // pointerup deckt moderne Safari-Versionen sowie Desktop ab.
+        button.addEventListener("pointerup", activate, { passive: false });
+
+        // click bleibt als robuste Fallback-Route bestehen.
+        button.addEventListener("click", activate, { passive: false });
+
+        button.addEventListener("touchstart", (event) => {
+          event.stopPropagation();
+          button.style.background = "#48424d";
+        }, { passive: true });
+
+        button.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          button.style.background = "#48424d";
         });
 
-        hitbox.on("pointerout", () => {
-          if (!activated) {
-            hitbox.setFillStyle(0x302d34, 1);
-            hitbox.setScale(1);
-          }
-        });
-
-        // Das Label selbst soll die Touch-Fläche nicht abfangen.
-        labelText.disableInteractive?.();
-
-        return { hitbox, labelText };
+        return button;
       };
 
-      const yes = makeChoice(
-        -136,
+      const yes = makeButton(
         "JA",
         "#bff3bd",
-        () => this.chooseDanceWithLion(),
-        104
+        () => this.chooseDanceWithLion()
       );
 
-      const no = makeChoice(
-        -12,
+      const no = makeButton(
         "NEIN",
         "#f3ddbd",
-        () => this.chooseNoDance(),
-        112
+        () => this.chooseNoDance()
       );
 
-      const fight = makeChoice(
-        137,
+      const fight = makeButton(
         "KÄMPFEN",
         "#ffaaa6",
-        () => this.startLionCombat(),
-        150
+        () => this.startLionCombat()
       );
 
-      modal.add([
-        panel,
-        yes.hitbox,
-        yes.labelText,
-        no.hitbox,
-        no.labelText,
-        fight.hitbox,
-        fight.labelText
-      ]);
-      this.lionChoiceModal = modal;
+      overlay.append(yes, no, fight);
+
+      // Verhindert, dass der darunterliegende Phaser-Canvas den Tap
+      // gleichzeitig als Spielinput verarbeitet.
+      ["touchstart", "touchend", "pointerdown", "pointerup", "click"].forEach((type) => {
+        overlay.addEventListener(type, (event) => {
+          event.stopPropagation();
+        }, { passive: type === "touchstart" });
+      });
+
+      parent.appendChild(overlay);
+      this.lionChoiceModal = overlay;
       this.refreshUILock();
     }
 
