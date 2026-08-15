@@ -1,24 +1,24 @@
 (() => {
   "use strict";
 
-  if (window.__SIMON_FLIGHT_INTRO_V13__) return;
-  window.__SIMON_FLIGHT_INTRO_V13__ = true;
+  if (window.__SIMON_FLIGHT_INTRO_V15__) return;
+  window.__SIMON_FLIGHT_INTRO_V15__ = true;
 
   const wrappedStartSimonGame = window.startSimonGame;
 
   if (typeof wrappedStartSimonGame !== "function") {
-    console.error("Flight Intro v13: startSimonGame fehlt.");
+    console.error("Flight Intro v15: startSimonGame fehlt.");
     return;
   }
 
   let introShown = false;
   let introRunning = false;
 
-  window.startSimonGame = function startSimonGameWithFlightIntro(options = {}) {
+  window.startSimonGame = function startSimonGameWithFlightIntroV15(options = {}) {
     const startMode = options?.startMode || "normal";
 
-    // Developer jumps remain instant. The flight only belongs to the story path
-    // after the Den-Haag shoe dialogue.
+    // Developer jumps stay instant. The plane belongs only to the normal
+    // story transition after the Den-Haag shoe dialogue.
     if (startMode !== "normal" || introShown) {
       return wrappedStartSimonGame.call(this, options);
     }
@@ -26,6 +26,7 @@
     if (introRunning) return null;
 
     introRunning = true;
+
     showFlightIntro(() => {
       introShown = true;
       introRunning = false;
@@ -40,204 +41,215 @@
       .querySelectorAll("[data-simon-flight-intro]")
       .forEach((node) => node.remove());
 
+    ensureFlightStyles();
+
     const overlay = document.createElement("div");
-    overlay.dataset.simonFlightIntro = "true";
+    overlay.dataset.simonFlightIntro = "v15";
+    overlay.className = "simon-flight-v15";
 
-    Object.assign(overlay.style, {
-      position: "fixed",
-      inset: "0",
-      zIndex: "200000",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-      background: "#79bdd8",
-      pointerEvents: "none",
-      opacity: "0",
-      transition: "opacity 260ms linear"
-    });
+    const sky = document.createElement("img");
+    sky.className = "simon-flight-v15__sky";
+    sky.src = "flight-sky-v15.png";
+    sky.alt = "";
+    sky.draggable = false;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = 820;
-    canvas.height = 390;
+    const planeGroup = document.createElement("div");
+    planeGroup.className = "simon-flight-v15__plane-group";
 
-    Object.assign(canvas.style, {
-      width: "100%",
-      height: "100%",
-      imageRendering: "pixelated",
-      display: "block"
-    });
+    const plane = document.createElement("img");
+    plane.className = "simon-flight-v15__plane";
+    plane.src = "flight-plane-v15.png";
+    plane.alt = "Flugzeug nach Zürich";
+    plane.draggable = false;
 
-    overlay.appendChild(canvas);
+    const thought = document.createElement("div");
+    thought.className = "simon-flight-v15__thought";
+    thought.textContent = "Ich muss unbedingt neue Schuhe kaufen gehen...";
+
+    const thoughtDotLarge = document.createElement("span");
+    thoughtDotLarge.className = "simon-flight-v15__thought-dot is-large";
+
+    const thoughtDotSmall = document.createElement("span");
+    thoughtDotSmall.className = "simon-flight-v15__thought-dot is-small";
+
+    planeGroup.append(plane, thought, thoughtDotLarge, thoughtDotSmall);
+    overlay.append(sky, planeGroup);
     document.body.appendChild(overlay);
 
+    // Give layout one frame so the CSS flight animation starts reliably on iOS.
     requestAnimationFrame(() => {
-      overlay.style.opacity = "1";
+      overlay.classList.add("is-flying");
     });
 
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingEnabled = false;
-
-    const duration = 5200;
-    const start = performance.now();
-    let finished = false;
-
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      overlay.style.opacity = "0";
+    const finishTimer = window.setTimeout(() => {
+      overlay.classList.add("is-leaving");
 
       window.setTimeout(() => {
         overlay.remove();
         onComplete?.();
-      }, 280);
-    };
+      }, 380);
+    }, 5250);
 
-    const drawCloud = (x, y, scale = 1) => {
-      ctx.fillStyle = "#eaf6f4";
-      ctx.fillRect(x, y, 72 * scale, 18 * scale);
-      ctx.fillRect(x + 14 * scale, y - 12 * scale, 47 * scale, 17 * scale);
-      ctx.fillRect(x + 29 * scale, y - 22 * scale, 29 * scale, 15 * scale);
-    };
+    overlay.addEventListener("remove", () => window.clearTimeout(finishTimer));
+  }
 
-    const drawPlane = (x, y) => {
-      ctx.save();
-      ctx.translate(Math.round(x), Math.round(y));
+  function ensureFlightStyles() {
+    if (document.getElementById("simon-flight-v15-styles")) return;
 
-      // shadow pixels
-      ctx.fillStyle = "#486a79";
-      ctx.fillRect(11, 13, 147, 10);
-
-      // fuselage
-      ctx.fillStyle = "#f2f2ed";
-      ctx.fillRect(0, 0, 142, 25);
-      ctx.fillRect(20, -5, 102, 35);
-
-      // rounded-ish nose
-      ctx.fillRect(133, 4, 18, 17);
-      ctx.fillRect(146, 8, 10, 9);
-
-      // wings
-      ctx.fillStyle = "#d9dde0";
-      ctx.fillRect(55, -27, 52, 24);
-      ctx.fillRect(66, 24, 58, 24);
-      ctx.fillStyle = "#c5ccd1";
-      ctx.fillRect(74, -35, 19, 10);
-      ctx.fillRect(89, 46, 17, 8);
-
-      // Swiss-red tail
-      ctx.fillStyle = "#d83d44";
-      ctx.fillRect(4, -24, 25, 24);
-      ctx.fillRect(8, -34, 16, 12);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(15, -29, 4, 13);
-      ctx.fillRect(11, -25, 12, 4);
-
-      // windows
-      ctx.fillStyle = "#315a70";
-      [38,54,70,86,102,118].forEach((wx) => {
-        ctx.fillRect(wx, 5, 8, 7);
-      });
-
-      ctx.restore();
-    };
-
-    const roundRect = (x, y, w, h, r) => {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-    };
-
-    const drawThoughtBubble = (planeX, planeY, alpha) => {
-      ctx.save();
-      ctx.globalAlpha = alpha;
-
-      const bx = Math.max(65, Math.min(470, planeX + 55));
-      const by = 57;
-      const bw = 300;
-      const bh = 108;
-
-      ctx.fillStyle = "#fffdf2";
-      ctx.strokeStyle = "#202735";
-      ctx.lineWidth = 4;
-      roundRect(bx, by, bw, bh, 18);
-      ctx.fill();
-      ctx.stroke();
-
-      // thought-bubble dots point toward the plane
-      const dot1x = Math.max(bx + 25, Math.min(bx + bw - 25, planeX + 78));
-      ctx.fillStyle = "#fffdf2";
-      ctx.strokeStyle = "#202735";
-      ctx.beginPath();
-      ctx.arc(dot1x, by + bh + 15, 9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(dot1x + 11, by + bh + 34, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#202735";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.font = '11px "Press Start 2P", monospace';
-
-      ctx.fillText("ICH MUSS UNBEDINGT", bx + bw / 2, by + 31);
-      ctx.fillText("NEUE SCHUHE", bx + bw / 2, by + 56);
-      ctx.fillText("KAUFEN GEHEN...", bx + bw / 2, by + 81);
-
-      ctx.restore();
-    };
-
-    const frame = (now) => {
-      if (finished) return;
-
-      const elapsed = now - start;
-      const t = Math.min(1, elapsed / duration);
-
-      // sky bands
-      ctx.fillStyle = "#73b8d5";
-      ctx.fillRect(0, 0, 820, 130);
-      ctx.fillStyle = "#83c4dc";
-      ctx.fillRect(0, 130, 820, 130);
-      ctx.fillStyle = "#9bd2e2";
-      ctx.fillRect(0, 260, 820, 130);
-
-      // slowly drifting clouds
-      const drift = (elapsed / 35) % 980;
-      drawCloud(70 - drift * 0.22, 98, 1.0);
-      drawCloud(470 - drift * 0.13, 230, 0.72);
-      drawCloud(830 - drift * 0.18, 128, 0.9);
-      drawCloud(1030 - drift * 0.18, 128, 0.9);
-
-      // plane travels clearly from left to right
-      const planeX = -185 + t * 1120;
-      const planeY = 214 + Math.sin(t * Math.PI * 3) * 4;
-      drawPlane(planeX, planeY);
-
-      // thought appears after takeoff movement and disappears shortly before exit
-      let bubbleAlpha = 0;
-      if (t > 0.18 && t < 0.86) {
-        bubbleAlpha = Math.min(1, (t - 0.18) / 0.10, (0.86 - t) / 0.10);
-        drawThoughtBubble(planeX, planeY, bubbleAlpha);
+    const style = document.createElement("style");
+    style.id = "simon-flight-v15-styles";
+    style.textContent = `
+      .simon-flight-v15 {
+        position: fixed;
+        inset: 0;
+        z-index: 200000;
+        overflow: hidden;
+        background: #74c9ff;
+        opacity: 1;
+        pointer-events: none;
+        transition: opacity 360ms ease;
       }
 
-      if (t >= 1) {
-        finish();
-        return;
+      .simon-flight-v15.is-leaving {
+        opacity: 0;
       }
 
-      requestAnimationFrame(frame);
-    };
+      .simon-flight-v15__sky {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center center;
+        image-rendering: pixelated;
+        user-select: none;
+        pointer-events: none;
+      }
 
-    requestAnimationFrame(frame);
+      .simon-flight-v15__plane-group {
+        position: absolute;
+        left: -66vw;
+        top: 48%;
+        width: min(63vw, 610px);
+        transform: translate3d(0, -50%, 0);
+        will-change: transform;
+      }
+
+      .simon-flight-v15.is-flying .simon-flight-v15__plane-group {
+        animation: simon-plane-cross-v15 4.9s linear forwards;
+      }
+
+      .simon-flight-v15__plane {
+        display: block;
+        width: 100%;
+        height: auto;
+        image-rendering: pixelated;
+        filter: drop-shadow(0 10px 10px rgba(33, 81, 128, 0.22));
+      }
+
+      .simon-flight-v15__thought {
+        position: absolute;
+        right: 7%;
+        top: -118px;
+        width: min(310px, 52vw);
+        padding: 13px 15px;
+        border: 4px solid #1c2941;
+        border-radius: 24px;
+        background: rgba(255, 253, 239, 0.98);
+        color: #172236;
+        box-shadow: 6px 7px 0 rgba(26, 46, 74, 0.18);
+
+        font-family: "Press Start 2P", monospace;
+        font-size: clamp(0.48rem, 1.05vw, 0.70rem);
+        line-height: 1.65;
+        text-align: center;
+
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      .simon-flight-v15.is-flying .simon-flight-v15__thought {
+        animation: simon-thought-v15 4.9s ease forwards;
+      }
+
+      .simon-flight-v15__thought-dot {
+        position: absolute;
+        display: block;
+        border: 3px solid #1c2941;
+        border-radius: 50%;
+        background: rgba(255, 253, 239, 0.98);
+        opacity: 0;
+      }
+
+      .simon-flight-v15__thought-dot.is-large {
+        right: 24%;
+        top: -30px;
+        width: 20px;
+        height: 20px;
+      }
+
+      .simon-flight-v15__thought-dot.is-small {
+        right: 18%;
+        top: -5px;
+        width: 12px;
+        height: 12px;
+      }
+
+      .simon-flight-v15.is-flying .simon-flight-v15__thought-dot {
+        animation: simon-thought-dots-v15 4.9s ease forwards;
+      }
+
+      @keyframes simon-plane-cross-v15 {
+        0% {
+          transform: translate3d(0, -50%, 0) translateY(6px) scale(0.92);
+        }
+        25% {
+          transform: translate3d(48vw, -50%, 0) translateY(-3px) scale(0.97);
+        }
+        68% {
+          transform: translate3d(118vw, -50%, 0) translateY(2px) scale(1.02);
+        }
+        100% {
+          transform: translate3d(182vw, -50%, 0) translateY(-4px) scale(1.04);
+        }
+      }
+
+      @keyframes simon-thought-v15 {
+        0%, 18% {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        28%, 78% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        90%, 100% {
+          opacity: 0;
+          transform: translateY(-5px);
+        }
+      }
+
+      @keyframes simon-thought-dots-v15 {
+        0%, 20% { opacity: 0; }
+        29%, 78% { opacity: 1; }
+        90%, 100% { opacity: 0; }
+      }
+
+      @media (max-height: 430px) {
+        .simon-flight-v15__plane-group {
+          top: 52%;
+          width: min(58vw, 520px);
+        }
+
+        .simon-flight-v15__thought {
+          top: -98px;
+          width: min(280px, 50vw);
+          padding: 10px 12px;
+          font-size: clamp(0.43rem, 1vw, 0.61rem);
+        }
+      }
+    `;
+
+    document.head.appendChild(style);
   }
 })();

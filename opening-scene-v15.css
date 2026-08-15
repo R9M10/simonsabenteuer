@@ -1,0 +1,77 @@
+/* Simon's Abenteuer — Opening scene v15
+   The supplied scene image already contains both characters and the wall,
+   therefore all previous placeholder people/wall overlays are hidden. */
+
+#scene-screen {
+  background: #050912;
+}
+
+#scene-screen .scene-frame {
+  overflow: hidden;
+}
+
+#scene-screen .scene-background {
+  background-image: url("opening-scene-v15.png") !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  image-rendering: pixelated;
+  filter: saturate(1.03) contrast(1.025);
+}
+
+#scene-screen .water-wall,
+#scene-screen .characters {
+  display: none !important;
+}
+
+/* Benjamin is the speaker in all three lines. The bubble sits above and
+   slightly right of him and points back down toward his position. */
+#scene-screen .speech-bubble {
+  left: 55.5% !important;
+  right: auto !important;
+  bottom: 53% !important;
+  min-width: 150px !important;
+  max-width: min(38%, 290px) !important;
+  padding: 11px 14px !important;
+
+  background: #fff7dc !important;
+  color: #1f1c20 !important;
+  border: 3px solid #252333 !important;
+  border-radius: 17px 17px 17px 7px !important;
+
+  box-shadow:
+    0 0 0 3px rgba(255, 250, 232, 0.82),
+    5px 6px 0 rgba(11, 16, 33, 0.52) !important;
+
+  text-align: center;
+  transform: rotate(-1deg) !important;
+  z-index: 20 !important;
+}
+
+#scene-screen .speech-bubble::after {
+  left: 22px !important;
+  bottom: -14px !important;
+  width: 17px !important;
+  height: 17px !important;
+
+  background: #fff7dc !important;
+  border-left: 3px solid #252333 !important;
+  border-bottom: 3px solid #252333 !important;
+  transform: rotate(-35deg) !important;
+}
+
+#scene-screen .speech-bubble p {
+  color: #1f1c20 !important;
+  line-height: 1.55 !important;
+  font-size: clamp(0.48rem, 1.24vw, 0.70rem) !important;
+}
+
+@media (max-height: 430px) {
+  #scene-screen .speech-bubble {
+    left: 55% !important;
+    bottom: 51% !important;
+    min-width: 138px !important;
+    max-width: min(39%, 260px) !important;
+    padding: 9px 11px !important;
+  }
+}
