@@ -1,56 +1,71 @@
-# Simons Abenteuer – Tram, HIVE-Zurück, HIT/KO
+# Simons Abenteuer – Developer Mode + Bahnhofquai/HB
 
-Diese Version basiert auf der aktuellsten `game.js` aus dem Repository
-(Blob `e1a6ac0e14c9c5d670daefd70f2030ed75ad67dc`).
+Diese Version basiert auf dem **aktuellen GitHub-Stand** vor dieser Änderung.
 
-Bitte diese drei Dateien ersetzen:
+Verifiziert wurden dabei unter anderem:
+
+- `game.js`: `ef683ee1a63d5c93ea3e738978f318a1c9e5f29f`
+- `index.html`: `a2f289426ed701083a4d22a531213918b4e56f54`
+- `script.js`: `364683dbdb414ea8f23219531a2a4e8e595915a0`
+- `animation-fix.js`: `0dd16d6b163e0d1b059961ae005c1bf676b70cd0`
+
+## Dateien ersetzen
 
 - `game.js`
 - `animation-fix.js`
 - `index.html`
+- `script.js`
 
-Andere Dateien – insbesondere die zuletzt geänderten Dialog-Assets und
-`dialog-fix.css` – bleiben unverändert.
+`style.css` und die übrigen Dateien bleiben unangetastet.
 
-## Neu
+## Developer Mode
 
-### Tram nach Ticketkauf
+Nach START erscheint jetzt zuerst ein eigener Developer-Mode-Bildschirm.
 
-Nach einem erfolgreichen Ticketkauf:
+Standard: `AUS`
 
-- blinkt ein weißer Punkt an der Tram,
-- die Tram wird anklickbar,
-- Simon kann einsteigen,
-- Simon läuft kurz zur Tram und verschwindet im Wagen,
-- die Tram fährt ein Stück nach rechts,
-- danach blendet der Bildschirm schwarz aus,
-- anschließend startet die vorbereitete `NextScenePlaceholder`-Szene.
+- AUS + WEITER → normales Spiel, beginnend mit der ersten Dialogszene.
+- AN + WEITER → Developer-Menü.
 
-Diese leere Folgeszene ist absichtlich nur ein Platzhalter für den nächsten
-Entwicklungsschritt.
+Aktuelle Sprungziele:
 
-### HIVE
+1. `ZUR LÖWENAUSWAHL`
+   - startet direkt vor dem HIVE bei der Auswahl `JA / NEIN / KÄMPFEN`
+   - die besiegten Türsteher liegen bereits auf der Straße und bleiben anklickbar
 
-Beim Tanzen mit dem Löwen gibt es oben links einen robusten nativen Button:
+2. `BAHNHOFQUAI / HB`
+   - startet direkt die neue Tram-Ankunft am Hauptbahnhof
 
-`← STRASSE`
+3. `NORMALER START`
 
-Damit kommt Simon wieder aus dem HIVE auf die Straße. Der Löwe bleibt im Club.
+Der Developer Mode ist absichtlich leicht wieder entfernbar:
+In `script.js` kann `DEVELOPER_GATE_ENABLED` einfach auf `false` gesetzt werden.
+Die zugehörigen HTML/CSS-Blöcke in `index.html` sind zusätzlich mit
+`DEVELOPER MODE START/END` markiert.
 
-### HIT und KO
+## Neue Szene: Bahnhofquai / HB
 
-Die bislang zusammen verwendeten Endframes des Spritesheets wurden getrennt:
+Nach der normalen Tramfahrt aus Milchbuck geht es jetzt wirklich weiter zur
+Haltestelle `BAHNHOFQUAI / HB`.
 
-- Frames `26–28`: `simon-hit`
-- Frames `29–31`: `simon-ko`
+- links: arcadeartiger Zürcher Hauptbahnhof als feste Begrenzung
+- Mitte: Tramhaltestelle Bahnhofquai / HB
+- rechts: Beginn der Bahnhofstrasse mit Zürcher Häuserzeile, Schaufenstern,
+  Bäumen und Straßenraum
+- aktuell noch keine neuen Interaktionen
 
-Bei einem Löwentreffer spielt Simon jetzt die HIT-Sequenz.
-Beim K.O. spielt er die KO-Sequenz, bevor das Spiel neu startet.
+### Ankunft
 
-`animation-fix.js` wurde auf v9 aktualisiert, damit die bestehende
-Sprungkorrektur HIT und KO nicht überschreibt.
+- Szene fadet aus Milchbuck ein
+- Tram rollt in die Haltestelle
+- Tür öffnet sich
+- Simon steigt sichtbar aus und geht auf den Bahnsteig
+- danach werden Touch-Steuerung und freie Bewegung wieder freigegeben
 
-### Cache
+Coins, HP und das gekaufte Ticket werden in die neue Szene übernommen.
 
-`index.html` lädt `game.js?v=9` und `animation-fix.js?v=9`, damit das iPhone
-nicht versehentlich die alte gecachte JavaScript-Version verwendet.
+## Animation-Fix
+
+`animation-fix.js` ist jetzt v10 und überwacht sowohl `MilchbuckScene` als auch
+`BahnhofquaiScene`, damit die bestehende Sprungdarstellung auch nach dem
+Szenenwechsel erhalten bleibt.

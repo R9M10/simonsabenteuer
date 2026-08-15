@@ -7,11 +7,13 @@
   const GROUND_TOP = 338;
 
   let game = null;
+  let pendingStartOptions = { startMode: "normal" };
 
   class MilchbuckScene extends Phaser.Scene {
-    constructor() {
-      super("MilchbuckScene");
+    constructor(sceneKey = "MilchbuckScene") {
+      super(sceneKey);
 
+      this.startMode = "normal";
       this.player = null;
       this.cursors = null;
       this.keyA = null;
@@ -97,6 +99,7 @@
 
     create() {
       this.input.addPointer(3);
+      this.startMode = pendingStartOptions?.startMode || "normal";
 
       const domRoot = document.getElementById("phaser-game");
       domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
@@ -132,6 +135,23 @@
       this.createKeyboardControls();
       this.createTouchControls();
       this.createHUD();
+
+      // Developer-Startziele werden erst NACH der normalen Szeneninitialisierung
+      // angewandt. So bleiben Sprites, Animationen, HUD und Touch-Steuerung
+      // exakt dieselben wie im normalen Spiel.
+      if (this.startMode === "hb") {
+        this.scene.start("BahnhofquaiScene", {
+          coins: 0,
+          hp: this.maxHp,
+          hasCityTicket: true,
+          fromDeveloperMode: true
+        });
+        return;
+      }
+
+      if (this.startMode === "lion-choice") {
+        this.time.delayedCall(80, () => this.setupDeveloperLionChoice());
+      }
 
       this.input.on("pointerup", () => {
         if (
@@ -1336,7 +1356,12 @@
           this.time.delayedCall(1150, () => {
             this.cameras.main.once(
               Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
-              () => this.scene.start("NextScenePlaceholder")
+              () => this.scene.start("BahnhofquaiScene", {
+                coins: this.coins,
+                hp: this.hp,
+                hasCityTicket: this.hasCityTicket,
+                fromDeveloperMode: false
+              })
             );
 
             this.cameras.main.fadeOut(850, 0, 0, 0);
@@ -1833,6 +1858,62 @@
       this.bouncerDialogueActive = false;
       this.bouncerDialogueStep = 0;
       this.startFightSequence();
+    }
+
+    setupDeveloperLionChoice() {
+      if (!this.player || this.fightActive) return;
+
+      this.clearBouncerBubble();
+      this.bouncerDialogueActive = false;
+      this.bouncerDialogueStep = 0;
+      this.fightActive = false;
+      this.fightFinished = true;
+      this.lionChoiceShown = false;
+
+      // Simon wird direkt vor das HIVE gesetzt.
+      this.player.setPosition(1510, 245);
+      this.player.setVelocity(0, 0);
+      this.player.setVisible(true);
+      this.player.clearTint();
+      this.player.play("simon-idle", true);
+
+      // Der bereits vorhandene Türsteher wird als besiegt dargestellt.
+      if (this.bouncer) {
+        this.tweens.killTweensOf(this.bouncer);
+        this.bouncer.disableInteractive();
+        this.bouncer.setPosition(1812, GROUND_TOP - 15);
+        this.bouncer.setAngle(86);
+        this.bouncer.setScale(1);
+      }
+
+      const positions = [
+        [1590, -82],
+        [1647, 88],
+        [1701, -91],
+        [1756, 84]
+      ];
+
+      const extras = positions.map(([x, angle], index) => {
+        const guard = this.createFightBouncer(x, GROUND_TOP - 15, index + 1);
+        guard.setAngle(angle);
+        return guard;
+      });
+
+      this.fightBouncers = [...extras, this.bouncer].filter(Boolean);
+      this.makeDeadBouncersLootable();
+
+      const lion = this.createLion(1738, GROUND_TOP - 37);
+      this.tweens.killTweensOf(lion);
+      lion.setScale(1.05, 0.9);
+      lion.setAngle(0);
+      this.fightLion = lion;
+
+      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+      this.cameras.main.setDeadzone(240, 80);
+
+      this.time.delayedCall(180, () => {
+        this.showLionChoiceQuestion();
+      });
     }
 
     createFightBouncer(x, y, variant = 0) {
@@ -2844,25 +2925,403 @@
     }
   }
 
-  class NextScenePlaceholder extends Phaser.Scene {
+  class BahnhofquaiScene extends MilchbuckScene {
     constructor() {
-      super("NextScenePlaceholder");
+      super("BahnhofquaiScene");
+
+      this.arrivalTram = null;
+      this.arrivalDoor = null;
+      this.hbBoundary = null;
+      this.arrivalFinished = false;
+      this.arrivalData = null;
+    }
+
+    init(data = {}) {
+      this.arrivalData = data;
+      this.coins = Number.isFinite(data.coins) ? data.coins : 0;
+      this.hp = Number.isFinite(data.hp) ? data.hp : this.maxHp;
+      this.hasCityTicket = data.hasCityTicket !== false;
     }
 
     create() {
-      this.cameras.main.setBackgroundColor("#050509");
+      this.input.addPointer(3);
 
-      this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, "...", {
+      const domRoot = document.getElementById("phaser-game");
+      domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
+
+      this.physics.world.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
+      this.cameras.main.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
+      this.cameras.main.setBackgroundColor("#87c7d8");
+
+      this.createBahnhofquaiWorld();
+      this.createGround();
+
+      if (!this.textures.exists("simon")) {
+        this.add.text(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT / 2,
+          "SIMON-SPRITE FEHLT",
+          {
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "12px",
+            color: "#ffdf8a"
+          }
+        )
+          .setOrigin(0.5)
+          .setScrollFactor(0);
+        return;
+      }
+
+      this.createAnimations();
+      this.createPlayer();
+
+      // Der Hauptbahnhof bildet links eine reale Grenze.
+      if (this.hbBoundary) {
+        this.physics.add.collider(this.player, this.hbBoundary);
+      }
+
+      this.createKeyboardControls();
+      this.createTouchControls();
+      this.createHUD();
+      this.updateCoinHUD();
+      this.updateHpBar();
+      this.updateInventoryUI();
+
+      this.player.setPosition(650, 246);
+      this.player.setVisible(false);
+      this.player.setVelocity(0, 0);
+      if (this.player.body) this.player.body.enable = false;
+
+      this.setUILocked(true);
+
+      this.cameras.main.stopFollow();
+      this.cameras.main.setScroll(300, 0);
+      this.cameras.main.fadeIn(650, 0, 0, 0);
+
+      this.time.delayedCall(320, () => this.playArrivalAnimation());
+      this.cameras.main.roundPixels = true;
+    }
+
+    createBahnhofquaiWorld() {
+      const bg = this.add.graphics().setDepth(-30);
+
+      // Himmel.
+      bg.fillStyle(0x78bcd2, 1);
+      bg.fillRect(0, 0, WORLD_WIDTH, 105);
+      bg.fillStyle(0x91cbd5, 1);
+      bg.fillRect(0, 105, WORLD_WIDTH, 100);
+      bg.fillStyle(0xb8d8d1, 1);
+      bg.fillRect(0, 205, WORLD_WIDTH, 133);
+
+      // Ferne Zürcher Dächer.
+      const far = this.add.graphics().setDepth(-20);
+      for (let x = 420; x < WORLD_WIDTH; x += 115) {
+        const h = 64 + ((x / 115) % 4) * 11;
+        const y = GROUND_TOP - h - 45;
+        far.fillStyle((x / 115) % 2 === 0 ? 0x8d8a80 : 0x9b9385, 1);
+        far.fillRect(x, y, 103, h);
+        far.fillStyle((x / 115) % 3 === 0 ? 0x7e4b40 : 0x5f5651, 1);
+        far.fillTriangle(x - 4, y, x + 51, y - 20, x + 107, y);
+      }
+
+      this.createHauptbahnhofFacade();
+      this.createBahnhofquaiStop();
+      this.createBahnhofstrasse();
+
+      // Fahrbahn / Gleise / Gehfläche.
+      const street = this.add.graphics().setDepth(0);
+      street.fillStyle(0x777a76, 1);
+      street.fillRect(0, 282, WORLD_WIDTH, 56);
+
+      street.fillStyle(0x434543, 1);
+      street.fillRect(0, 300, WORLD_WIDTH, 4);
+      street.fillRect(0, 322, WORLD_WIDTH, 4);
+
+      street.fillStyle(0xb9aa8d, 0.7);
+      for (let x = 0; x < WORLD_WIDTH; x += 22) {
+        street.fillRect(x, 304, 4, 17);
+      }
+
+      street.fillStyle(0xb9b09d, 1);
+      street.fillRect(420, 328, WORLD_WIDTH - 420, 10);
+
+      street.fillStyle(0x655446, 1);
+      street.fillRect(0, GROUND_TOP, WORLD_WIDTH, GAME_HEIGHT - GROUND_TOP);
+
+      for (let x = 0; x < WORLD_WIDTH; x += 26) {
+        street.fillStyle((x / 26) % 2 === 0 ? 0x806c58 : 0x735f4e, 1);
+        street.fillRect(x, GROUND_TOP, 24, 10);
+      }
+
+      // Oberleitung.
+      const wires = this.add.graphics().setDepth(4);
+      wires.lineStyle(2, 0x555a5d, 0.9);
+      [505, 760, 1030, 1320, 1650, 1990, 2350, 2710].forEach((x) => {
+        wires.fillStyle(0x6b7173, 1);
+        wires.fillRect(x, 78, 5, 230);
+      });
+
+      for (let x = 505; x < 2710; x += 255) {
+        wires.lineBetween(x, 96, Math.min(x + 255, WORLD_WIDTH), 112);
+      }
+
+      // Unsichtbare Kollision vor dem Hauptbahnhof: links endet der Weg.
+      this.hbBoundary = this.add.rectangle(415, 205, 18, 410, 0x000000, 0);
+      this.physics.add.existing(this.hbBoundary, true);
+
+      this.createArrivalTram();
+    }
+
+    createHauptbahnhofFacade() {
+      const hb = this.add.graphics().setDepth(-4);
+
+      hb.fillStyle(0xb9aa8e, 1);
+      hb.fillRect(0, 104, 415, 234);
+
+      hb.fillStyle(0x9e8d72, 1);
+      hb.fillRect(0, 104, 415, 22);
+      hb.fillRect(0, 316, 415, 22);
+
+      // Klassische Fensterbögen.
+      for (let x = 34; x < 390; x += 68) {
+        hb.fillStyle(0x405769, 1);
+        hb.fillRoundedRect(x, 164, 42, 77, 17);
+        hb.lineStyle(4, 0x756850, 1);
+        hb.strokeRoundedRect(x, 164, 42, 77, 17);
+
+        hb.fillStyle(0x5e6d72, 1);
+        hb.fillRect(x + 6, 253, 30, 51);
+      }
+
+      // Haupteingang / Tor.
+      hb.fillStyle(0x293c4a, 1);
+      hb.fillRoundedRect(165, 192, 88, 146, 30);
+      hb.lineStyle(5, 0x756850, 1);
+      hb.strokeRoundedRect(165, 192, 88, 146, 30);
+
+      // Uhr.
+      hb.fillStyle(0xf2ecdc, 1);
+      hb.fillCircle(209, 152, 22);
+      hb.lineStyle(4, 0x4a4640, 1);
+      hb.strokeCircle(209, 152, 22);
+      hb.lineBetween(209, 152, 209, 137);
+      hb.lineBetween(209, 152, 220, 158);
+
+      this.add.text(209, 116, "ZÜRICH HB", {
         fontFamily: '"Press Start 2P", monospace',
-        fontSize: "17px",
-        color: "#d9d9df"
+        fontSize: "12px",
+        color: "#fff0c4",
+        stroke: "#5b4f3d",
+        strokeThickness: 5
       })
         .setOrigin(0.5)
-        .setAlpha(0.65);
+        .setDepth(5);
+    }
+
+    createBahnhofquaiStop() {
+      const stop = this.add.graphics().setDepth(2);
+
+      // Unterstand.
+      stop.fillStyle(0x4d575a, 1);
+      stop.fillRect(625, 178, 8, 112);
+      stop.fillRect(825, 178, 8, 112);
+      stop.fillStyle(0x3e494d, 1);
+      stop.fillRect(610, 169, 238, 12);
+      stop.fillStyle(0xb7d9d6, 0.42);
+      stop.fillRect(638, 184, 180, 86);
+      stop.lineStyle(4, 0x536166, 1);
+      stop.strokeRect(638, 184, 180, 86);
+
+      // Bank.
+      stop.fillStyle(0x8c603e, 1);
+      stop.fillRect(678, 253, 102, 9);
+      stop.fillRect(688, 262, 7, 23);
+      stop.fillRect(764, 262, 7, 23);
+
+      // Haltestellenmast.
+      stop.fillStyle(0x687075, 1);
+      stop.fillRect(882, 171, 7, 124);
+      stop.fillStyle(0x216aa4, 1);
+      stop.fillRect(846, 141, 79, 33);
+
+      this.add.text(885, 158, "BAHNHOFQUAI", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "6px",
+        color: "#ffffff"
+      })
+        .setOrigin(0.5)
+        .setDepth(6);
+
+      this.add.text(885, 187, "/ HB", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "7px",
+        color: "#183348",
+        backgroundColor: "#f0efe6",
+        padding: { x: 8, y: 5 }
+      })
+        .setOrigin(0.5)
+        .setDepth(6);
+
+      this.add.text(735, 126, "BAHNHOFQUAI / HB", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "12px",
+        color: "#fff8d9",
+        stroke: "#28495b",
+        strokeThickness: 5
+      })
+        .setOrigin(0.5)
+        .setDepth(5);
+    }
+
+    createBahnhofstrasse() {
+      const startX = 990;
+      const colors = [
+        0xd5c5a4,
+        0xc8aa8b,
+        0xd9d0b4,
+        0xbda489,
+        0xd2b99a,
+        0xc4b6a1
+      ];
+
+      for (let i = 0; i < 15; i += 1) {
+        const x = startX + i * 132;
+        const w = 118;
+        const h = 155 + (i % 4) * 14;
+        const y = GROUND_TOP - h;
+
+        const b = this.add.graphics().setDepth(-3);
+        b.fillStyle(colors[i % colors.length], 1);
+        b.fillRect(x, y, w, h);
+
+        b.fillStyle(i % 2 === 0 ? 0x59595b : 0x73584a, 1);
+        b.fillTriangle(x - 4, y, x + w / 2, y - 22, x + w + 4, y);
+
+        // Fenster.
+        for (let wx = x + 13; wx < x + w - 12; wx += 28) {
+          for (let wy = y + 23; wy < y + h - 49; wy += 32) {
+            b.fillStyle((wx + wy) % 3 === 0 ? 0xf5d98f : 0x426077, 1);
+            b.fillRect(wx, wy, 11, 15);
+            b.lineStyle(2, 0x65584d, 1);
+            b.strokeRect(wx, wy, 11, 15);
+          }
+        }
+
+        // Arkadenartige Schaufenster im Erdgeschoss.
+        b.fillStyle(0x2d3339, 1);
+        b.fillRect(x + 8, GROUND_TOP - 44, w - 16, 38);
+
+        b.fillStyle(i % 3 === 0 ? 0xc18a56 : 0x6c8b8e, 1);
+        b.fillRect(x + 14, GROUND_TOP - 38, 39, 25);
+        b.fillRect(x + 64, GROUND_TOP - 38, 39, 25);
+      }
+
+      this.add.text(1160, 244, "BAHNHOFSTRASSE →", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "8px",
+        color: "#f2efe4",
+        backgroundColor: "#42413d",
+        padding: { x: 8, y: 6 }
+      }).setDepth(4);
+
+      // Straßenbäume.
+      for (let x = 1110; x < WORLD_WIDTH; x += 360) {
+        const tree = this.add.graphics().setDepth(1);
+        tree.fillStyle(0x65462f, 1);
+        tree.fillRect(x, 267, 8, 71);
+        tree.fillStyle(0x477a51, 1);
+        tree.fillCircle(x + 4, 252, 24);
+        tree.fillStyle(0x568a5b, 1);
+        tree.fillCircle(x - 11, 263, 17);
+        tree.fillCircle(x + 19, 263, 18);
+      }
+    }
+
+    createArrivalTram() {
+      const tram = this.add.container(365, 0).setDepth(10);
+      const g = this.add.graphics();
+
+      g.fillStyle(0xe9edef, 1);
+      g.fillRect(0, 219, 250, 96);
+      g.fillStyle(0x1766a6, 1);
+      g.fillRect(0, 274, 250, 41);
+
+      g.fillStyle(0x263e4d, 1);
+      [19, 73, 127, 181].forEach((x) => {
+        g.fillRect(x, 235, 42, 28);
+      });
+
+      // Türbereich.
+      g.fillStyle(0x182832, 1);
+      g.fillRect(139, 232, 35, 76);
+      g.lineStyle(2, 0xb8dce7, 1);
+      g.strokeRect(139, 232, 35, 76);
+
+      g.fillStyle(0x252a2d, 1);
+      g.fillCircle(51, 317, 13);
+      g.fillCircle(200, 317, 13);
+
+      tram.add(g);
+
+      this.arrivalDoor = this.add.rectangle(156, 270, 30, 70, 0x243844, 1);
+      tram.add(this.arrivalDoor);
+
+      this.arrivalTram = tram;
+    }
+
+    playArrivalAnimation() {
+      if (this.arrivalFinished || !this.arrivalTram) return;
+
+      // Die Tram rollt sichtbar in die Haltestelle ein.
+      this.tweens.add({
+        targets: this.arrivalTram,
+        x: 470,
+        duration: 820,
+        ease: "Sine.easeOut",
+        onComplete: () => {
+          // Tür fährt auf.
+          this.tweens.add({
+            targets: this.arrivalDoor,
+            scaleX: 0.08,
+            alpha: 0.35,
+            duration: 270,
+            ease: "Quad.easeOut",
+            onComplete: () => {
+              const exitX = this.arrivalTram.x + 156;
+
+              this.player.setPosition(exitX, 250);
+              this.player.setVisible(true);
+              if (this.player.body) this.player.body.enable = true;
+              this.player.play("simon-run", true);
+
+              // Simon steigt aus und geht ein paar Schritte auf den Bahnsteig.
+              this.tweens.add({
+                targets: this.player,
+                x: exitX + 118,
+                duration: 620,
+                ease: "Sine.easeOut",
+                onComplete: () => {
+                  this.player.setVelocity(0, 0);
+                  this.player.play("simon-idle", true);
+                  this.arrivalFinished = true;
+
+                  this.setUILocked(false);
+                  this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
+                  this.cameras.main.setDeadzone(240, 80);
+                }
+              });
+            }
+          });
+        }
+      });
     }
   }
 
-  window.startSimonGame = function startSimonGame() {
+  window.startSimonGame = function startSimonGame(options = {}) {
+    pendingStartOptions = {
+      startMode: options?.startMode || "normal"
+    };
+
     if (game) {
       return game;
     }
@@ -2894,7 +3353,7 @@
         width: GAME_WIDTH,
         height: GAME_HEIGHT
       },
-      scene: [MilchbuckScene, NextScenePlaceholder]
+      scene: [MilchbuckScene, BahnhofquaiScene]
     });
 
     return game;
