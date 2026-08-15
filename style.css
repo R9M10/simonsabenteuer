@@ -1,0 +1,75 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #0a0a12;
+  color: #ffffff;
+  font-family: "Press Start 2P", monospace;
+}
+
+.screen {
+  width: 100%;
+  height: 100%;
+}
+
+#start-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding: 24px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 5rem);
+  line-height: 1.35;
+  text-shadow:
+    4px 4px 0 #4a4aff,
+    8px 8px 0 #17173b;
+}
+
+#start-button {
+  border: 4px solid #ffffff;
+  padding: 18px 30px;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: clamp(0.8rem, 2vw, 1.1rem);
+  cursor: pointer;
+  box-shadow: 6px 6px 0 #4a4aff;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+#start-button:hover,
+#start-button:focus-visible {
+  background: #ffffff;
+  color: #0a0a12;
+  outline: none;
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 #4a4aff;
+}
+
+#start-button:active {
+  transform: translate(4px, 4px);
+  box-shadow: 2px 2px 0 #4a4aff;
+}
+
+.hidden {
+  display: none !important;
+}
