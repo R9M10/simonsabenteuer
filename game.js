@@ -82,7 +82,8 @@
 
       this.inventory = {
         gatorade: 0,
-        monster: 0
+        monster: 0,
+        camel: 0
       };
 
       this.hotbarContainer = null;
@@ -95,6 +96,13 @@
       this.hotbarActionUI = null;
 
       this.drinkingItem = false;
+
+      // Camel Gelb / Sprint-Buff.
+      // Epoch timestamp instead of Scene-time, so the minute survives tram
+      // scene changes reliably.
+      this.sprintExpiresAt = 0;
+      this.sprintIndicatorDOM = null;
+      this.nextSprintIndicatorRefreshAt = 0;
 
       this.lootModal = null;
       this.bouncerTipStolen = false;
@@ -129,6 +137,20 @@
       this.danceOverlay = null;
       this.playerDying = false;
       this.drinkingItem = false;
+
+      // A Scene instance is reused by Phaser after scene.start(). Any old
+      // modal/combat/travel lock must be reset explicitly.
+      this.uiLocked = false;
+      this.touchLeft = false;
+      this.touchRight = false;
+      this.touchJumpRequested = false;
+      this.touchShootRequested = false;
+      this.bouncerDialogueActive = false;
+      this.fightActive = false;
+      this.lionExitActive = false;
+      this.lionCombatActive = false;
+      this.nextLionHitAt = 0;
+
       this.tramTransitActive = false;
       this.tramBoardingEnabled = false;
       this.ticketHitbox = null;
@@ -148,8 +170,13 @@
 
       this.inventory = {
         gatorade: Math.max(0, Number(data.inventory?.gatorade) || 0),
-        monster: Math.max(0, Number(data.inventory?.monster) || 0)
+        monster: Math.max(0, Number(data.inventory?.monster) || 0),
+        camel: Math.max(0, Number(data.inventory?.camel) || 0)
       };
+
+      this.sprintExpiresAt = Number.isFinite(data.sprintExpiresAt)
+        ? data.sprintExpiresAt
+        : 0;
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
@@ -165,6 +192,10 @@
 
       // A fresh return to Milchbuck should not restart a Developer jump.
       this.startMode = "normal";
+      pendingStartOptions = {
+        startMode: "normal",
+        developerMode: this.developerMode
+      };
     }
 
     preload() {
@@ -196,6 +227,7 @@
 
       const domRoot = document.getElementById("phaser-game");
       domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
+      this.sprintIndicatorDOM = null;
 
       this.physics.world.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
       this.cameras.main.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
@@ -236,19 +268,45 @@
         document
           .querySelectorAll("#phaser-game [data-simon-ui='hotbar-action']")
           .forEach((node) => node.remove());
+        this.cleanupSprintIndicator();
       });
 
       if (this.travelArrivalFrom === "bahnhofstrasse") {
         this.currentStationKey = "milchbuck";
+
+        // Force the reused scene back into a genuinely playable state.
+        this.uiLocked = false;
+        this.tramTransitActive = false;
+        this.lionExitActive = false;
+        this.lionCombatActive = false;
+        this.fightActive = false;
+        this.bouncerDialogueActive = false;
+
         this.player.setPosition(250, 245);
         this.player.setVelocity(0, 0);
         this.player.setVisible(true);
+        this.player.setActive(true);
+
+        if (this.player.body) {
+          this.player.body.enable = true;
+          this.player.body.moves = true;
+        }
+
+        this.player.clearTint();
+        this.player.setAngle(0);
         this.player.play("simon-idle", true);
+
         this.cameras.main.resetFX();
         this.cameras.main.setAlpha(1);
+        this.cameras.main.setScroll(0, 0);
+
+        this.setControlsVisible(true);
+        this.setUILocked(false);
+
         this.updateCoinHUD();
         this.updateHpBar();
         this.updateInventoryUI();
+        this.updateSprintIndicator(true);
       }
 
       // Developer-Startziele werden erst NACH der normalen Szeneninitialisierung
@@ -1034,13 +1092,22 @@
           name: "Gatorade",
           price: 10,
           heal: 10,
+          effectLabel: "+10 HP",
           description: "Giftgrünes Gatorade. Regeneriert 10 Leben und wird danach verbraucht."
         },
         monster: {
           name: "Monster Energy",
           price: 30,
           heal: 30,
+          effectLabel: "+30 HP",
           description: "Orange Dose Monster Energy. Regeneriert 30 Leben und wird danach verbraucht."
+        },
+        camel: {
+          name: "Camel Gelb",
+          price: 0.5,
+          sprintMs: 60000,
+          effectLabel: "SPRINT 60 SEK.",
+          description: "Eine Zigarette. Nach dem Rauchen läuft Simon 60 Sekunden lang doppelt so schnell. In den letzten 10 Sekunden blinkt die Anzeige."
         }
       };
 
@@ -1083,6 +1150,16 @@
         g.fillRect(6, -7, 2, 17);
         g.fillStyle(0xf2c7a1, 0.85);
         g.fillRect(-7, -15, 14, 2);
+      } else if (key === "camel") {
+        // Kleine gelbe Camel-Packung als Inventar-/Hotbar-Symbol.
+        g.fillStyle(0xf0c83c, 1);
+        g.fillRoundedRect(-13, -17, 26, 34, 3);
+        g.lineStyle(2, 0x7c5b20, 1);
+        g.strokeRoundedRect(-13, -17, 26, 34, 3);
+        g.fillStyle(0x9d682e, 1);
+        g.fillTriangle(-8, 5, 0, -5, 8, 5);
+        g.fillStyle(0x442d19, 1);
+        g.fillRect(-8, 10, 16, 2);
       }
 
       icon.add(g);
@@ -1187,6 +1264,28 @@
         });
         can.textContent = "M";
         outer.appendChild(can);
+        return outer;
+      }
+
+      if (key === "camel") {
+        const pack = document.createElement("div");
+        Object.assign(pack.style, {
+          width: "26px",
+          height: "36px",
+          background: "#f0c83c",
+          border: "2px solid #7c5b20",
+          borderRadius: "3px",
+          boxSizing: "border-box",
+          position: "relative",
+          display: "grid",
+          placeItems: "center",
+          color: "#5b381d",
+          fontFamily: "monospace",
+          fontSize: "8px",
+          fontWeight: "900"
+        });
+        pack.textContent = "CAMEL";
+        outer.appendChild(pack);
         return outer;
       }
 
@@ -1363,7 +1462,7 @@
 
       const key = this.hotbarItems?.[this.selectedHotbarIndex];
 
-      if (!["gatorade", "monster"].includes(key)) return;
+      if (!["gatorade", "monster", "camel"].includes(key)) return;
       if (this.getItemCount(key) <= 0) return;
 
       const item = this.getItemDefinition(key);
@@ -1380,8 +1479,12 @@
         touchAction: "manipulation"
       });
 
+      const actionLabel = key === "camel"
+        ? `RAUCHEN · ${item.name.toUpperCase()}`
+        : `TRINKEN · ${item.name.toUpperCase()}`;
+
       const drink = this.createDOMButton(
-        `TRINKEN · ${item.name.toUpperCase()}`,
+        actionLabel,
         () => this.consumeSelectedHotbarItem(),
         {
           color: "#f4ffe5",
@@ -1440,6 +1543,7 @@
     }
 
     equipItemToHotbar(key) {
+      if (!["gatorade", "monster", "camel"].includes(key)) return false;
       return this.addItemToHotbar(key);
     }
 
@@ -1458,8 +1562,13 @@
       }
 
       const key = this.hotbarItems[index];
-      if (!["gatorade", "monster"].includes(key)) return;
+      if (!["gatorade", "monster", "camel"].includes(key)) return;
       if (this.getItemCount(key) <= 0) return;
+
+      if (key === "camel") {
+        this.playSmokeAnimation();
+        return;
+      }
 
       this.playDrinkAnimation(key);
     }
@@ -1556,6 +1665,212 @@
           });
         }
       });
+    }
+
+    isSprintActive() {
+      return Number.isFinite(this.sprintExpiresAt) &&
+        this.sprintExpiresAt > Date.now();
+    }
+
+    playSmokeAnimation() {
+      if (
+        this.getItemCount("camel") <= 0 ||
+        this.drinkingItem ||
+        this.playerDying ||
+        !this.player?.visible
+      ) {
+        return;
+      }
+
+      this.drinkingItem = true;
+      this.updateHotbarActionUI();
+      this.refreshUILock();
+
+      this.player.setVelocity(0, 0);
+      this.player.anims.stop();
+
+      const direction = this.facing < 0 ? -1 : 1;
+      const cigarette = this.add.container(
+        this.player.x + direction * 17,
+        this.player.y - 62
+      ).setDepth(85);
+
+      const cig = this.add.graphics();
+      cig.fillStyle(0xf1eee2, 1);
+      cig.fillRect(-9, -2, 15, 4);
+      cig.fillStyle(0xc78a44, 1);
+      cig.fillRect(6, -2, 5, 4);
+      cig.fillStyle(0xe34f35, 1);
+      cig.fillRect(-11, -2, 2, 4);
+      cigarette.add(cig);
+
+      const startPlayerY = this.player.y;
+
+      this.tweens.add({
+        targets: this.player,
+        angle: -direction * 4,
+        y: startPlayerY - 2,
+        duration: 230,
+        yoyo: true,
+        repeat: 2,
+        ease: "Sine.easeInOut"
+      });
+
+      // Three pixel-ish smoke puffs.
+      [0, 270, 540].forEach((delay, index) => {
+        this.time.delayedCall(310 + delay, () => {
+          if (!cigarette.active) return;
+
+          const puff = this.add.circle(
+            cigarette.x - direction * 10,
+            cigarette.y - 7,
+            4 + index,
+            0xe7e4dc,
+            0.72
+          ).setDepth(84);
+
+          this.tweens.add({
+            targets: puff,
+            y: puff.y - 30 - index * 5,
+            x: puff.x - direction * (8 + index * 3),
+            scale: 1.6,
+            alpha: 0,
+            duration: 820,
+            ease: "Sine.easeOut",
+            onComplete: () => puff.destroy()
+          });
+        });
+      });
+
+      this.time.delayedCall(1300, () => {
+        this.inventory.camel = Math.max(0, this.getItemCount("camel") - 1);
+
+        const item = this.getItemDefinition("camel");
+        this.sprintExpiresAt = Date.now() + item.sprintMs;
+
+        if (this.getItemCount("camel") <= 0) {
+          this.removeItemFromHotbar("camel");
+        } else {
+          this.refreshHotbar();
+        }
+
+        cigarette.destroy(true);
+        this.player.setAngle(0);
+        this.player.setY(startPlayerY);
+        this.player.play("simon-idle", true);
+
+        this.drinkingItem = false;
+        this.updateInventoryUI();
+        this.refreshUILock();
+        this.updateSprintIndicator(true);
+      });
+    }
+
+    cleanupSprintIndicator() {
+      if (this.sprintIndicatorDOM?.remove) {
+        this.sprintIndicatorDOM.remove();
+      }
+
+      this.sprintIndicatorDOM = null;
+
+      const root = document.getElementById("phaser-game");
+      root?.querySelectorAll("[data-simon-ui='sprint-cigarette']")
+        .forEach((node) => node.remove());
+    }
+
+    updateSprintIndicator(force = false) {
+      const now = Date.now();
+
+      if (!force && now < this.nextSprintIndicatorRefreshAt) return;
+      this.nextSprintIndicatorRefreshAt = now + 180;
+
+      const remaining = this.sprintExpiresAt - now;
+
+      if (remaining <= 0) {
+        if (this.sprintExpiresAt > 0) {
+          this.sprintExpiresAt = 0;
+        }
+        this.cleanupSprintIndicator();
+        return;
+      }
+
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      let wrapper = this.sprintIndicatorDOM;
+
+      if (!wrapper || !wrapper.isConnected) {
+        wrapper = document.createElement("div");
+        wrapper.dataset.simonUi = "sprint-cigarette";
+
+        Object.assign(wrapper.style, {
+          position: "absolute",
+          right: "10px",
+          top: "50%",
+          transform: "translateY(-50%)",
+          zIndex: "99970",
+          width: "48px",
+          height: "30px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+          border: "2px solid rgba(255,237,185,.72)",
+          background: "rgba(25,25,25,.72)",
+          boxSizing: "border-box"
+        });
+
+        const cigarette = document.createElement("div");
+        cigarette.dataset.cigaretteGraphic = "true";
+
+        Object.assign(cigarette.style, {
+          position: "relative",
+          width: "31px",
+          height: "6px",
+          background: "#f4f0df",
+          border: "1px solid #6a5d48",
+          boxSizing: "border-box"
+        });
+
+        const filter = document.createElement("span");
+        Object.assign(filter.style, {
+          position: "absolute",
+          right: "-1px",
+          top: "-1px",
+          width: "9px",
+          height: "6px",
+          background: "#c78a44",
+          borderLeft: "1px solid #75522e"
+        });
+
+        const ember = document.createElement("span");
+        Object.assign(ember.style, {
+          position: "absolute",
+          left: "-4px",
+          top: "0px",
+          width: "4px",
+          height: "4px",
+          background: "#ef5538",
+          boxShadow: "0 0 4px #ff8b44"
+        });
+
+        cigarette.append(filter, ember);
+        wrapper.appendChild(cigarette);
+        root.appendChild(wrapper);
+        this.sprintIndicatorDOM = wrapper;
+      }
+
+      // Blink during the FINAL ten seconds of the one-minute sprint effect.
+      if (remaining <= 10000) {
+        const visiblePhase = Math.floor(now / 330) % 2 === 0;
+        wrapper.style.opacity = visiblePhase ? "1" : "0.25";
+        wrapper.style.borderColor = visiblePhase
+          ? "rgba(255,112,72,.95)"
+          : "rgba(255,237,185,.45)";
+      } else {
+        wrapper.style.opacity = "1";
+        wrapper.style.borderColor = "rgba(255,237,185,.72)";
+      }
     }
 
     getDOMUIRoot() {
@@ -1966,7 +2281,7 @@
         margin: "0 0 12px"
       });
 
-      ["ticket", "gatorade", "monster"].forEach((itemKey) => {
+      ["ticket", "gatorade", "monster", "camel"].forEach((itemKey) => {
         const card = this.createInventoryCard(itemKey);
         if (card) grid.appendChild(card);
       });
@@ -2241,7 +2556,8 @@
                 developerMode: this.developerMode,
                 inventory: { ...this.inventory },
                 hotbarItems: [...this.hotbarItems],
-                selectedHotbarIndex: this.selectedHotbarIndex
+                selectedHotbarIndex: this.selectedHotbarIndex,
+                sprintExpiresAt: this.sprintExpiresAt
               })
             );
 
@@ -3739,10 +4055,12 @@
 
       if (this.playerDying) {
         this.player.setVelocityX(0);
+        this.updateSprintIndicator();
         return;
       }
 
       if (this.uiLocked) {
+        this.updateSprintIndicator();
         this.player.setVelocityX(0);
         if (
           onGround &&
@@ -3773,8 +4091,10 @@
       if (leftDown && !rightDown) moveDirection = -1;
       if (rightDown && !leftDown) moveDirection = 1;
 
-      const speed = 175;
+      const speed = this.isSprintActive() ? 350 : 175;
       this.player.setVelocityX(moveDirection * speed);
+
+      this.updateSprintIndicator();
 
       if (moveDirection !== 0) {
         this.facing = moveDirection;
@@ -3862,8 +4182,13 @@
 
       this.inventory = {
         gatorade: Math.max(0, Number(data.inventory?.gatorade) || 0),
-        monster: Math.max(0, Number(data.inventory?.monster) || 0)
+        monster: Math.max(0, Number(data.inventory?.monster) || 0),
+        camel: Math.max(0, Number(data.inventory?.camel) || 0)
       };
+
+      this.sprintExpiresAt = Number.isFinite(data.sprintExpiresAt)
+        ? data.sprintExpiresAt
+        : 0;
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
@@ -3884,6 +4209,13 @@
       this.input.addPointer(3);
       this.input.setTopOnly(true);
       this.currentStationKey = "bahnhofstrasse";
+
+      this.uiLocked = false;
+      this.tramTransitActive = false;
+      this.touchLeft = false;
+      this.touchRight = false;
+      this.touchJumpRequested = false;
+      this.touchShootRequested = false;
 
       const domRoot = document.getElementById("phaser-game");
       domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
@@ -3930,11 +4262,13 @@
         document
           .querySelectorAll("#phaser-game [data-simon-ui='hotbar-action']")
           .forEach((node) => node.remove());
+        this.cleanupSprintIndicator();
       });
 
       this.updateCoinHUD();
       this.updateHpBar();
       this.updateInventoryUI();
+      this.updateSprintIndicator(true);
 
       this.player.setPosition(650, 246);
       this.player.setVisible(false);
@@ -4660,7 +4994,7 @@
       const icon = this.createDOMItemIcon(itemKey, 54);
 
       const effect = this.createDOMText(
-        `+${item.heal} HP`,
+        item.effectLabel || "",
         {
           fontSize: "7px",
           color: "#395530"
@@ -4696,7 +5030,7 @@
 
     purchaseStoreItem(itemKey) {
       const item = this.getItemDefinition(itemKey);
-      if (!item || !["gatorade", "monster"].includes(itemKey)) return;
+      if (!item || !["gatorade", "monster", "camel"].includes(itemKey)) return;
 
       if (!this.developerMode && this.coins < item.price) {
         const status = this.shopModal?.panel?.querySelector("[data-store-status]");
@@ -4794,13 +5128,13 @@
       const grid = document.createElement("div");
       Object.assign(grid.style, {
         display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: "10px",
-        maxWidth: "430px",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: "8px",
+        maxWidth: "500px",
         margin: "0 auto 10px"
       });
 
-      ["gatorade", "monster"].forEach((itemKey) => {
+      ["gatorade", "monster", "camel"].forEach((itemKey) => {
         const card = this.createStoreItemCard(itemKey);
         if (card) grid.appendChild(card);
       });
@@ -4943,16 +5277,17 @@
                   developerMode: this.developerMode,
                   inventory: { ...this.inventory },
                   hotbarItems: [...this.hotbarItems],
-                  selectedHotbarIndex: this.selectedHotbarIndex
+                  selectedHotbarIndex: this.selectedHotbarIndex,
+                  sprintExpiresAt: this.sprintExpiresAt
                 };
 
                 this.cameras.main.fadeOut(520, 0, 0, 0);
 
                 this.time.delayedCall(540, () => {
-                  const target = this.scene.get("MilchbuckScene");
-                  target?.cameras?.main?.resetFX?.();
-                  target?.cameras?.main?.setAlpha?.(1);
-
+                  // Let Milchbuck reset its own camera/body/UI during create().
+                  // This is more reliable than manipulating the stopped target
+                  // scene from Bahnhofstrasse, especially in Developer Mode.
+                  this.cameras.main.resetFX();
                   this.scene.start("MilchbuckScene", returnData);
                 });
               });

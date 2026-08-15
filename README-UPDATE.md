@@ -1,53 +1,71 @@
-# Simons Abenteuer – Stabilitätsfix v15
+# Simons Abenteuer – Rückfahrt + Camel/Sprint v16
 
-Direkt vor dieser Änderung wurde der aktuelle GitHub-Stand geprüft:
+Unmittelbar vor der Änderung wurde der aktuelle GitHub-Stand geprüft:
 
-- `game.js`: `974c17827a93f1dec34dbf31b2a3e134cd5a64e4`
-- `index.html`: `c23708c7a930c0d063cc408c271a5f1b138d09b8`
+- `game.js`: `615cac1d44b3a5c7b1478dbaf34490716af32e20`
+- `index.html`: `ecf12de18cbd0cb0b3ee8c7805cdc12758f6f222`
 - `hive-expansion.js`: `dae204ca8f2bef85e0fb64a1f5487c224d5444e4`
 
-Die aktuelle `hive-expansion.js` deiner Freundin wird nicht ersetzt.
+Die aktuelle HIVE-Erweiterung deiner Freundin wird nicht verändert.
 
 ## Dateien ersetzen
 
 - `game.js`
 - `index.html`
 
-## Löwenauswahl
-
-Beim Entfernen der Löwenauswahl wird der UI-Lock jetzt explizit gelöst.
-Die Touchsteuerung wird wieder aktiviert. Das greift auch bei den von
-`hive-expansion.js` gewrappten Löwenpfaden, ohne diese Datei zu überschreiben.
-
 ## Rückfahrt Bahnhofstrasse -> Milchbuck
 
-Der schwarze Bildschirm wurde an der Kamera-/Szenenrückkehr abgesichert:
+Der Rückweg setzt jetzt beim erneuten Erstellen der Milchbuck-Szene alle
+transienten Sperren zurück:
 
-- alter Fade-State von Milchbuck wird zurückgesetzt,
-- Zielkamera wird explizit sichtbar gesetzt,
-- der Wechsel hängt nicht mehr vom `FADE_OUT_COMPLETE`-Event ab,
-- alte Hotbar-DOM-Elemente werden beim Szenenwechsel entfernt.
+- `uiLocked = false`
+- Tram-/Löwen-/Kampf-/Dialog-Locks aus
+- Touchzustände zurückgesetzt
+- Spieler sichtbar und aktiv
+- Physics-Body explizit aktiviert
+- Kamera-FX, Alpha und Scroll explizit zurückgesetzt
+- Touchsteuerung explizit wieder eingeschaltet
 
-## Hotbar
+Außerdem wird ein alter Developer-Sprung (`startMode = hb`) beim Zurückfahren
+neutralisiert. Das ist speziell für den schwarzen Bildschirm im Developer
+Mode wichtig.
 
-Die Hotbar ist jetzt als native HTML-Touchleiste umgesetzt:
+## Camel Gelb
 
-- genau 5 Slots,
-- direktes Antippen unten wählt einen Slot,
-- gelber Rahmen zeigt den aktiven Slot,
-- bei Gatorade/Monster erscheint `TRINKEN`,
-- kein ITEMS-Menü nötig, um zwischen bereits in der Hotbar liegenden Items
-  umzuschalten.
+Neues kaufbares Item bei „Der Inder“:
 
-Das ITEMS-Menü entscheidet nur noch, welche maximal 5 Items unten liegen:
-`IN HOTBAR` / `ENTFERNEN`.
+- `Camel Gelb`
+- Preis pro Zigarette: `0.5 Coins`
+- wird einzeln dem Inventar hinzugefügt
+- besitzt ein `i` wie die anderen Items
+- kann in einen der fünf Hotbar-Slots gelegt werden
 
-Damit kann das Inventar später viel mehr als fünf Items enthalten.
+Wird Camel in der Hotbar ausgewählt, erscheint:
 
-## HP
+`RAUCHEN · CAMEL GELB`
 
-Das Herz wurde als sauberes Pixel-Herz neu gezeichnet.
+Beim Benutzen:
+
+- kurze Rauch-/Zigarettenanimation bei Simon
+- drei aufsteigende Rauchwolken
+- eine Zigarette wird verbraucht
+- Sprintmodus wird für 60 Sekunden aktiviert
+- Simon läuft in dieser Zeit mit doppelter Geschwindigkeit: 350 statt 175
+
+Rechts am Bildschirm erscheint während des Effekts eine kleine Zigarette.
+In den letzten 10 Sekunden beginnt sie zu blinken und verschwindet nach Ablauf.
+
+Der Sprint-Zeitpunkt wird als echter Zeitstempel gespeichert und durch
+Tram-Szenenwechsel mitgenommen.
+
+## Store
+
+Der Shop zeigt nun:
+
+- Gatorade · 10 Coins · +10 HP
+- Monster Energy · 30 Coins · +30 HP
+- Camel Gelb · 0.5 Coins · Sprint 60 Sek.
 
 ## Cache
 
-`game.js?v=15`
+`game.js?v=16`
