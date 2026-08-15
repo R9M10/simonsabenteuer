@@ -1,71 +1,64 @@
-# Simons Abenteuer – Rückfahrt + Camel/Sprint v16
+# Simons Abenteuer – Zigarette + Orell Füssli v17
 
-Unmittelbar vor der Änderung wurde der aktuelle GitHub-Stand geprüft:
+Aktueller GitHub-Ausgangsstand vor der Änderung:
 
-- `game.js`: `615cac1d44b3a5c7b1478dbaf34490716af32e20`
-- `index.html`: `ecf12de18cbd0cb0b3ee8c7805cdc12758f6f222`
+- `game.js`: `c211bedb4ab40a540184694ffb0c7fe2b8ae03bd`
+- `index.html`: `0a7fa9ea1d8127fa47ef3b7e89b8ac9b6f157e33`
 - `hive-expansion.js`: `dae204ca8f2bef85e0fb64a1f5487c224d5444e4`
 
-Die aktuelle HIVE-Erweiterung deiner Freundin wird nicht verändert.
+Die aktuelle HIVE-Datei bleibt unangetastet.
 
-## Dateien ersetzen
+## Zu ersetzen
 
 - `game.js`
 - `index.html`
 
-## Rückfahrt Bahnhofstrasse -> Milchbuck
+## Zigarette
 
-Der Rückweg setzt jetzt beim erneuten Erstellen der Milchbuck-Szene alle
-transienten Sperren zurück:
+Das bisherige sichtbare Item `Camel Gelb` heißt nun überall einfach:
 
-- `uiLocked = false`
-- Tram-/Löwen-/Kampf-/Dialog-Locks aus
-- Touchzustände zurückgesetzt
-- Spieler sichtbar und aktiv
-- Physics-Body explizit aktiviert
-- Kamera-FX, Alpha und Scroll explizit zurückgesetzt
-- Touchsteuerung explizit wieder eingeschaltet
+`Zigarette`
 
-Außerdem wird ein alter Developer-Sprung (`startMode = hb`) beim Zurückfahren
-neutralisiert. Das ist speziell für den schwarzen Bildschirm im Developer
-Mode wichtig.
+Das Symbol in Store, ITEMS und Hotbar ist keine Packung mehr, sondern eine
+einzelne Zigarette.
 
-## Camel Gelb
+Der Sprint läuft weiterhin 60 Sekunden, ist jetzt aber nicht mehr doppelt
+so schnell:
 
-Neues kaufbares Item bei „Der Inder“:
+- normal: 175
+- Sprint: 306.25
+- also exakt 75 % schneller
 
-- `Camel Gelb`
-- Preis pro Zigarette: `0.5 Coins`
-- wird einzeln dem Inventar hinzugefügt
-- besitzt ein `i` wie die anderen Items
-- kann in einen der fünf Hotbar-Slots gelegt werden
+## Orell Füssli
 
-Wird Camel in der Hotbar ausgewählt, erscheint:
+Weiter rechts neben `Der Inder` steht jetzt der Buchladen:
 
-`RAUCHEN · CAMEL GELB`
+`ORELL FÜSSLI`
 
-Beim Benutzen:
+Er ist anklickbar und hat wieder den stabilen Ablauf:
 
-- kurze Rauch-/Zigarettenanimation bei Simon
-- drei aufsteigende Rauchwolken
-- eine Zigarette wird verbraucht
-- Sprintmodus wird für 60 Sekunden aktiviert
-- Simon läuft in dieser Zeit mit doppelter Geschwindigkeit: 350 statt 175
+`Betreten?` -> `JA / NEIN`
 
-Rechts am Bildschirm erscheint während des Effekts eine kleine Zigarette.
-In den letzten 10 Sekunden beginnt sie zu blinken und verschwindet nach Ablauf.
+Innen gibt es ein großes Bücherregal. Ein Tap auf das Regal öffnet den
+Bücherkatalog.
 
-Der Sprint-Zeitpunkt wird als echter Zeitstempel gespeichert und durch
-Tram-Szenenwechsel mitgenommen.
+Aktuelle Bücher:
 
-## Store
+1. General Relativity – 500 Coins
+2. Phänomenologie des Geistes – 300 Coins
+3. The Playbook – 1000 Coins
+4. Also sprach Zarathustra – 500 Coins
 
-Der Shop zeigt nun:
+Jedes Buch kann einmal gekauft werden. Danach zeigt es `GEKAUFT`.
+Die gekauften Bücher werden im Spielzustand gespeichert und bei Tramfahrten
+zwischen Milchbuck und Bahnhofstrasse/HB mitgenommen. Später können daran
+Abilities angebunden werden.
 
-- Gatorade · 10 Coins · +10 HP
-- Monster Energy · 30 Coins · +30 HP
-- Camel Gelb · 0.5 Coins · Sprint 60 Sek.
+Im Developer Mode sind auch die Bücher kostenlos.
+
+Aus dem Katalog geht es mit `← LADEN` zurück und aus dem Buchladen jederzeit
+mit `← STRASSE` wieder hinaus.
 
 ## Cache
 
-`game.js?v=16`
+`game.js?v=17`

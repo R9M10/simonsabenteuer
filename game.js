@@ -86,6 +86,13 @@
         camel: 0
       };
 
+      this.booksOwned = {
+        generalRelativity: false,
+        phaenomenologie: false,
+        playbook: false,
+        zarathustra: false
+      };
+
       this.hotbarContainer = null;
       this.hotbarBackground = null;
       this.hotbarSlotCenters = [];
@@ -97,7 +104,7 @@
 
       this.drinkingItem = false;
 
-      // Camel Gelb / Sprint-Buff.
+      // Zigarette / Sprint-Buff.
       // Epoch timestamp instead of Scene-time, so the minute survives tram
       // scene changes reliably.
       this.sprintExpiresAt = 0;
@@ -177,6 +184,13 @@
       this.sprintExpiresAt = Number.isFinite(data.sprintExpiresAt)
         ? data.sprintExpiresAt
         : 0;
+
+      this.booksOwned = {
+        generalRelativity: Boolean(data.booksOwned?.generalRelativity),
+        phaenomenologie: Boolean(data.booksOwned?.phaenomenologie),
+        playbook: Boolean(data.booksOwned?.playbook),
+        zarathustra: Boolean(data.booksOwned?.zarathustra)
+      };
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
@@ -320,6 +334,7 @@
           fromDeveloperMode: true,
           developerMode: true,
           inventory: { ...this.inventory },
+          booksOwned: { ...this.booksOwned },
           hotbarItems: ["ticket", null, null, null, null]
         });
         return;
@@ -1103,11 +1118,11 @@
           description: "Orange Dose Monster Energy. Regeneriert 30 Leben und wird danach verbraucht."
         },
         camel: {
-          name: "Camel Gelb",
+          name: "Zigarette",
           price: 0.5,
           sprintMs: 60000,
           effectLabel: "SPRINT 60 SEK.",
-          description: "Eine Zigarette. Nach dem Rauchen läuft Simon 60 Sekunden lang doppelt so schnell. In den letzten 10 Sekunden blinkt die Anzeige."
+          description: "Eine Zigarette. Nach dem Rauchen läuft Simon 60 Sekunden lang 75 % schneller. In den letzten 10 Sekunden blinkt die Anzeige."
         }
       };
 
@@ -1151,15 +1166,15 @@
         g.fillStyle(0xf2c7a1, 0.85);
         g.fillRect(-7, -15, 14, 2);
       } else if (key === "camel") {
-        // Kleine gelbe Camel-Packung als Inventar-/Hotbar-Symbol.
-        g.fillStyle(0xf0c83c, 1);
-        g.fillRoundedRect(-13, -17, 26, 34, 3);
-        g.lineStyle(2, 0x7c5b20, 1);
-        g.strokeRoundedRect(-13, -17, 26, 34, 3);
-        g.fillStyle(0x9d682e, 1);
-        g.fillTriangle(-8, 5, 0, -5, 8, 5);
-        g.fillStyle(0x442d19, 1);
-        g.fillRect(-8, 10, 16, 2);
+        // Einzelne Zigarette als Item-Symbol.
+        g.fillStyle(0xf3efe2, 1);
+        g.fillRoundedRect(-16, -4, 23, 8, 2);
+        g.fillStyle(0xc58a48, 1);
+        g.fillRect(7, -4, 9, 8);
+        g.fillStyle(0xe34f35, 1);
+        g.fillRect(-19, -3, 3, 6);
+        g.lineStyle(1, 0x675b48, 1);
+        g.strokeRoundedRect(-16, -4, 32, 8, 2);
       }
 
       icon.add(g);
@@ -1268,24 +1283,42 @@
       }
 
       if (key === "camel") {
-        const pack = document.createElement("div");
-        Object.assign(pack.style, {
-          width: "26px",
-          height: "36px",
-          background: "#f0c83c",
-          border: "2px solid #7c5b20",
+        const cigarette = document.createElement("div");
+        Object.assign(cigarette.style, {
+          width: "34px",
+          height: "8px",
+          background: "#f3efe2",
+          border: "1px solid #675b48",
           borderRadius: "3px",
           boxSizing: "border-box",
-          position: "relative",
-          display: "grid",
-          placeItems: "center",
-          color: "#5b381d",
-          fontFamily: "monospace",
-          fontSize: "8px",
-          fontWeight: "900"
+          position: "relative"
         });
-        pack.textContent = "CAMEL";
-        outer.appendChild(pack);
+
+        const filter = document.createElement("span");
+        Object.assign(filter.style, {
+          position: "absolute",
+          right: "-1px",
+          top: "-1px",
+          width: "10px",
+          height: "8px",
+          background: "#c58a48",
+          borderLeft: "1px solid #795730",
+          boxSizing: "border-box"
+        });
+
+        const ember = document.createElement("span");
+        Object.assign(ember.style, {
+          position: "absolute",
+          left: "-4px",
+          top: "1px",
+          width: "4px",
+          height: "4px",
+          background: "#e34f35",
+          boxShadow: "0 0 3px #ff8950"
+        });
+
+        cigarette.append(filter, ember);
+        outer.appendChild(cigarette);
         return outer;
       }
 
@@ -2555,6 +2588,7 @@
                 fromDeveloperMode: this.developerMode,
                 developerMode: this.developerMode,
                 inventory: { ...this.inventory },
+                booksOwned: { ...this.booksOwned },
                 hotbarItems: [...this.hotbarItems],
                 selectedHotbarIndex: this.selectedHotbarIndex,
                 sprintExpiresAt: this.sprintExpiresAt
@@ -4091,7 +4125,7 @@
       if (leftDown && !rightDown) moveDirection = -1;
       if (rightDown && !leftDown) moveDirection = 1;
 
-      const speed = this.isSprintActive() ? 350 : 175;
+      const speed = this.isSprintActive() ? 306.25 : 175;
       this.player.setVelocityX(moveDirection * speed);
 
       this.updateSprintIndicator();
@@ -4168,6 +4202,13 @@
       this.indianStoreBackUI = null;
       this.indianStoreShopUI = null;
       this.shopModal = null;
+
+      this.bookstoreHitbox = null;
+      this.bookstoreEntryModal = null;
+      this.bookstoreOverlay = null;
+      this.bookstoreBackUI = null;
+      this.bookstoreShelfHitbox = null;
+      this.bookstoreCatalogModal = null;
     }
 
     init(data = {}) {
@@ -4189,6 +4230,13 @@
       this.sprintExpiresAt = Number.isFinite(data.sprintExpiresAt)
         ? data.sprintExpiresAt
         : 0;
+
+      this.booksOwned = {
+        generalRelativity: Boolean(data.booksOwned?.generalRelativity),
+        phaenomenologie: Boolean(data.booksOwned?.phaenomenologie),
+        playbook: Boolean(data.booksOwned?.playbook),
+        zarathustra: Boolean(data.booksOwned?.zarathustra)
+      };
 
       this.hotbarItems = Array.isArray(data.hotbarItems)
         ? data.hotbarItems.slice(0, HOTBAR_SIZE)
@@ -4312,6 +4360,7 @@
       this.createBahnhofstrasse();
       this.createBahnhofstrasseTicketMachine();
       this.createIndianStoreExterior();
+      this.createOrellFuessliExterior();
 
       // Fahrbahn / Gleise / Gehfläche.
       const street = this.add.graphics().setDepth(0);
@@ -4669,6 +4718,546 @@
       });
     }
 
+    createOrellFuessliExterior() {
+      // Weiter rechts als "Der Inder", ebenfalls als Hintergrundfassade.
+      const x = 1890;
+      const y = 145;
+      const w = 270;
+      const h = GROUND_TOP - y;
+
+      const store = this.add.graphics().setDepth(-2);
+
+      store.fillStyle(0xd9d2c3, 1);
+      store.fillRect(x, y, w, h);
+
+      store.fillStyle(0xb7272f, 1);
+      store.fillRect(x + 7, y + 8, w - 14, 38);
+
+      store.fillStyle(0x30363b, 1);
+      store.fillRect(x + 18, y + 58, 74, 101);
+      store.fillRect(x + 178, y + 58, 74, 101);
+
+      store.fillStyle(0x684b39, 1);
+      store.fillRoundedRect(x + 108, y + 54, 54, 131, 6);
+
+      store.lineStyle(3, 0xffffff, 0.55);
+      store.strokeRect(x + 18, y + 58, 74, 101);
+      store.strokeRect(x + 178, y + 58, 74, 101);
+
+      // Books in windows.
+      const colors = [0x8f2f38, 0x416c8a, 0xb58a32, 0x49694c, 0x7a4e7f];
+      for (let i = 0; i < 7; i += 1) {
+        store.fillStyle(colors[i % colors.length], 1);
+        store.fillRect(x + 28 + i * 8, y + 117 - (i % 2) * 4, 6, 28);
+        store.fillRect(x + 188 + i * 8, y + 117 - ((i + 1) % 2) * 4, 6, 28);
+      }
+
+      this.add.text(x + w / 2, y + 28, "ORELL FÜSSLI", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "13px",
+        color: "#ffffff",
+        stroke: "#7c151d",
+        strokeThickness: 5
+      })
+        .setOrigin(0.5)
+        .setDepth(-1);
+
+      this.bookstoreHitbox = this.add.zone(
+        x + w / 2,
+        y + h / 2,
+        w + 12,
+        h + 12
+      )
+        .setDepth(40)
+        .setInteractive({ useHandCursor: true });
+
+      this.bookstoreHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openBookstorePrompt();
+      });
+    }
+
+    getBookDefinitions() {
+      return {
+        generalRelativity: {
+          title: "General Relativity",
+          price: 500
+        },
+        phaenomenologie: {
+          title: "Phänomenologie des Geistes",
+          price: 300
+        },
+        playbook: {
+          title: "The Playbook",
+          price: 1000
+        },
+        zarathustra: {
+          title: "Also sprach Zarathustra",
+          price: 500
+        }
+      };
+    }
+
+    openBookstorePrompt() {
+      if (
+        !this.arrivalFinished ||
+        this.playerDying ||
+        this.bookstoreEntryModal ||
+        this.bookstoreOverlay ||
+        this.bookstoreCatalogModal
+      ) {
+        return;
+      }
+
+      this.setUILocked(true);
+
+      const modal = this.createDOMModal({
+        key: "orell-entry",
+        width: "min(88%, 430px)",
+        background: "#eee7db",
+        border: "#9e2229",
+        shade: "rgba(5, 6, 11, 0.62)",
+        padding: "20px"
+      });
+
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.bookstoreEntryModal = modal;
+
+      const title = this.createDOMText("ORELL FÜSSLI", {
+        fontSize: "14px",
+        color: "#8d1d24",
+        margin: "0 0 13px"
+      });
+
+      const question = this.createDOMText("Betreten?", {
+        fontSize: "10px",
+        color: "#302b28",
+        margin: "0 0 18px"
+      });
+
+      const buttons = document.createElement("div");
+      Object.assign(buttons.style, {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "10px",
+        maxWidth: "300px",
+        margin: "0 auto"
+      });
+
+      const yes = this.createDOMButton("JA", () => this.enterBookstore(), {
+        color: "#ffffff",
+        background: "#9e2229",
+        border: "#d98e92",
+        fontSize: "10px"
+      });
+
+      const no = this.createDOMButton("NEIN", () => this.closeBookstorePrompt(), {
+        color: "#443b36",
+        background: "#d8d0c4",
+        border: "#8f8378",
+        fontSize: "10px"
+      });
+
+      buttons.append(yes, no);
+      modal.panel.append(title, question, buttons);
+      this.refreshUILock();
+    }
+
+    closeBookstorePrompt() {
+      if (!this.bookstoreEntryModal) return;
+
+      this.destroyDOMModal(this.bookstoreEntryModal);
+      this.bookstoreEntryModal = null;
+      this.refreshUILock();
+    }
+
+    enterBookstore() {
+      if (this.bookstoreOverlay) return;
+
+      if (this.bookstoreEntryModal) {
+        this.destroyDOMModal(this.bookstoreEntryModal);
+        this.bookstoreEntryModal = null;
+      }
+
+      this.setUILocked(true);
+      this.player.setVisible(false);
+
+      const overlay = this.add.container(0, 0)
+        .setScrollFactor(0)
+        .setDepth(650);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0xefe9dc, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+      bg.fillStyle(0xc8bda8, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, 77);
+
+      bg.fillStyle(0x8e2228, 1);
+      bg.fillRect(0, 77, GAME_WIDTH, 9);
+
+      bg.fillStyle(0x6a4a36, 1);
+      bg.fillRect(0, 330, GAME_WIDTH, 60);
+
+      // Main shelf wall.
+      const shelfX = 185;
+      const shelfY = 105;
+      const shelfW = 450;
+      const shelfH = 205;
+
+      bg.fillStyle(0x65452f, 1);
+      bg.fillRoundedRect(shelfX, shelfY, shelfW, shelfH, 9);
+
+      bg.fillStyle(0x3b281d, 1);
+      for (const y of [147, 196, 245, 294]) {
+        bg.fillRect(shelfX + 12, y, shelfW - 24, 8);
+      }
+
+      const bookColors = [
+        0x93333c, 0x3e688a, 0xbe8b35, 0x476e52,
+        0x77517f, 0x9c6844, 0x304c69
+      ];
+
+      let index = 0;
+      for (const rowY of [115, 164, 213, 262]) {
+        for (let x = shelfX + 20; x < shelfX + shelfW - 25; x += 18) {
+          bg.fillStyle(bookColors[index % bookColors.length], 1);
+          bg.fillRect(x, rowY + (index % 3), 12, 29 - (index % 3));
+          index += 1;
+        }
+      }
+
+      const sign = this.add.text(GAME_WIDTH / 2, 38, "ORELL FÜSSLI", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "19px",
+        color: "#9e2229",
+        stroke: "#ffffff",
+        strokeThickness: 5
+      })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(675);
+
+      const hint = this.add.text(GAME_WIDTH / 2, 320, "BÜCHERREGAL", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "8px",
+        color: "#fff2cf",
+        backgroundColor: "#5a3d2b",
+        padding: { x: 8, y: 5 }
+      })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(675);
+
+      this.bookstoreShelfHitbox = this.add.zone(
+        GAME_WIDTH / 2,
+        208,
+        shelfW,
+        shelfH
+      )
+        .setScrollFactor(0)
+        .setDepth(690)
+        .setInteractive({ useHandCursor: true });
+
+      this.bookstoreShelfHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openBookCatalog();
+      });
+
+      overlay.add([bg, sign, hint, this.bookstoreShelfHitbox]);
+      this.bookstoreOverlay = overlay;
+
+      this.createBookstoreBackButton();
+      this.refreshUILock();
+    }
+
+    createBookstoreBackButton() {
+      const root = this.getDOMUIRoot();
+      if (!root) return;
+
+      root.querySelectorAll("[data-simon-ui='orell-controls']")
+        .forEach((node) => node.remove());
+
+      const wrapper = document.createElement("div");
+      wrapper.dataset.simonUi = "orell-controls";
+
+      Object.assign(wrapper.style, {
+        position: "absolute",
+        inset: "0",
+        zIndex: "100001",
+        pointerEvents: "none"
+      });
+
+      const street = this.createDOMButton(
+        "← STRASSE",
+        () => this.exitBookstore(),
+        {
+          color: "#ffffff",
+          background: "#9e2229",
+          border: "#e4a1a5",
+          width: "150px",
+          minHeight: "42px",
+          fontSize: "8px"
+        }
+      );
+
+      Object.assign(street.style, {
+        position: "absolute",
+        left: "12px",
+        top: "12px",
+        pointerEvents: "auto"
+      });
+
+      wrapper.appendChild(street);
+      root.appendChild(wrapper);
+      this.bookstoreBackUI = { overlay: wrapper };
+    }
+
+    openBookCatalog() {
+      if (!this.bookstoreOverlay || this.bookstoreCatalogModal) return;
+
+      if (this.bookstoreBackUI?.overlay) {
+        this.bookstoreBackUI.overlay.style.display = "none";
+      }
+
+      const modal = this.createDOMModal({
+        key: "orell-catalog",
+        width: "min(94%, 650px)",
+        background: "#f1eadf",
+        border: "#9e2229",
+        shade: "rgba(10, 8, 7, 0.78)",
+        padding: "15px"
+      });
+
+      if (!modal) {
+        if (this.bookstoreBackUI?.overlay) {
+          this.bookstoreBackUI.overlay.style.display = "";
+        }
+        return;
+      }
+
+      modal.overlay.style.zIndex = "100025";
+      this.bookstoreCatalogModal = modal;
+
+      const title = this.createDOMText("BÜCHER", {
+        fontSize: "14px",
+        color: "#8f1e24",
+        margin: "0 0 12px"
+      });
+
+      const wallet = this.createDOMText(
+        this.developerMode ? "COINS: ∞" : `COINS: ${this.coins}`,
+        {
+          fontSize: "6px",
+          color: "#544b44",
+          margin: "0 0 10px"
+        }
+      );
+      wallet.dataset.bookWallet = "true";
+
+      const list = document.createElement("div");
+      Object.assign(list.style, {
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: "8px",
+        width: "100%",
+        marginBottom: "10px"
+      });
+
+      Object.entries(this.getBookDefinitions()).forEach(([key, book]) => {
+        const card = document.createElement("div");
+
+        Object.assign(card.style, {
+          padding: "9px",
+          border: "2px solid #9d8e80",
+          background: "#ddd3c3",
+          display: "flex",
+          flexDirection: "column",
+          gap: "7px",
+          alignItems: "center",
+          boxSizing: "border-box"
+        });
+
+        const bookIcon = document.createElement("div");
+        Object.assign(bookIcon.style, {
+          width: "30px",
+          height: "40px",
+          background: key === "generalRelativity"
+            ? "#3e688a"
+            : key === "phaenomenologie"
+              ? "#6b4b79"
+              : key === "playbook"
+                ? "#9a6739"
+                : "#8e3038",
+          border: "2px solid #493a31",
+          boxSizing: "border-box",
+          boxShadow: "4px 0 0 rgba(58,45,37,.35)"
+        });
+
+        const name = this.createDOMText(book.title, {
+          fontSize: "6px",
+          color: "#332b27",
+          lineHeight: "1.45"
+        });
+
+        const price = this.createDOMText(`${book.price} COINS`, {
+          fontSize: "6px",
+          color: "#705221"
+        });
+
+        const owned = Boolean(this.booksOwned?.[key]);
+
+        const buy = this.createDOMButton(
+          owned
+            ? "GEKAUFT"
+            : (this.developerMode ? "KAUFEN · ∞" : "KAUFEN"),
+          () => this.purchaseBook(key),
+          {
+            color: owned ? "#64615c" : "#ffffff",
+            background: owned ? "#bbb5aa" : "#9e2229",
+            border: owned ? "#8d877d" : "#dc8a90",
+            minHeight: "35px",
+            fontSize: "6px",
+            padding: "5px"
+          }
+        );
+
+        buy.disabled = owned;
+        buy.dataset.bookBuy = key;
+
+        card.append(bookIcon, name, price, buy);
+        list.appendChild(card);
+      });
+
+      const status = this.createDOMText("", {
+        fontSize: "6px",
+        color: "#35613c",
+        margin: "0 0 10px"
+      });
+      status.dataset.bookStatus = "true";
+
+      const back = this.createDOMButton(
+        "← LADEN",
+        () => this.closeBookCatalog(),
+        {
+          color: "#463b34",
+          background: "#d5cab9",
+          border: "#8d7e70",
+          width: "160px",
+          fontSize: "8px"
+        }
+      );
+      back.style.margin = "0 auto";
+
+      modal.panel.append(title, wallet, list, status, back);
+      this.refreshUILock();
+    }
+
+    purchaseBook(key) {
+      const book = this.getBookDefinitions()[key];
+      if (!book || this.booksOwned?.[key]) return;
+
+      if (!this.developerMode && this.coins < book.price) {
+        const status = this.bookstoreCatalogModal?.panel?.querySelector(
+          "[data-book-status]"
+        );
+        if (status) {
+          status.textContent = "ZU WENIG COINS!";
+          status.style.color = "#9b332d";
+        }
+        return;
+      }
+
+      if (!this.developerMode) {
+        this.coins -= book.price;
+      } else {
+        this.coins = 999999;
+      }
+
+      this.booksOwned[key] = true;
+      this.updateCoinHUD();
+
+      const wallet = this.bookstoreCatalogModal?.panel?.querySelector(
+        "[data-book-wallet]"
+      );
+      if (wallet) {
+        wallet.textContent = this.developerMode
+          ? "COINS: ∞"
+          : `COINS: ${this.coins}`;
+      }
+
+      const buy = this.bookstoreCatalogModal?.panel?.querySelector(
+        `[data-book-buy="${key}"]`
+      );
+      if (buy) {
+        buy.textContent = "GEKAUFT";
+        buy.disabled = true;
+        buy.style.background = "#bbb5aa";
+        buy.style.color = "#64615c";
+      }
+
+      const status = this.bookstoreCatalogModal?.panel?.querySelector(
+        "[data-book-status]"
+      );
+      if (status) {
+        status.textContent = `${book.title.toUpperCase()} GEKAUFT`;
+        status.style.color = "#35613c";
+      }
+    }
+
+    closeBookCatalog() {
+      if (!this.bookstoreCatalogModal) return;
+
+      this.destroyDOMModal(this.bookstoreCatalogModal);
+      this.bookstoreCatalogModal = null;
+
+      if (this.bookstoreBackUI?.overlay) {
+        this.bookstoreBackUI.overlay.style.display = "";
+      }
+
+      this.refreshUILock();
+    }
+
+    exitBookstore() {
+      if (this.bookstoreCatalogModal) {
+        this.destroyDOMModal(this.bookstoreCatalogModal);
+        this.bookstoreCatalogModal = null;
+      }
+
+      if (this.bookstoreEntryModal) {
+        this.destroyDOMModal(this.bookstoreEntryModal);
+        this.bookstoreEntryModal = null;
+      }
+
+      if (this.bookstoreBackUI) {
+        this.destroyDOMModal(this.bookstoreBackUI);
+        this.bookstoreBackUI = null;
+      }
+
+      if (this.bookstoreOverlay) {
+        this.bookstoreOverlay.destroy(true);
+        this.bookstoreOverlay = null;
+        this.bookstoreShelfHitbox = null;
+      }
+
+      this.player.setVisible(true);
+      if (this.player.body) {
+        this.player.body.enable = true;
+      }
+
+      this.player.play("simon-idle", true);
+
+      this.refreshUILock();
+      this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
+      this.cameras.main.setDeadzone(240, 80);
+    }
+
     refreshUILock() {
       const locked = Boolean(
         this.ticketModal ||
@@ -4684,6 +5273,9 @@
         this.storeEntryModal ||
         this.indianStoreOverlay ||
         this.shopModal ||
+        this.bookstoreEntryModal ||
+        this.bookstoreOverlay ||
+        this.bookstoreCatalogModal ||
         this.tramDestinationModal ||
         this.itemInfoModal ||
         this.drinkingItem
@@ -5276,6 +5868,7 @@
                   hasCityTicket: false,
                   developerMode: this.developerMode,
                   inventory: { ...this.inventory },
+                  booksOwned: { ...this.booksOwned },
                   hotbarItems: [...this.hotbarItems],
                   selectedHotbarIndex: this.selectedHotbarIndex,
                   sprintExpiresAt: this.sprintExpiresAt
