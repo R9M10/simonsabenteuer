@@ -28,6 +28,21 @@
       this.ground = null;
       this.facing = 1;
       this.shootingUntil = 0;
+
+      this.coins = 0;
+      this.hasCityTicket = false;
+      this.coinText = null;
+
+      this.uiLocked = false;
+      this.controlObjects = [];
+      this.ticketModal = null;
+      this.ticketStatusText = null;
+
+      this.bouncer = null;
+      this.bouncerDialogueActive = false;
+      this.bouncerDialogueStep = 0;
+      this.bouncerDialogueBubble = null;
+      this.dialogueIgnoreUntil = 0;
     }
 
     preload() {
@@ -74,6 +89,16 @@
       this.createPlayer();
       this.createKeyboardControls();
       this.createTouchControls();
+      this.createHUD();
+
+      this.input.on("pointerup", () => {
+        if (
+          this.bouncerDialogueActive &&
+          this.time.now >= this.dialogueIgnoreUntil
+        ) {
+          this.advanceBouncerDialogue();
+        }
+      });
 
       this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
       this.cameras.main.setDeadzone(240, 80);
@@ -85,6 +110,7 @@
       this.createDistantHills();
       this.createCityBackground();
       this.createMilchbuckStation();
+      this.createHiveClub();
       this.createStreetAndTracks();
       this.createForegroundDetails();
     }
@@ -322,13 +348,50 @@
         .setOrigin(0.5)
         .setDepth(5);
 
-      // Kleine Bahnhofsuhr.
+      // Kleine Bahnhofsuhr – jetzt sichtbar an einem eigenen Mast befestigt.
+      g.fillStyle(0x666d70, 1);
+      g.fillRect(667, 194, 6, 102);
+      g.fillRect(657, 191, 26, 6);
       g.fillStyle(0xf1efe4, 1);
-      g.fillCircle(670, 181, 17);
+      g.fillCircle(670, 175, 18);
       g.lineStyle(3, 0x2c3337, 1);
-      g.strokeCircle(670, 181, 17);
-      g.lineBetween(670, 181, 670, 169);
-      g.lineBetween(670, 181, 679, 185);
+      g.strokeCircle(670, 175, 18);
+      g.lineBetween(670, 175, 670, 162);
+      g.lineBetween(670, 175, 680, 180);
+
+      // Ticketautomat.
+      const ticketMachine = this.add.graphics().setDepth(6);
+      ticketMachine.fillStyle(0x2d5f78, 1);
+      ticketMachine.fillRect(716, 220, 48, 91);
+      ticketMachine.fillStyle(0x183849, 1);
+      ticketMachine.fillRect(722, 229, 36, 28);
+      ticketMachine.fillStyle(0xa9d8c5, 1);
+      ticketMachine.fillRect(728, 235, 24, 15);
+      ticketMachine.fillStyle(0xf1c64f, 1);
+      ticketMachine.fillRect(728, 268, 24, 8);
+      ticketMachine.fillStyle(0x17252e, 1);
+      ticketMachine.fillRect(730, 286, 20, 12);
+      ticketMachine.lineStyle(3, 0xd7edf2, 0.75);
+      ticketMachine.strokeRect(716, 220, 48, 91);
+
+      this.add.text(740, 211, "TICKET", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "6px",
+        color: "#fff3c4",
+        backgroundColor: "#244c61",
+        padding: { x: 4, y: 3 }
+      })
+        .setOrigin(0.5)
+        .setDepth(7);
+
+      const ticketHitbox = this.add.zone(740, 265, 58, 106)
+        .setDepth(8)
+        .setInteractive({ useHandCursor: true });
+
+      ticketHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        this.openTicketModal();
+      });
 
       // Kabelmasten + Oberleitung.
       [84, 275, 525, 760].forEach((x) => {
@@ -425,6 +488,499 @@
         tree.fillCircle(x - 14, 267, 18);
         tree.fillCircle(x + 22, 267, 20);
       }
+    }
+
+    createHiveClub() {
+      const clubX = 1575;
+      const clubY = 142;
+      const clubW = 250;
+      const clubH = GROUND_TOP - clubY;
+
+      const facade = this.add.graphics().setDepth(-2);
+
+      // Dunkle, leicht industrielle Club-Fassade.
+      facade.fillStyle(0x18151f, 1);
+      facade.fillRect(clubX, clubY, clubW, clubH);
+
+      facade.fillStyle(0x24202e, 1);
+      for (let y = clubY + 18; y < GROUND_TOP - 12; y += 28) {
+        facade.fillRect(clubX + 8, y, clubW - 16, 4);
+      }
+
+      // Neon-Rahmen und Eingang.
+      facade.lineStyle(5, 0x9b5cff, 0.9);
+      facade.strokeRect(clubX + 67, 215, 116, 123);
+
+      facade.fillStyle(0x08070c, 1);
+      facade.fillRect(clubX + 79, 230, 92, 108);
+
+      facade.lineStyle(3, 0x35d9ff, 0.85);
+      facade.strokeRect(clubX + 87, 238, 76, 100);
+
+      // Kleine "Fenster" mit farbigem Clublicht.
+      [
+        [clubX + 18, 190, 32, 55, 0xff477e],
+        [clubX + 198, 190, 32, 55, 0x45d8ff]
+      ].forEach(([x, y, w, h, color]) => {
+        facade.fillStyle(0x0a0910, 1);
+        facade.fillRect(x, y, w, h);
+        facade.lineStyle(3, color, 0.9);
+        facade.strokeRect(x, y, w, h);
+      });
+
+      // HIVE-Schild über dem Gebäude.
+      const sign = this.add.text(clubX + clubW / 2, 113, "HIVE", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "27px",
+        color: "#fff4b8",
+        stroke: "#6f27a8",
+        strokeThickness: 8
+      })
+        .setOrigin(0.5)
+        .setDepth(4);
+
+      this.tweens.add({
+        targets: sign,
+        alpha: { from: 0.78, to: 1 },
+        duration: 650,
+        yoyo: true,
+        repeat: -1
+      });
+
+      // Arcade-Discokugel.
+      const disco = this.add.container(clubX + 125, 187).setDepth(4);
+      const discoGraphic = this.add.graphics();
+      discoGraphic.fillStyle(0xcfd6df, 1);
+      discoGraphic.fillCircle(0, 0, 19);
+      discoGraphic.lineStyle(2, 0x6b7280, 1);
+      discoGraphic.strokeCircle(0, 0, 19);
+
+      for (let yy = -10; yy <= 10; yy += 7) {
+        discoGraphic.lineBetween(-16, yy, 16, yy);
+      }
+      for (let xx = -10; xx <= 10; xx += 7) {
+        discoGraphic.lineBetween(xx, -16, xx, 16);
+      }
+
+      disco.add(discoGraphic);
+
+      facade.lineStyle(2, 0x4a4652, 1);
+      facade.lineBetween(clubX + 125, clubY, clubX + 125, 168);
+
+      const beams = this.add.graphics().setDepth(1);
+      beams.fillStyle(0xff4f9a, 0.12);
+      beams.fillTriangle(clubX + 125, 188, clubX + 40, GROUND_TOP, clubX + 105, GROUND_TOP);
+      beams.fillStyle(0x42d7ff, 0.12);
+      beams.fillTriangle(clubX + 125, 188, clubX + 150, GROUND_TOP, clubX + 235, GROUND_TOP);
+      beams.fillStyle(0xc876ff, 0.1);
+      beams.fillTriangle(clubX + 125, 188, clubX + 95, GROUND_TOP, clubX + 190, GROUND_TOP);
+
+      this.tweens.add({
+        targets: disco,
+        angle: 360,
+        duration: 5200,
+        repeat: -1
+      });
+
+      // Arcade-Türsteher, angelehnt an das Referenzfoto:
+      // sehr kräftig, schwarzes Polo/Hose, kurze dunkle Haare und Vollbart.
+      this.createBouncer(clubX + 205, GROUND_TOP - 8);
+    }
+
+    createBouncer(x, groundY) {
+      const container = this.add.container(x, groundY - 54).setDepth(12);
+
+      const body = this.add.graphics();
+
+      // Beine und Boots.
+      body.fillStyle(0x111216, 1);
+      body.fillRect(-19, 27, 15, 42);
+      body.fillRect(4, 27, 15, 42);
+      body.fillStyle(0x08090c, 1);
+      body.fillRect(-23, 65, 22, 10);
+      body.fillRect(1, 65, 24, 10);
+
+      // Sehr breiter schwarzer Oberkörper / Polo.
+      body.fillStyle(0x15161a, 1);
+      body.fillRoundedRect(-32, -28, 64, 63, 10);
+      body.fillStyle(0x25272d, 1);
+      body.fillTriangle(-28, -20, -42, 9, -25, 12);
+      body.fillTriangle(28, -20, 42, 9, 25, 12);
+
+      // Hals und Kopf.
+      body.fillStyle(0xd1a07f, 1);
+      body.fillRect(-8, -38, 16, 12);
+      body.fillRoundedRect(-17, -64, 34, 31, 8);
+
+      // Kurzes dunkles Haar.
+      body.fillStyle(0x242126, 1);
+      body.fillRect(-15, -66, 30, 8);
+      body.fillRect(-17, -62, 5, 10);
+      body.fillRect(12, -62, 5, 10);
+
+      // Vollbart.
+      body.fillStyle(0x30282a, 1);
+      body.fillRect(-14, -49, 28, 13);
+      body.fillTriangle(-13, -36, 0, -29, 13, -36);
+
+      // Augen.
+      body.fillStyle(0x17171a, 1);
+      body.fillRect(-9, -55, 4, 3);
+      body.fillRect(5, -55, 4, 3);
+
+      // Arme – kräftig und vor dem Körper zusammengeführt.
+      body.fillStyle(0xc99473, 1);
+      body.fillRoundedRect(-39, -11, 16, 42, 7);
+      body.fillRoundedRect(23, -11, 16, 42, 7);
+      body.fillRoundedRect(-26, 16, 29, 13, 6);
+      body.fillRoundedRect(-3, 16, 29, 13, 6);
+
+      // Polokragen.
+      body.fillStyle(0x25272d, 1);
+      body.fillTriangle(-10, -27, 0, -16, -1, -28);
+      body.fillTriangle(10, -27, 0, -16, 1, -28);
+
+      // Kleine ID-Karte wie im Referenzbild.
+      body.fillStyle(0xe8edf0, 1);
+      body.fillRect(17, 31, 11, 15);
+      body.fillStyle(0x4b555e, 1);
+      body.fillRect(19, 34, 7, 2);
+
+      container.add(body);
+      container.setSize(88, 148);
+      container.setInteractive({ useHandCursor: true });
+
+      container.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        this.startBouncerDialogue();
+      });
+
+      container.on("pointerover", () => {
+        if (!this.bouncerDialogueActive && !this.ticketModal) {
+          container.setScale(1.04);
+        }
+      });
+
+      container.on("pointerout", () => {
+        container.setScale(1);
+      });
+
+      this.tweens.add({
+        targets: container,
+        y: container.y - 2,
+        duration: 950,
+        ease: "Sine.easeInOut",
+        yoyo: true,
+        repeat: -1
+      });
+
+      this.bouncer = container;
+    }
+
+    createHUD() {
+      const hud = this.add.container(20, 19)
+        .setScrollFactor(0)
+        .setDepth(100);
+
+      const coin = this.add.graphics();
+      coin.fillStyle(0xe2aa28, 1);
+      coin.fillCircle(0, 0, 12);
+      coin.fillStyle(0xffdf65, 1);
+      coin.fillCircle(0, 0, 8);
+      coin.fillStyle(0xa66c15, 1);
+      coin.fillRect(-2, -6, 4, 12);
+      coin.lineStyle(2, 0xfff0a0, 0.85);
+      coin.strokeCircle(0, 0, 11);
+
+      this.coinText = this.add.text(20, 0, "0", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "12px",
+        color: "#fff4cf",
+        stroke: "#2a1b0b",
+        strokeThickness: 4
+      }).setOrigin(0, 0.5);
+
+      hud.add([coin, this.coinText]);
+    }
+
+    updateCoinHUD() {
+      if (this.coinText) {
+        this.coinText.setText(String(this.coins));
+      }
+    }
+
+    setControlsVisible(visible) {
+      this.controlObjects.forEach((object) => {
+        object.setVisible(visible);
+        if (object.input) {
+          object.input.enabled = visible;
+        }
+      });
+
+      if (!visible) {
+        this.touchLeft = false;
+        this.touchRight = false;
+        this.touchJumpRequested = false;
+        this.touchShootRequested = false;
+      }
+    }
+
+    setUILocked(locked) {
+      this.uiLocked = locked;
+      this.setControlsVisible(!locked);
+
+      if (locked && this.player?.body) {
+        this.player.setVelocityX(0);
+      }
+    }
+
+    openTicketModal() {
+      if (this.ticketModal || this.bouncerDialogueActive) return;
+
+      this.setUILocked(true);
+
+      const modal = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2)
+        .setScrollFactor(0)
+        .setDepth(210);
+
+      const shade = this.add.rectangle(
+        0,
+        0,
+        GAME_WIDTH,
+        GAME_HEIGHT,
+        0x05060b,
+        0.78
+      ).setInteractive();
+
+      const panel = this.add.graphics();
+      panel.fillStyle(0xf2e5bf, 1);
+      panel.fillRoundedRect(-265, -135, 530, 270, 18);
+      panel.lineStyle(5, 0x253a4b, 1);
+      panel.strokeRoundedRect(-265, -135, 530, 270, 18);
+      panel.lineStyle(3, 0x6b95aa, 0.9);
+      panel.strokeRoundedRect(-251, -121, 502, 242, 13);
+
+      const back = this.add.text(-228, -103, "← ZURÜCK", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "9px",
+        color: "#23485d",
+        backgroundColor: "#d5e7e6",
+        padding: { x: 8, y: 7 }
+      })
+        .setInteractive({ useHandCursor: true });
+
+      back.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        this.closeTicketModal();
+      });
+
+      const title = this.add.text(0, -72, "TICKETAUTOMAT", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "16px",
+        color: "#253a4b"
+      }).setOrigin(0.5);
+
+      const ticketLine = this.add.text(0, -18, "1 TICKET IN DIE STADT", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "11px",
+        color: "#2d2a25"
+      }).setOrigin(0.5);
+
+      const price = this.add.text(0, 13, "10.-", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "18px",
+        color: "#2d2a25"
+      }).setOrigin(0.5);
+
+      const buyColor = this.coins >= 10 ? "#215f3f" : "#73706a";
+      const buyBg = this.coins >= 10 ? "#bfe0c6" : "#cbc5b8";
+
+      const buy = this.add.text(0, 59, "KAUFEN", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "12px",
+        color: buyColor,
+        backgroundColor: buyBg,
+        padding: { x: 22, y: 12 }
+      })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+
+      buy.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        this.tryBuyTicket();
+      });
+
+      this.ticketStatusText = this.add.text(
+        0,
+        105,
+        this.coins < 10 ? "0 COINS · DU HÄSCH NO Z'WENIG" : `${this.coins} COINS`,
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "7px",
+          color: this.coins < 10 ? "#8b3a36" : "#315d43"
+        }
+      ).setOrigin(0.5);
+
+      modal.add([
+        shade,
+        panel,
+        back,
+        title,
+        ticketLine,
+        price,
+        buy,
+        this.ticketStatusText
+      ]);
+
+      this.ticketModal = modal;
+    }
+
+    tryBuyTicket() {
+      if (!this.ticketModal) return;
+
+      if (this.hasCityTicket) {
+        this.ticketStatusText?.setText("TICKET BEREITS GEKAUFT");
+        return;
+      }
+
+      if (this.coins < 10) {
+        this.ticketStatusText
+          ?.setColor("#8b3a36")
+          .setText("NÖD GNUeG COINS!");
+        return;
+      }
+
+      this.coins -= 10;
+      this.hasCityTicket = true;
+      this.updateCoinHUD();
+
+      this.ticketStatusText
+        ?.setColor("#315d43")
+        .setText("TICKET GEKAUFT!");
+    }
+
+    closeTicketModal() {
+      if (!this.ticketModal) return;
+
+      this.ticketModal.destroy(true);
+      this.ticketModal = null;
+      this.ticketStatusText = null;
+      this.setUILocked(false);
+    }
+
+    createSpeechBubble(x, y, text, tailOffset = 0) {
+      const width = Math.min(315, Math.max(165, text.length * 6.2 + 56));
+      const height = text.length > 34 ? 82 : 60;
+
+      const bubble = this.add.container(x, y).setDepth(80);
+
+      const g = this.add.graphics();
+      g.fillStyle(0xffefc2, 1);
+      g.fillRoundedRect(-width / 2, -height / 2, width, height, 16);
+      g.lineStyle(4, 0x5d3f27, 1);
+      g.strokeRoundedRect(-width / 2, -height / 2, width, height, 16);
+
+      g.fillStyle(0xffefc2, 1);
+      g.fillTriangle(
+        tailOffset - 12,
+        height / 2 - 2,
+        tailOffset + 12,
+        height / 2 - 2,
+        tailOffset,
+        height / 2 + 18
+      );
+      g.lineStyle(3, 0x5d3f27, 1);
+      g.lineBetween(
+        tailOffset - 12,
+        height / 2 - 1,
+        tailOffset,
+        height / 2 + 18
+      );
+      g.lineBetween(
+        tailOffset,
+        height / 2 + 18,
+        tailOffset + 12,
+        height / 2 - 1
+      );
+
+      const label = this.add.text(0, 0, text, {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "9px",
+        color: "#2a2017",
+        align: "center",
+        wordWrap: { width: width - 30 }
+      }).setOrigin(0.5);
+
+      bubble.add([g, label]);
+      return bubble;
+    }
+
+    clearBouncerBubble() {
+      if (this.bouncerDialogueBubble) {
+        this.bouncerDialogueBubble.destroy(true);
+        this.bouncerDialogueBubble = null;
+      }
+    }
+
+    startBouncerDialogue() {
+      if (this.ticketModal || this.bouncerDialogueActive) return;
+
+      this.setUILocked(true);
+      this.bouncerDialogueActive = true;
+      this.bouncerDialogueStep = 0;
+      this.dialogueIgnoreUntil = this.time.now + 260;
+      this.showBouncerDialogueStep();
+    }
+
+    showBouncerDialogueStep() {
+      this.clearBouncerBubble();
+
+      if (!this.bouncer || !this.player) return;
+
+      if (this.bouncerDialogueStep === 0) {
+        this.bouncerDialogueBubble = this.createSpeechBubble(
+          this.bouncer.x - 42,
+          this.bouncer.y - 112,
+          "was wetsch?",
+          55
+        );
+        return;
+      }
+
+      if (this.bouncerDialogueStep === 1) {
+        this.bouncerDialogueBubble = this.createSpeechBubble(
+          this.player.x,
+          this.player.y - 112,
+          "Wer wür Günne: 5 Türsteher, oder ein Leu?",
+          0
+        );
+        return;
+      }
+
+      if (this.bouncerDialogueStep === 2) {
+        this.bouncerDialogueBubble = this.createSpeechBubble(
+          this.bouncer.x - 54,
+          this.bouncer.y - 122,
+          "Was isch das für e Frag? Safe 5 Türsteher!",
+          62
+        );
+      }
+    }
+
+    advanceBouncerDialogue() {
+      if (!this.bouncerDialogueActive) return;
+
+      if (this.bouncerDialogueStep < 2) {
+        this.bouncerDialogueStep += 1;
+        this.dialogueIgnoreUntil = this.time.now + 180;
+        this.showBouncerDialogueStep();
+        return;
+      }
+
+      this.clearBouncerBubble();
+      this.bouncerDialogueActive = false;
+      this.bouncerDialogueStep = 0;
+      this.setUILocked(false);
     }
 
     createGround() {
@@ -525,6 +1081,7 @@
       circle.on("pointerout", release);
       circle.on("pointerupoutside", release);
 
+      this.controlObjects.push(circle, text);
       return { circle, text };
     }
 
@@ -567,6 +1124,14 @@
 
       const body = this.player.body;
       const onGround = body.blocked.down || body.touching.down;
+
+      if (this.uiLocked) {
+        this.player.setVelocityX(0);
+        if (onGround && this.player.anims.currentAnim?.key !== "simon-idle") {
+          this.player.play("simon-idle", true);
+        }
+        return;
+      }
 
       const leftDown =
         Boolean(this.cursors?.left?.isDown) ||
