@@ -233,20 +233,20 @@ h1 {
 
 .speech-bubble {
   position: absolute;
-  left: 50%;
-  bottom: 43%;
-  transform: translateX(-50%) rotate(-1deg);
+  left: 62%;
+  bottom: 42%;
+  transform: rotate(1deg);
   width: auto;
-  max-width: min(62%, 360px);
-  min-width: 210px;
-  background: #fffaf0;
-  color: #171326;
+  max-width: min(46%, 280px);
+  min-width: 150px;
+  background: #fff0c9;
+  color: #2a1d12;
   padding: 10px 14px;
-  border: 3px solid #171326;
-  border-radius: 18px;
+  border: 3px solid #7a4f22;
+  border-radius: 18px 18px 18px 8px;
   box-shadow:
-    4px 5px 0 #ffffff,
-    8px 9px 0 rgba(32, 39, 127, 0.85);
+    0 0 0 3px rgba(255, 251, 240, 0.85),
+    6px 7px 0 rgba(76, 49, 116, 0.8);
   text-align: center;
   z-index: 4;
 }
@@ -254,20 +254,20 @@ h1 {
 .speech-bubble::after {
   content: "";
   position: absolute;
-  left: 44%;
+  left: 74%;
   bottom: -14px;
-  width: 18px;
-  height: 18px;
-  background: #fffaf0;
-  border-right: 3px solid #171326;
-  border-bottom: 3px solid #171326;
-  transform: rotate(35deg) skew(-8deg, -8deg);
+  width: 16px;
+  height: 16px;
+  background: #fff0c9;
+  border-right: 3px solid #7a4f22;
+  border-bottom: 3px solid #7a4f22;
+  transform: rotate(36deg) skew(-6deg, -6deg);
 }
 
 .speech-bubble p {
   margin: 0;
   line-height: 1.45;
-  font-size: clamp(0.48rem, 1.35vw, 0.72rem);
+  font-size: clamp(0.46rem, 1.25vw, 0.68rem);
 }
 
 
@@ -314,9 +314,11 @@ h1 {
 
 @media (max-height: 430px) {
   .speech-bubble {
-    bottom: 42%;
+    left: 62%;
+    bottom: 40%;
     padding: 8px 12px;
-    min-width: 190px;
+    min-width: 140px;
+    max-width: min(44%, 250px);
   }
 
   .characters {

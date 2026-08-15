@@ -10,8 +10,9 @@ Erster spielbarer Prototyp für iPhone im Querformat (besonders gedacht für ein
 - Arcade-/Pixel-Version des bereitgestellten Stadtbilds als Hintergrund
 - Zwei generische Figuren von hinten auf einer Mauer am Wasser
 - Dialog per Tippen:
-  1. `Dini Schueh sind nice.`
-  2. `Aber nöd sooooo nice.`
+  1. `Dini Schueh sind nice!`
+  2. `Aber`
+  3. `nöd sooooo nice...`
 - Kleinere, comicartige Sprechblase ohne Weiterklick-Hinweis
 - Beide Figuren vollständig sichtbar
 
@@ -27,3 +28,5 @@ Erster spielbarer Prototyp für iPhone im Querformat (besonders gedacht für ein
 - Die Seite ist für **iPhone Querformat** gestaltet.
 - Im Hochformat erscheint ein Hinweis zum Drehen.
 - Nach dem Hochladen ins Repository kann die Seite direkt über GitHub Pages laufen.
+
+- Sprechblase farblich angepasst und klar der rechten Figur zugeordnet

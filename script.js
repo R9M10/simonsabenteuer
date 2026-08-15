@@ -5,8 +5,9 @@ const sceneTapArea = document.getElementById("scene-tap-area");
 const speechText = document.getElementById("speech-text");
 
 const dialogue = [
-  "Dini Schueh sind nice.",
-  "Aber nöd sooooo nice."
+  "Dini Schueh sind nice!",
+  "Aber",
+  "nöd sooooo nice..."
 ];
 
 let dialogueIndex = 0;
