@@ -1,18 +1,18 @@
 (() => {
   "use strict";
 
-  const VERSION = "14";
+  const VERSION = "14.2";
   const GROUND_TOP = 338;
   const BOUNCER_KEY = "bouncer-v12";
   const LION_KEY = "lion-v12";
 
-  if (window.__SIMON_HIVE_V14__) return;
-  window.__SIMON_HIVE_V14__ = true;
+  if (window.__SIMON_HIVE_V142__) return;
+  window.__SIMON_HIVE_V142__ = true;
 
   const wrappedStartSimonGame = window.startSimonGame;
 
   if (typeof wrappedStartSimonGame !== "function") {
-    console.error("HIVE v14: startSimonGame fehlt.");
+    console.error("HIVE v14.2: startSimonGame fehlt.");
     return;
   }
 
@@ -49,9 +49,14 @@
       this.brouwersCount = Number.isFinite(this.overworld?.brouwersCount)
         ? this.overworld.brouwersCount
         : 0;
-      this.drunkLevel = Number.isFinite(this.overworld?.drunkLevel)
-        ? this.overworld.drunkLevel
-        : Math.max(0, Number(window.__SIMON_DRUNK_LEVEL__) || 0);
+      if (
+        !Array.isArray(window.__SIMON_DRUNK_DOSES__) &&
+        Array.isArray(this.overworld?.drunkDoseExpiries)
+      ) {
+        window.__SIMON_DRUNK_DOSES__ = [...this.overworld.drunkDoseExpiries];
+      }
+
+      this.drunkLevel = getActiveDrunkLevel();
     }
 
     preload() {
@@ -97,7 +102,7 @@
       }
 
       this.cameras.main.fadeIn(320, 0, 0, 0);
-      setGlobalDrunkLevel(this.drunkLevel);
+      applyDrunkVisualNow(true);
 
       this.events.once("shutdown", () => {
         this.destroySpeechBubble();
@@ -262,7 +267,7 @@
         padding: { x: 5, y: 4 }
       }).setOrigin(0.5).setDepth(25);
 
-      this.createBarWoman(657, 315);
+      this.createBarWoman(657, 345);
 
       // Other people dancing.
       this.createDancer(245, 291, 0x5a89d0, 0);
@@ -287,15 +292,41 @@
         ease: "Sine.easeInOut"
       });
 
-      // Hidden wallet: deliberately subtle and unlabeled.
+      // Hidden wallet: still a small discovery, but now readable as an
+      // actual brown wallet instead of a nearly invisible rectangle.
       this.walletGraphic = this.add.graphics().setDepth(19);
       const walletFound = Boolean(this.overworld?.hiveWalletFound);
-      this.walletGraphic.fillStyle(0x5a3c25, walletFound ? 0.08 : 0.50);
-      this.walletGraphic.fillRoundedRect(535, 308, 21, 11, 2);
-      this.walletGraphic.fillStyle(0xc6a66a, walletFound ? 0.05 : 0.40);
-      this.walletGraphic.fillRect(545, 310, 4, 7);
 
-      this.walletZone = this.add.zone(545, 313, 38, 30)
+      if (!walletFound) {
+        // A tiny coin peeking out helps the pickup read without adding a label.
+        this.walletGraphic.fillStyle(0xd6aa42, 0.95);
+        this.walletGraphic.fillCircle(556, 304, 5);
+        this.walletGraphic.lineStyle(1, 0x6d4a19, 0.95);
+        this.walletGraphic.strokeCircle(556, 304, 5);
+
+        // Shadow.
+        this.walletGraphic.fillStyle(0x160d09, 0.42);
+        this.walletGraphic.fillRoundedRect(529, 307, 34, 19, 4);
+
+        // Leather body and flap.
+        this.walletGraphic.fillStyle(0x754528, 0.96);
+        this.walletGraphic.fillRoundedRect(526, 302, 34, 19, 4);
+        this.walletGraphic.lineStyle(2, 0x2b160d, 0.95);
+        this.walletGraphic.strokeRoundedRect(526, 302, 34, 19, 4);
+
+        this.walletGraphic.fillStyle(0x9b6038, 0.98);
+        this.walletGraphic.fillRoundedRect(527, 303, 32, 8, 3);
+        this.walletGraphic.lineStyle(1, 0x4b2818, 0.9);
+        this.walletGraphic.lineBetween(527, 312, 559, 312);
+
+        // Gold clasp.
+        this.walletGraphic.fillStyle(0xe0ba60, 1);
+        this.walletGraphic.fillRoundedRect(544, 309, 5, 7, 1);
+        this.walletGraphic.lineStyle(1, 0x6c501e, 1);
+        this.walletGraphic.strokeRoundedRect(544, 309, 5, 7, 1);
+      }
+
+      this.walletZone = this.add.zone(543, 313, 48, 38)
         .setDepth(90)
         .setInteractive({ useHandCursor: true });
 
@@ -310,7 +341,7 @@
         .on("pointerup", () => this.openBeerMenu());
 
       // Woman hit area.
-      this.add.zone(657, 253, 62, 104)
+      this.add.zone(657, 286, 72, 124)
         .setDepth(100)
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => this.openWomanMenu());
@@ -544,16 +575,21 @@
 
       this.coins -= 3;
       this.brouwersCount += 1;
-      this.drunkLevel = Math.min(6, this.drunkLevel + 1);
+
+      // Every Brouwers contributes one independent 20-second dose.
+      // Drinking another one before the first expires increases the intensity;
+      // each dose still disappears on its own after 20 seconds.
+      this.drunkLevel = addDrunkDose(20000);
 
       if (this.overworld) {
         this.overworld.drunkLevel = this.drunkLevel;
+        this.overworld.drunkDoseExpiries = [...getActiveDrunkDoseExpiries()];
         this.overworld.brouwersCount = this.brouwersCount;
       }
 
       this.syncCoinsToOverworld();
       this.updateCoinHUD();
-      setGlobalDrunkLevel(this.drunkLevel);
+      applyDrunkVisualNow(true);
       this.closeModal();
 
       this.actionLocked = true;
@@ -593,7 +629,7 @@
         "Was söll Simon mache?",
         [
           {
-            label: "ANSPRECHEN",
+            label: "ASPRÄCHE",
             action: () => this.startRejectedDanceInvite()
           },
           {
@@ -602,7 +638,7 @@
               if (!hasFlirt) {
                 this.openDialog(
                   "FLIRT",
-                  "Dä Move muesch du später zerscht im Flirt-Shop chaufe.",
+                  "Dä Move muesch zerscht im Flirt-Shop chaufe.",
                   [
                     { label: "ZURÜCK", action: () => this.openWomanMenu() },
                     { label: "SCHLIESSEN", action: () => this.closeModal() }
@@ -638,7 +674,7 @@
       this.player.setFlipX(this.womanSprite ? this.womanSprite.x < this.player.x : false);
 
       this.playSimonAction("simon-v14-talk", { loop: true });
-      this.showSpeechBubble(this.player, "hey süße, Witsch tanzen?", 2100);
+      this.showSpeechBubble(this.player, "Hey Süsse, wotsch go tanze?", 2100);
 
       this.time.delayedCall(2150, () => {
         this.destroySpeechBubble();
@@ -647,7 +683,7 @@
         if (this.womanSprite?.active) {
           this.womanSprite.play("woman-v14-reject", true);
         }
-        this.showSpeechBubble(this.womanSprite, "nöd mit dir.", 1900);
+        this.showSpeechBubble(this.womanSprite, "Nöd mit dir.", 1900);
       });
 
       this.time.delayedCall(4100, () => {
@@ -875,8 +911,14 @@
       this.__leaving = true;
 
       this.syncCoinsToOverworld();
-      if (this.overworld) this.overworld.drunkLevel = this.drunkLevel;
-      setGlobalDrunkLevel(this.drunkLevel);
+      this.drunkLevel = getActiveDrunkLevel();
+
+      if (this.overworld) {
+        this.overworld.drunkLevel = this.drunkLevel;
+        this.overworld.drunkDoseExpiries = [...getActiveDrunkDoseExpiries()];
+      }
+
+      applyDrunkVisualNow(true);
       this.destroySpeechBubble();
       this.cleanupDOM();
 
@@ -954,62 +996,178 @@
 
 
   let activeSimonGame = null;
-  let drunkRAFStarted = false;
-  const drunkCameraBase = new WeakMap();
+  let drunkControllerStarted = false;
+  let drunkControllerTimer = null;
+  let lastAppliedDrunkLevel = -1;
+  let lastAppliedDrunkCanvas = null;
 
-  function setGlobalDrunkLevel(level) {
-    window.__SIMON_DRUNK_LEVEL__ = Math.max(0, Math.min(6, Number(level) || 0));
+  function getActiveDrunkDoseExpiries(now = Date.now()) {
+    const source = Array.isArray(window.__SIMON_DRUNK_DOSES__)
+      ? window.__SIMON_DRUNK_DOSES__
+      : [];
+
+    const active = source
+      .map((value) => Number(value))
+      .filter((expiry) => Number.isFinite(expiry) && expiry > now)
+      .sort((a, b) => a - b);
+
+    window.__SIMON_DRUNK_DOSES__ = active;
+    return active;
+  }
+
+  function getActiveDrunkLevel() {
+    // Six simultaneous beers are already intentionally quite intense.
+    return Math.min(6, getActiveDrunkDoseExpiries().length);
+  }
+
+  function addDrunkDose(durationMs = 20000) {
+    const active = getActiveDrunkDoseExpiries();
+    active.push(Date.now() + Math.max(1, Number(durationMs) || 20000));
+    window.__SIMON_DRUNK_DOSES__ = active;
+    return getActiveDrunkLevel();
+  }
+
+  function ensureDrunkStyle() {
+    if (document.getElementById("simon-drunk-style-v142")) return;
+
+    const style = document.createElement("style");
+    style.id = "simon-drunk-style-v142";
+    style.textContent = `
+      @keyframes simon-drunk-sway-v142 {
+        0% {
+          transform:
+            translate3d(var(--simon-drunk-x-neg), var(--simon-drunk-y), 0)
+            rotate(var(--simon-drunk-angle-neg))
+            scale(var(--simon-drunk-scale));
+        }
+        50% {
+          transform:
+            translate3d(var(--simon-drunk-x-half), var(--simon-drunk-y-neg), 0)
+            rotate(var(--simon-drunk-angle-half))
+            scale(var(--simon-drunk-scale));
+        }
+        100% {
+          transform:
+            translate3d(var(--simon-drunk-x), var(--simon-drunk-y-half), 0)
+            rotate(var(--simon-drunk-angle))
+            scale(var(--simon-drunk-scale));
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function clearDrunkCanvasStyles(canvas) {
+    if (!canvas) return;
+    canvas.style.animation = "";
+    canvas.style.filter = "";
+    canvas.style.transform = "";
+    canvas.style.transformOrigin = "";
+    canvas.style.willChange = "";
+    canvas.style.backfaceVisibility = "";
+
+    [
+      "--simon-drunk-x",
+      "--simon-drunk-x-neg",
+      "--simon-drunk-x-half",
+      "--simon-drunk-y",
+      "--simon-drunk-y-neg",
+      "--simon-drunk-y-half",
+      "--simon-drunk-angle",
+      "--simon-drunk-angle-neg",
+      "--simon-drunk-angle-half",
+      "--simon-drunk-scale"
+    ].forEach((key) => canvas.style.removeProperty(key));
+  }
+
+  function applyDrunkVisualNow(force = false) {
+    const game = activeSimonGame;
+    const canvas = game?.canvas || null;
+    const level = getActiveDrunkLevel();
+
+    if (!canvas) return level;
+
+    if (
+      !force &&
+      canvas === lastAppliedDrunkCanvas &&
+      level === lastAppliedDrunkLevel
+    ) {
+      return level;
+    }
+
+    if (lastAppliedDrunkCanvas && lastAppliedDrunkCanvas !== canvas) {
+      clearDrunkCanvasStyles(lastAppliedDrunkCanvas);
+    }
+
+    lastAppliedDrunkCanvas = canvas;
+    lastAppliedDrunkLevel = level;
+
+    if (level <= 0) {
+      clearDrunkCanvasStyles(canvas);
+      return 0;
+    }
+
+    ensureDrunkStyle();
+
+    // No CSS blur and no Phaser-camera mutation here: both were noticeably
+    // heavier on iPad. The compositor handles this tiny smooth sway instead.
+    const x = 0.8 + level * 0.85;
+    const y = 0.45 + level * 0.46;
+    const angle = 0.035 + level * 0.055;
+    const scale = 1 + level * 0.0028;
+
+    canvas.style.setProperty("--simon-drunk-x", `${x.toFixed(2)}px`);
+    canvas.style.setProperty("--simon-drunk-x-neg", `${(-x).toFixed(2)}px`);
+    canvas.style.setProperty("--simon-drunk-x-half", `${(x * 0.38).toFixed(2)}px`);
+    canvas.style.setProperty("--simon-drunk-y", `${y.toFixed(2)}px`);
+    canvas.style.setProperty("--simon-drunk-y-neg", `${(-y).toFixed(2)}px`);
+    canvas.style.setProperty("--simon-drunk-y-half", `${(y * 0.45).toFixed(2)}px`);
+    canvas.style.setProperty("--simon-drunk-angle", `${angle.toFixed(3)}deg`);
+    canvas.style.setProperty("--simon-drunk-angle-neg", `${(-angle).toFixed(3)}deg`);
+    canvas.style.setProperty("--simon-drunk-angle-half", `${(angle * 0.42).toFixed(3)}deg`);
+    canvas.style.setProperty("--simon-drunk-scale", scale.toFixed(4));
+
+    // More beer = increasingly colourful, but still readable.
+    const saturation = 1 + level * 0.18;
+    const contrast = 1 + level * 0.025;
+    const brightness = 1 + level * 0.018;
+    const hue = level * 3.5;
+
+    canvas.style.filter =
+      `saturate(${saturation.toFixed(2)}) ` +
+      `contrast(${contrast.toFixed(2)}) ` +
+      `brightness(${brightness.toFixed(2)}) ` +
+      `hue-rotate(${hue.toFixed(1)}deg)`;
+
+    canvas.style.transformOrigin = "center center";
+    canvas.style.willChange = "transform, filter";
+    canvas.style.backfaceVisibility = "hidden";
+
+    // Start the compositor animation only once. Changing intensity only updates
+    // CSS variables, so stacking another beer does not restart/jolt the sway.
+    if (!canvas.style.animation) {
+      canvas.style.animation =
+        "simon-drunk-sway-v142 2.8s ease-in-out infinite alternate";
+    }
+
+    return level;
   }
 
   function ensureDrunkController(game) {
     activeSimonGame = game || activeSimonGame;
-    if (drunkRAFStarted) return;
-    drunkRAFStarted = true;
+    applyDrunkVisualNow(true);
 
-    const tick = (now) => {
-      const level = Math.max(0, Number(window.__SIMON_DRUNK_LEVEL__) || 0);
-      const currentGame = activeSimonGame;
+    if (drunkControllerStarted) return;
+    drunkControllerStarted = true;
 
-      if (currentGame?.canvas) {
-        currentGame.canvas.style.filter = level > 0
-          ? `blur(${Math.min(1.5, level * 0.22).toFixed(2)}px) saturate(${(1 + level * 0.035).toFixed(2)})`
-          : "";
-      }
-
-      if (currentGame?.scene) {
-        const scenes = currentGame.scene.getScenes(true);
-        scenes.forEach((scene) => {
-          const camera = scene?.cameras?.main;
-          if (!camera) return;
-
-          if (!drunkCameraBase.has(camera)) {
-            drunkCameraBase.set(camera, {
-              zoom: camera.zoom || 1,
-              rotation: camera.rotation || 0
-            });
-          }
-
-          const base = drunkCameraBase.get(camera);
-          if (level <= 0) {
-            camera.setZoom(base.zoom);
-            camera.setRotation(base.rotation);
-            return;
-          }
-
-          const sway = Math.sin(now / 620) * level;
-          const breathe = Math.sin(now / 930) * level;
-          camera.setRotation(base.rotation + sway * 0.0027);
-          camera.setZoom(base.zoom * (1 + level * 0.0025 + breathe * 0.0008));
-        });
-      }
-
-      window.requestAnimationFrame(tick);
-    };
-
-    window.requestAnimationFrame(tick);
+    // The browser handles the actual animation. JS only checks occasionally
+    // whether a 20-second dose expired, which avoids the old per-frame stutter.
+    drunkControllerTimer = window.setInterval(() => {
+      applyDrunkVisualNow(false);
+    }, 200);
   }
 
-  window.startSimonGame = function startSimonGameWithHiveV14(options = {}) {
+  window.startSimonGame = function startSimonGameWithHiveV142(options = {}) {
     const game = wrappedStartSimonGame.call(this, options);
 
     if (!game) return game;
@@ -1143,7 +1301,7 @@
     patchAnimationMoments(scene);
     installHiveDoor(scene);
 
-    console.info("HIVE v14 aktiv: Woman-Sheet, Tanz, Bier & Drunk-Effect.");
+    console.info("HIVE v14.2 aktiv: 20s-Bierstack, smoother Drunk-Effect, Frau/Walet-Polish.");
   }
 
   function isBouncerSprite(object) {
