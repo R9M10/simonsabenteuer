@@ -70,6 +70,9 @@
       this.tramBoardingMarker = null;
       this.tramBoardingEnabled = false;
       this.tramTransitActive = false;
+      this.tramDestinationModal = null;
+      this.currentStationKey = "milchbuck";
+      this.travelArrivalFrom = null;
 
       this.itemsButton = null;
       this.itemsModal = null;
@@ -82,9 +85,12 @@
       };
 
       this.hotbarContainer = null;
+      this.hotbarBackground = null;
       this.hotbarSlotCenters = [];
       this.hotbarItems = [null, null, null, null, null, null];
       this.hotbarDynamicObjects = [];
+      this.selectedHotbarIndex = 0;
+      this.hotbarActionUI = null;
 
       this.drinkingItem = false;
 
@@ -102,6 +108,62 @@
       this.danceBackUI = null;
     }
 
+    init(data = {}) {
+      this.travelArrivalFrom = data.arrivalFrom || null;
+
+      // Scene objects are rebuilt after a tram journey. Clear references to
+      // objects from the previous scene run so no old hitboxes/UI survive.
+      this.controlObjects = [];
+      this.hotbarDynamicObjects = [];
+      this.hotbarContainer = null;
+      this.hotbarBackground = null;
+      this.hotbarActionUI = null;
+      this.ticketModal = null;
+      this.tramDestinationModal = null;
+      this.itemInfoModal = null;
+      this.itemsModal = null;
+      this.lootModal = null;
+      this.danceOverlay = null;
+      this.playerDying = false;
+      this.drinkingItem = false;
+      this.tramTransitActive = false;
+      this.tramBoardingEnabled = false;
+      this.ticketHitbox = null;
+      this.tramHitbox = null;
+      this.tramBoardingMarker = null;
+      this.tram = null;
+
+      if (!this.travelArrivalFrom) return;
+
+      this.developerMode = Boolean(data.developerMode);
+      this.coins = this.developerMode
+        ? 999999
+        : (Number.isFinite(data.coins) ? data.coins : 0);
+
+      this.hp = Number.isFinite(data.hp) ? data.hp : this.maxHp;
+      this.hasCityTicket = Boolean(data.hasCityTicket);
+
+      this.inventory = {
+        gatorade: Math.max(0, Number(data.inventory?.gatorade) || 0),
+        monster: Math.max(0, Number(data.inventory?.monster) || 0)
+      };
+
+      this.hotbarItems = Array.isArray(data.hotbarItems)
+        ? data.hotbarItems.slice(0, 6)
+        : [null, null, null, null, null, null];
+
+      while (this.hotbarItems.length < 6) {
+        this.hotbarItems.push(null);
+      }
+
+      this.selectedHotbarIndex = Number.isInteger(data.selectedHotbarIndex)
+        ? Phaser.Math.Clamp(data.selectedHotbarIndex, 0, 5)
+        : 0;
+
+      // A fresh return to Milchbuck should not restart a Developer jump.
+      this.startMode = "normal";
+    }
+
     preload() {
       this.load.on("loaderror", (file) => {
         console.error("Asset konnte nicht geladen werden:", file?.src || file?.key);
@@ -115,9 +177,15 @@
 
     create() {
       this.input.addPointer(3);
-      this.startMode = pendingStartOptions?.startMode || "normal";
-      this.developerMode = Boolean(pendingStartOptions?.developerMode) ||
-        this.startMode !== "normal";
+      this.input.setTopOnly(true);
+
+      if (this.travelArrivalFrom) {
+        this.startMode = "normal";
+      } else {
+        this.startMode = pendingStartOptions?.startMode || "normal";
+        this.developerMode = Boolean(pendingStartOptions?.developerMode) ||
+          this.startMode !== "normal";
+      }
 
       if (this.developerMode) {
         this.coins = 999999;
@@ -158,10 +226,22 @@
       this.createTouchControls();
       this.createHUD();
 
+      if (this.travelArrivalFrom === "bahnhofstrasse") {
+        this.currentStationKey = "milchbuck";
+        this.player.setPosition(250, 245);
+        this.player.setVelocity(0, 0);
+        this.player.setVisible(true);
+        this.player.play("simon-idle", true);
+        this.cameras.main.fadeIn(520, 0, 0, 0);
+        this.updateCoinHUD();
+        this.updateHpBar();
+        this.updateInventoryUI();
+      }
+
       // Developer-Startziele werden erst NACH der normalen Szeneninitialisierung
       // angewandt. So bleiben Sprites, Animationen, HUD und Touch-Steuerung
       // exakt dieselben wie im normalen Spiel.
-      if (this.startMode === "hb") {
+      if (!this.travelArrivalFrom && this.startMode === "hb") {
         this.scene.start("BahnhofquaiScene", {
           coins: 999999,
           hp: this.maxHp,
@@ -174,7 +254,7 @@
         return;
       }
 
-      if (this.startMode === "lion-choice") {
+      if (!this.travelArrivalFrom && this.startMode === "lion-choice") {
         this.time.delayedCall(80, () => this.setupDeveloperLionChoice());
       }
 
@@ -924,7 +1004,7 @@
       const definitions = {
         ticket: {
           name: "Ticket",
-          description: "Erlaubt Simon, die Tram zu benutzen. Das Ticket wird nicht verbraucht."
+          description: "Gültig für genau eine Tramfahrt. Beim Einsteigen wird das Ticket verbraucht."
         },
         gatorade: {
           name: "Gatorade",
@@ -1094,31 +1174,53 @@
         .setScrollFactor(0)
         .setDepth(290);
 
-      const bar = this.add.graphics();
+      this.hotbarBackground = this.add.graphics();
+      this.hotbarContainer.add(this.hotbarBackground);
+
       const slotCount = 6;
       const slotSize = 38;
       const gap = 3;
       const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
       const startX = -totalWidth / 2;
 
-      bar.fillStyle(0x15171a, 0.78);
-      bar.fillRoundedRect(startX - 6, -24, totalWidth + 12, 48, 5);
-
       this.hotbarSlotCenters = [];
 
       for (let i = 0; i < slotCount; i += 1) {
         const left = startX + i * (slotSize + gap);
-        const center = left + slotSize / 2;
-        this.hotbarSlotCenters.push(center);
-
-        bar.fillStyle(i === 0 ? 0x3b3b35 : 0x292b2d, 0.94);
-        bar.fillRect(left, -19, slotSize, slotSize);
-        bar.lineStyle(i === 0 ? 3 : 2, i === 0 ? 0xf3e3a5 : 0x858585, 0.9);
-        bar.strokeRect(left, -19, slotSize, slotSize);
+        this.hotbarSlotCenters.push(left + slotSize / 2);
       }
 
-      this.hotbarContainer.add(bar);
       this.refreshHotbar();
+    }
+
+    drawHotbarBackground() {
+      if (!this.hotbarBackground) return;
+
+      const bar = this.hotbarBackground;
+      const slotCount = 6;
+      const slotSize = 38;
+      const gap = 3;
+      const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
+      const startX = -totalWidth / 2;
+
+      bar.clear();
+      bar.fillStyle(0x15171a, 0.78);
+      bar.fillRoundedRect(startX - 6, -24, totalWidth + 12, 48, 5);
+
+      for (let i = 0; i < slotCount; i += 1) {
+        const left = startX + i * (slotSize + gap);
+        const selected = i === this.selectedHotbarIndex;
+
+        bar.fillStyle(selected ? 0x514a35 : 0x292b2d, 0.96);
+        bar.fillRect(left, -19, slotSize, slotSize);
+
+        bar.lineStyle(
+          selected ? 4 : 2,
+          selected ? 0xffe98a : 0x858585,
+          selected ? 1 : 0.9
+        );
+        bar.strokeRect(left, -19, slotSize, slotSize);
+      }
     }
 
     refreshHotbar() {
@@ -1137,51 +1239,134 @@
         this.hotbarItems.push(null);
       }
 
-      // Nicht mehr vorhandene Verbrauchsitems verschwinden aus der Hotbar.
+      this.selectedHotbarIndex = Phaser.Math.Clamp(
+        Number.isInteger(this.selectedHotbarIndex) ? this.selectedHotbarIndex : 0,
+        0,
+        5
+      );
+
+      // Verbrauchte Items und ungültige Tickets verschwinden.
       this.hotbarItems = this.hotbarItems.map((key) => {
         if (!key) return null;
         if (key === "ticket") return this.hasCityTicket ? key : null;
         return this.getItemCount(key) > 0 ? key : null;
       });
 
-      this.hotbarItems.forEach((key, index) => {
-        if (!key) return;
+      this.drawHotbarBackground();
 
+      for (let index = 0; index < 6; index += 1) {
+        const key = this.hotbarItems[index];
         const x = this.hotbarSlotCenters[index] ?? 0;
-        const icon = this.createWorldItemIcon(key, x, 0, key === "ticket" ? 0.72 : 0.72);
-        this.hotbarContainer.add(icon);
-        this.hotbarDynamicObjects.push(icon);
 
-        const count = this.getItemCount(key);
-        if (key !== "ticket" && count > 1) {
-          const qty = this.add.text(x + 11, 12, String(count), {
-            fontFamily: '"Press Start 2P", monospace',
-            fontSize: "6px",
-            color: "#ffffff",
-            stroke: "#171717",
-            strokeThickness: 3
-          })
-            .setOrigin(0.5)
-            .setDepth(320);
+        if (key) {
+          const icon = this.createWorldItemIcon(
+            key,
+            x,
+            0,
+            key === "ticket" ? 0.72 : 0.72
+          );
 
-          this.hotbarContainer.add(qty);
-          this.hotbarDynamicObjects.push(qty);
+          this.hotbarContainer.add(icon);
+          this.hotbarDynamicObjects.push(icon);
+
+          const count = this.getItemCount(key);
+          if (key !== "ticket" && count > 1) {
+            const qty = this.add.text(x + 11, 12, String(count), {
+              fontFamily: '"Press Start 2P", monospace',
+              fontSize: "6px",
+              color: "#ffffff",
+              stroke: "#171717",
+              strokeThickness: 3
+            })
+              .setOrigin(0.5)
+              .setDepth(320);
+
+            this.hotbarContainer.add(qty);
+            this.hotbarDynamicObjects.push(qty);
+          }
         }
 
+        // JEDER Slot ist auswählbar, auch leere Slots.
         const zone = this.add.zone(x, 0, 36, 36)
-          .setInteractive({ useHandCursor: key !== "ticket" });
+          .setInteractive({ useHandCursor: true });
 
-        if (key !== "ticket") {
-          zone.on("pointerup", (pointer) => {
-            pointer.event?.preventDefault?.();
-            pointer.event?.stopPropagation?.();
-            this.consumeHotbarItem(index);
-          });
-        }
+        zone.on("pointerup", (pointer) => {
+          pointer.event?.preventDefault?.();
+          pointer.event?.stopPropagation?.();
+          this.selectHotbarSlot(index);
+        });
 
         this.hotbarContainer.add(zone);
         this.hotbarDynamicObjects.push(zone);
+      }
+
+      this.updateHotbarActionUI();
+    }
+
+    selectHotbarSlot(index) {
+      if (this.uiLocked || this.playerDying || this.drinkingItem) return;
+
+      this.selectedHotbarIndex = Phaser.Math.Clamp(index, 0, 5);
+      this.refreshHotbar();
+    }
+
+    updateHotbarActionUI() {
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      root.querySelectorAll("[data-simon-ui='hotbar-action']")
+        .forEach((node) => node.remove());
+
+      this.hotbarActionUI = null;
+
+      if (
+        this.uiLocked ||
+        this.drinkingItem ||
+        this.playerDying ||
+        !this.player?.visible
+      ) {
+        return;
+      }
+
+      const key = this.hotbarItems?.[this.selectedHotbarIndex];
+
+      if (!["gatorade", "monster"].includes(key)) {
+        return;
+      }
+
+      if (this.getItemCount(key) <= 0) return;
+
+      const item = this.getItemDefinition(key);
+      const wrapper = document.createElement("div");
+      wrapper.dataset.simonUi = "hotbar-action";
+
+      Object.assign(wrapper.style, {
+        position: "absolute",
+        left: "50%",
+        bottom: "58px",
+        transform: "translateX(-50%)",
+        zIndex: "99990",
+        pointerEvents: "auto",
+        touchAction: "manipulation"
       });
+
+      const drink = this.createDOMButton(
+        `TRINKEN · ${item.name.toUpperCase()}`,
+        () => this.consumeSelectedHotbarItem(),
+        {
+          color: "#f4ffe5",
+          background: "#38522d",
+          border: "#b7e47d",
+          width: "190px",
+          minHeight: "38px",
+          fontSize: "6px",
+          padding: "6px 8px"
+        }
+      );
+
+      wrapper.appendChild(drink);
+      root.appendChild(wrapper);
+      this.hotbarActionUI = { overlay: wrapper };
     }
 
     updateInventoryUI() {
@@ -1211,6 +1396,7 @@
       }
 
       this.hotbarItems[0] = "ticket";
+      this.selectedHotbarIndex = 0;
       this.refreshHotbar();
     }
 
@@ -1220,6 +1406,7 @@
 
       const existing = this.hotbarItems.indexOf(key);
       if (existing >= 0) {
+        this.selectedHotbarIndex = existing;
         this.refreshHotbar();
         return;
       }
@@ -1235,17 +1422,23 @@
       }
 
       if (free < 0) {
-        // Falls alle Slots voll sind, wird der letzte Verbrauchs-Slot ersetzt.
         free = this.hotbarItems.length - 1;
       }
 
       this.hotbarItems[free] = key;
+
+      // Beim Ausrüsten wird der neue Slot tatsächlich ausgewählt.
+      this.selectedHotbarIndex = free;
       this.refreshHotbar();
     }
 
     removeItemFromHotbar(key) {
       this.hotbarItems = this.hotbarItems.map((item) => item === key ? null : item);
       this.refreshHotbar();
+    }
+
+    consumeSelectedHotbarItem() {
+      this.consumeHotbarItem(this.selectedHotbarIndex);
     }
 
     consumeHotbarItem(index) {
@@ -1270,6 +1463,7 @@
       if (!item || this.getItemCount(key) <= 0) return;
 
       this.drinkingItem = true;
+      this.updateHotbarActionUI();
       this.refreshUILock();
 
       this.player.setVelocity(0, 0);
@@ -1352,6 +1546,7 @@
               this.drinkingItem = false;
               this.updateInventoryUI();
               this.refreshUILock();
+              this.updateHotbarActionUI();
             }
           });
         }
@@ -1800,12 +1995,14 @@
         this.fightActive ||
         this.lionExitActive ||
         this.tramTransitActive ||
+        this.tramDestinationModal ||
         this.itemInfoModal ||
         this.drinkingItem ||
         this.playerDying
       );
 
       this.setUILocked(locked);
+      this.updateHotbarActionUI?.();
     }
 
     ensureTicketMachineInteractive() {
@@ -1840,6 +2037,15 @@
       this.enableTramBoarding();
     }
 
+    getTramDestinations() {
+      return [
+        {
+          key: "bahnhofstrasse",
+          label: "BAHNHOFSTRASSE/HB"
+        }
+      ];
+    }
+
     boardTram() {
       if (
         !this.hasCityTicket ||
@@ -1852,7 +2058,108 @@
         return;
       }
 
-      this.tramTransitActive = true;
+      this.openTramDestinationModal();
+    }
+
+    openTramDestinationModal() {
+      if (
+        this.tramDestinationModal ||
+        !this.hasCityTicket ||
+        this.tramTransitActive
+      ) {
+        return;
+      }
+
+      this.setUILocked(true);
+
+      const modal = this.createDOMModal({
+        key: "tram-destination",
+        width: "min(90%, 470px)",
+        background: "#dce8eb",
+        border: "#245b84",
+        shade: "rgba(5, 7, 12, 0.72)",
+        padding: "17px"
+      });
+
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.tramDestinationModal = modal;
+
+      const title = this.createDOMText("WOHIN?", {
+        fontSize: "15px",
+        color: "#183b55",
+        margin: "0 0 15px"
+      });
+
+      const list = document.createElement("div");
+      Object.assign(list.style, {
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        gap: "8px",
+        maxWidth: "350px",
+        margin: "0 auto 12px"
+      });
+
+      this.getTramDestinations().forEach((destination) => {
+        const button = this.createDOMButton(
+          destination.label,
+          () => this.chooseTramDestination(destination.key),
+          {
+            color: "#f7f4df",
+            background: "#245b84",
+            border: "#83b9d8",
+            minHeight: "44px",
+            fontSize: "7px",
+            padding: "8px"
+          }
+        );
+
+        list.appendChild(button);
+      });
+
+      const back = this.createDOMButton(
+        "← ZURÜCK",
+        () => this.closeTramDestinationModal(),
+        {
+          color: "#24475c",
+          background: "#c4d7dc",
+          border: "#7195a4",
+          width: "150px",
+          minHeight: "38px",
+          fontSize: "7px"
+        }
+      );
+      back.style.margin = "0 auto";
+
+      modal.panel.append(title, list, back);
+      this.refreshUILock();
+    }
+
+    closeTramDestinationModal() {
+      if (!this.tramDestinationModal) return;
+
+      this.destroyDOMModal(this.tramDestinationModal);
+      this.tramDestinationModal = null;
+      this.refreshUILock();
+      this.ensureTramBoardingInteractive();
+    }
+
+    chooseTramDestination(destinationKey) {
+      if (!this.tramDestinationModal || !this.hasCityTicket) return;
+
+      this.destroyDOMModal(this.tramDestinationModal);
+      this.tramDestinationModal = null;
+
+      this.startTramJourney(destinationKey);
+    }
+
+    consumeCityTicket() {
+      if (!this.hasCityTicket) return false;
+
+      this.hasCityTicket = false;
       this.tramBoardingEnabled = false;
 
       if (this.tramHitbox?.input) {
@@ -1861,10 +2168,32 @@
 
       this.tramBoardingMarker?.setVisible(false);
 
+      this.hotbarItems = this.hotbarItems.map(
+        (item) => item === "ticket" ? null : item
+      );
+
+      this.itemsTicketBadge?.setVisible(false);
+      this.updateInventoryUI();
+      this.updateHotbarActionUI();
+      return true;
+    }
+
+    startTramJourney(destinationKey) {
+      if (destinationKey !== "bahnhofstrasse") {
+        this.refreshUILock();
+        return;
+      }
+
+      if (!this.consumeCityTicket()) {
+        this.refreshUILock();
+        return;
+      }
+
+      this.tramTransitActive = true;
       this.setUILocked(true);
       this.player.setVelocity(0, 0);
 
-      // Simon geht kurz zur Tram und verschwindet dann sichtbar "im" Fahrzeug.
+      // Simon geht kurz zur Tram und verschwindet dann sichtbar im Fahrzeug.
       this.cameras.main.stopFollow();
       this.cameras.main.pan(410, GAME_HEIGHT / 2, 360, "Sine.easeInOut");
 
@@ -1878,30 +2207,28 @@
           this.player.setVisible(false);
           if (this.player.body) this.player.body.enable = false;
 
-          // Die Tram fährt einige Meter nach rechts.
           this.tweens.add({
             targets: this.tram,
             x: 520,
             duration: 2350,
             ease: "Sine.easeIn",
             onUpdate: () => {
-              // leichter Fahrt-Eindruck
               this.tram.y = Math.sin(this.time.now / 72) * 1.2;
             }
           });
 
-          // Nach einem kurzen sichtbaren Stück Fahrt blendet die Szene aus.
           this.time.delayedCall(1150, () => {
             this.cameras.main.once(
               Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
               () => this.scene.start("BahnhofquaiScene", {
                 coins: this.developerMode ? 999999 : this.coins,
                 hp: this.hp,
-                hasCityTicket: this.hasCityTicket,
+                hasCityTicket: false,
                 fromDeveloperMode: this.developerMode,
                 developerMode: this.developerMode,
                 inventory: { ...this.inventory },
-                hotbarItems: [...this.hotbarItems]
+                hotbarItems: [...this.hotbarItems],
+                selectedHotbarIndex: this.selectedHotbarIndex
               })
             );
 
@@ -2020,7 +2347,7 @@
         margin: "4px 0 18px"
       });
 
-      const line = this.createDOMText("1 TICKET IN DIE STADT", {
+      const line = this.createDOMText("1 TRAM-TICKET · 1 FAHRT", {
         fontSize: "10px",
         color: "#2d2a25",
         margin: "0 0 8px"
@@ -3303,7 +3630,7 @@
       const circle = this.add.circle(x, y, 34, 0x101820, 0.42)
         .setStrokeStyle(3, 0xfff3d2, 0.7)
         .setScrollFactor(0)
-        .setDepth(50)
+        .setDepth(1000)
         .setInteractive({ useHandCursor: false });
 
       const text = this.add.text(x, y - 1, label, {
@@ -3314,7 +3641,7 @@
         .setOrigin(0.5)
         .setAlpha(0.92)
         .setScrollFactor(0)
-        .setDepth(51);
+        .setDepth(1001);
 
       const press = (pointer) => {
         pointer.event?.preventDefault?.();
@@ -3513,10 +3840,18 @@
       while (this.hotbarItems.length < 6) {
         this.hotbarItems.push(null);
       }
+
+      this.selectedHotbarIndex = Number.isInteger(data.selectedHotbarIndex)
+        ? Phaser.Math.Clamp(data.selectedHotbarIndex, 0, 5)
+        : 0;
+
+      this.currentStationKey = "bahnhofstrasse";
     }
 
     create() {
       this.input.addPointer(3);
+      this.input.setTopOnly(true);
+      this.currentStationKey = "bahnhofstrasse";
 
       const domRoot = document.getElementById("phaser-game");
       domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
@@ -3599,6 +3934,7 @@
       this.createHauptbahnhofFacade();
       this.createBahnhofquaiStop();
       this.createBahnhofstrasse();
+      this.createBahnhofstrasseTicketMachine();
       this.createIndianStoreExterior();
 
       // Fahrbahn / Gleise / Gehfläche.
@@ -3805,6 +4141,48 @@
       }
     }
 
+    createBahnhofstrasseTicketMachine() {
+      const x = 1030;
+      const y = 221;
+
+      const machine = this.add.graphics().setDepth(6);
+      machine.fillStyle(0x2d5f78, 1);
+      machine.fillRect(x, y, 49, 91);
+      machine.fillStyle(0x183849, 1);
+      machine.fillRect(x + 6, y + 9, 37, 28);
+      machine.fillStyle(0xa9d8c5, 1);
+      machine.fillRect(x + 12, y + 15, 25, 15);
+      machine.fillStyle(0xf1c64f, 1);
+      machine.fillRect(x + 12, y + 49, 25, 8);
+      machine.fillStyle(0x17252e, 1);
+      machine.fillRect(x + 14, y + 67, 21, 12);
+      machine.lineStyle(3, 0xd7edf2, 0.75);
+      machine.strokeRect(x, y, 49, 91);
+
+      this.add.text(x + 24, y - 9, "TICKET", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "6px",
+        color: "#fff3c4",
+        backgroundColor: "#244c61",
+        padding: { x: 4, y: 3 }
+      })
+        .setOrigin(0.5)
+        .setDepth(7);
+
+      this.ticketHitbox = this.add.zone(x + 24, y + 44, 68, 104)
+        .setDepth(150)
+        .setInteractive({ useHandCursor: true });
+
+      // Erst nach der Aussteigeanimation aktivieren.
+      this.ticketHitbox.input.enabled = false;
+
+      this.ticketHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openTicketModal();
+      });
+    }
+
     createIndianStoreExterior() {
       // Bewusst deutlich weiter rechts von der Haltestelle und wie das HIVE
       // als Hintergrund-Fassade hinter der begehbaren Straßenebene.
@@ -3905,7 +4283,7 @@
 
       // Die gesamte Fassade ist großzügig anklickbar.
       this.indianStoreHitbox = this.add.zone(x + w / 2, y + h / 2, w + 18, h + 18)
-        .setDepth(180)
+        .setDepth(40)
         .setInteractive({ useHandCursor: true });
 
       this.indianStoreHitbox.on("pointerdown", (pointer) => {
@@ -3930,11 +4308,13 @@
         this.storeEntryModal ||
         this.indianStoreOverlay ||
         this.shopModal ||
+        this.tramDestinationModal ||
         this.itemInfoModal ||
         this.drinkingItem
       );
 
       this.setUILocked(locked);
+      this.updateHotbarActionUI?.();
     }
 
     openIndianStorePrompt() {
@@ -4461,6 +4841,80 @@
       this.cameras.main.setDeadzone(240, 80);
     }
 
+    getTramDestinations() {
+      return [
+        {
+          key: "milchbuck",
+          label: "MILCHBUCK"
+        }
+      ];
+    }
+
+    startTramJourney(destinationKey) {
+      if (destinationKey !== "milchbuck") {
+        this.refreshUILock();
+        return;
+      }
+
+      if (!this.consumeCityTicket()) {
+        this.refreshUILock();
+        return;
+      }
+
+      this.tramTransitActive = true;
+      this.setUILocked(true);
+      this.player.setVelocity(0, 0);
+      this.cameras.main.stopFollow();
+
+      const doorX = this.arrivalTram.x + 156;
+
+      this.tweens.add({
+        targets: this.player,
+        x: doorX,
+        y: 250,
+        duration: 430,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          this.player.setVisible(false);
+          if (this.player.body) this.player.body.enable = false;
+
+          this.tweens.add({
+            targets: this.arrivalDoor,
+            scaleX: 1,
+            alpha: 1,
+            duration: 240,
+            ease: "Quad.easeOut",
+            onComplete: () => {
+              this.tweens.add({
+                targets: this.arrivalTram,
+                x: -330,
+                duration: 2200,
+                ease: "Sine.easeIn"
+              });
+
+              this.time.delayedCall(900, () => {
+                this.cameras.main.once(
+                  Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
+                  () => this.scene.start("MilchbuckScene", {
+                    arrivalFrom: "bahnhofstrasse",
+                    coins: this.developerMode ? 999999 : this.coins,
+                    hp: this.hp,
+                    hasCityTicket: false,
+                    developerMode: this.developerMode,
+                    inventory: { ...this.inventory },
+                    hotbarItems: [...this.hotbarItems],
+                    selectedHotbarIndex: this.selectedHotbarIndex
+                  })
+                );
+
+                this.cameras.main.fadeOut(760, 0, 0, 0);
+              });
+            }
+          });
+        }
+      });
+    }
+
     createArrivalTram() {
       const tram = this.add.container(365, 0).setDepth(10);
       const g = this.add.graphics();
@@ -4490,7 +4944,38 @@
       this.arrivalDoor = this.add.rectangle(156, 270, 30, 70, 0x243844, 1);
       tram.add(this.arrivalDoor);
 
+      // Weißer Einstiegspunkt an der Tür, erst mit gültigem Ticket sichtbar.
+      this.tramBoardingMarker = this.add.circle(156, 218, 6, 0xffffff, 1)
+        .setStrokeStyle(2, 0xe8f6ff, 0.95)
+        .setVisible(false);
+
+      tram.add(this.tramBoardingMarker);
+
+      this.tweens.add({
+        targets: this.tramBoardingMarker,
+        alpha: { from: 0.2, to: 1 },
+        scale: { from: 0.82, to: 1.18 },
+        duration: 520,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
+      // Hitbox an der endgültigen Halteposition der Tram.
+      this.tramHitbox = this.add.zone(595, 263, 250, 112)
+        .setDepth(170)
+        .setInteractive({ useHandCursor: true });
+
+      this.tramHitbox.input.enabled = false;
+
+      this.tramHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.boardTram();
+      });
+
       this.arrivalTram = tram;
+      this.tram = tram;
     }
 
     playArrivalAnimation() {
@@ -4530,6 +5015,8 @@
                   this.arrivalFinished = true;
 
                   this.setUILocked(false);
+                  this.ensureTicketMachineInteractive();
+                  this.ensureTramBoardingInteractive();
                   this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
                   this.cameras.main.setDeadzone(240, 80);
                 }

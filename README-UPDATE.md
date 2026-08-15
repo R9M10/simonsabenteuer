@@ -1,90 +1,83 @@
-# Simons Abenteuer – Store Items, Drink-System, Developer Coins
+# Simons Abenteuer – Hotbar-Auswahl + Einzelfahrt-Tickets + Tram-Routing
 
-Diese Änderung wurde **nach erneutem Lesen des aktuellen GitHub-Standes** gebaut.
+Ausgangsstand wurde unmittelbar vor der Änderung gegen GitHub geprüft.
 
-Verifizierter Ausgangsstand:
+- game.js: `a39fa4b428a829046360665658cb1117abaa85fd`
+- index.html: `6f0c2e9ea8540afd8d36ad48afaf6e87874c1eae`
+- script.js: `b85d12562933e3f17fbb0bfecb936b4b8397e301`
+- hive-expansion.js: `dae204ca8f2bef85e0fb64a1f5487c224d5444e4`
 
-- `game.js`: `6294ecac35c6fac0fad6f692c2a98ac7a9c3e865`
-- `index.html`: `33c38745473e3760d10b416023a279397df7f33d`
-- `script.js`: `039f3ab8e7127a8bd145e23e7be069d00a181df0`
-
-Die neuen Dateien deiner Freundin bleiben erhalten und werden nicht ersetzt:
-
-- `hive-expansion.js?v=13`
-- `flight-intro.js?v=13`
+Die neuesten Änderungen an `hive-expansion.js` und `flight-intro.js` werden
+nicht überschrieben.
 
 ## Zu ersetzen
 
 - `game.js`
 - `index.html`
-- `script.js`
 
-## Änderungen
+## 1. Hotbar
 
-### Der Inder
+Die Hotbar hat nun einen echten ausgewählten Slot.
 
-- Der Laden steht jetzt deutlich weiter rechts von der Haltestelle.
-- Er liegt visuell wie das HIVE weiter hinten in der Welt.
-- Gemüseauslage und Ladenfassade liegen hinter Simon bzw. der Straßenebene.
-- Im Laden gibt es keinen sichtbaren `EINKAUFEN`-Button mehr.
-- Stattdessen öffnet ein Tap direkt auf den Verkäufer das Einkaufsfenster.
-- Während das Einkaufsfenster offen ist, liegt kein alter Ladenbutton mehr darüber.
-- Im Einkaufsfenster gibt es nur `← LADEN`.
-- Im Laden selbst bleibt `← STRASSE` erhalten.
+- Tippen auf einen Slot verschiebt die helle Auswahlmarkierung.
+- Wird Gatorade oder Monster ausgewählt, erscheint über der Hotbar ein
+  robuster nativer Button `TRINKEN`.
+- Erst `TRINKEN` startet die Trinkanimation.
+- Beim Ausrüsten über ITEMS wird der entsprechende Getränkeslot automatisch
+  ausgewählt.
+- Leere Slots sind ebenfalls auswählbar.
+- Ticket und Getränke können damit unabhängig voneinander ausgewählt werden.
 
-### Neue Store-Items
+## 2. Ticket = genau eine Fahrt
 
-#### Gatorade
-- giftgrüne Flasche
-- Preis: 10 Coins
-- regeneriert 10 HP
-- wird beim Trinken verbraucht
+Das Tram-Ticket gilt jetzt nur noch für **eine** Fahrt.
 
-#### Monster Energy
-- orange Dose
-- Preis: 30 Coins
-- regeneriert 30 HP
-- wird beim Trinken verbraucht
+Sobald ein Ziel gewählt wurde:
 
-Beide Items können mehrfach gekauft werden.
+- Ticket wird verbraucht,
+- Ticket verschwindet aus ITEMS,
+- Ticket verschwindet aus der Hotbar,
+- der weiße Einstiegspunkt verschwindet.
 
-### Items / Ausrüsten
+Am Ziel muss für eine weitere Fahrt ein neues Ticket gekauft werden.
 
-Gekaufte Getränke erscheinen unter `ITEMS`.
+## 3. Zielauswahl an der Tram
 
-Jedes Item kann dort:
-- über `AUSRÜSTEN` in die Hotbar gelegt werden
-- über das kleine `i` erklärt werden
+Mit gültigem Ticket öffnet ein Tap auf die Tram nun immer:
 
-Auch das Ticket besitzt jetzt ein kleines `i`.
+`WOHIN?`
 
-### Hotbar / Trinken
+Aktuelle Ziele:
 
-- Gatorade und Monster erscheinen nach dem Ausrüsten in der bestehenden Hotbar.
-- Tap auf ein Getränk in der Hotbar startet eine Trinkanimation:
-  - Flasche/Dose bewegt sich zu Simons Mund
-  - kippt sichtbar
-  - Simon bewegt sich dabei leicht
-  - anschließend wird HP regeneriert
-  - das verbrauchte Item wird aus dem Inventar abgezogen
-- Ist der Bestand danach 0, verschwindet das Item automatisch aus der Hotbar.
+- Milchbuck -> Bahnhofstrasse/HB
+- Bahnhofstrasse/HB -> Milchbuck
 
-### Developer Mode
+Die Struktur ist so angelegt, dass später weitere Haltestellen als weitere
+Zielbuttons ergänzt werden können.
 
-Wenn Developer Mode AN ist:
-- wird intern ein sehr großer Coin-Vorrat verwendet
-- das normale Coin-HUD zeigt `∞`
-- Ticketkäufe und die neuen Store-Items ziehen keine Coins ab
-- auch ein normaler Story-Start über das Developer-Menü behält den Developer-Status
+## 4. Ticketautomat Bahnhofstrasse/HB
 
-### Info-Buttons
+An Bahnhofstrasse/HB steht jetzt ebenfalls ein anklickbarer Ticketautomat.
+Ein dort gekauftes Ticket aktiviert den weißen Punkt an der wartenden Tram.
 
-Im Store und im Items-Menü hat jedes relevante Item ein kleines `i`.
-Dort werden Preis/Wirkung bzw. die Funktion des Items erklärt.
+## 5. Fahrt zurück nach Milchbuck
+
+Mit einem neuen Ticket kann Simon an Bahnhofstrasse/HB `MILCHBUCK` wählen.
+Er steigt wieder ein, die Tram fährt ab, die Szene blendet aus und Simon
+kommt wieder in Milchbuck an. Coins, HP, Getränkeinventar und Hotbar werden
+mitgenommen; das verwendete Ticket ist verbraucht.
+
+## 6. iPhone-Steuerung vor „Der Inder“
+
+Der Fehler war tatsächlich ein Layer-Konflikt:
+
+- Laden-Hitbox: jetzt niedrige Input-Ebene
+- Touch-Pfeile: sehr hohe HUD-/Input-Ebene
+- Phaser `topOnly` wird explizit aktiviert
+
+Damit gewinnt ein Tap auf ← oder → immer gegen die dahinterliegende
+Laden-Hitbox und öffnet nicht mehr versehentlich `Betreten?`.
 
 ## Cache
 
-- `game.js?v=12`
-- `script.js?v=11`
-
-Die Versionen von `hive-expansion.js` und `flight-intro.js` bleiben unverändert.
+`game.js` wird jetzt als `game.js?v=14` geladen.
