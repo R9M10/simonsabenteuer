@@ -28,7 +28,11 @@
     }
 
     preload() {
-      this.load.spritesheet("simon", "assets/simon-spritesheet.png", {
+      this.load.on("loaderror", (file) => {
+        console.error("Asset konnte nicht geladen werden:", file?.src || file?.key);
+      });
+
+      this.load.spritesheet("simon", "simon-spritesheet.png", {
         frameWidth: 240,
         frameHeight: 280
       });
@@ -39,6 +43,23 @@
       this.cameras.main.setBackgroundColor("#10172a");
 
       this.createBackdrop();
+
+      if (!this.textures.exists("simon")) {
+        this.add.text(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT / 2,
+          "SIMON-SPRITE FEHLT\n\nsimon-spritesheet.png\nmuss im Hauptordner liegen.",
+          {
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "11px",
+            color: "#ffdf8a",
+            align: "center",
+            lineSpacing: 8
+          }
+        ).setOrigin(0.5);
+        return;
+      }
+
       this.createAnimations();
       this.createGround();
       this.createPlayer();
@@ -127,6 +148,11 @@
     }
 
     createKeyboardControls() {
+      if (!this.input.keyboard) {
+        this.cursors = { left: { isDown: false }, right: { isDown: false }, up: null };
+        return;
+      }
+
       this.cursors = this.input.keyboard.createCursorKeys();
       this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
       this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
@@ -223,13 +249,13 @@
       const onGround = body.blocked.down || body.touching.down;
 
       const leftDown =
-        this.cursors.left.isDown ||
-        this.keyA.isDown ||
+        Boolean(this.cursors?.left?.isDown) ||
+        Boolean(this.keyA?.isDown) ||
         this.touchLeft;
 
       const rightDown =
-        this.cursors.right.isDown ||
-        this.keyD.isDown ||
+        Boolean(this.cursors?.right?.isDown) ||
+        Boolean(this.keyD?.isDown) ||
         this.touchRight;
 
       let moveDirection = 0;
@@ -243,10 +269,13 @@
         this.player.setFlipX(moveDirection < 0);
       }
 
-      const keyboardJump =
-        Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
-        Phaser.Input.Keyboard.JustDown(this.keyW) ||
-        Phaser.Input.Keyboard.JustDown(this.keySpace);
+      const keyboardJump = this.input.keyboard
+        ? (
+            Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+            Phaser.Input.Keyboard.JustDown(this.keyW) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace)
+          )
+        : false;
 
       const wantsJump = keyboardJump || this.touchJumpRequested;
       this.touchJumpRequested = false;
@@ -257,7 +286,7 @@
       }
 
       const wantsShoot =
-        Phaser.Input.Keyboard.JustDown(this.keyShoot) ||
+        (this.input.keyboard && Phaser.Input.Keyboard.JustDown(this.keyShoot)) ||
         this.touchShootRequested;
 
       this.touchShootRequested = false;
