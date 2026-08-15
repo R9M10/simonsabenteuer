@@ -1,35 +1,34 @@
 (() => {
   "use strict";
 
+  if (window.__SIMON_ANIMATION_FIX_V6__) return;
+  window.__SIMON_ANIMATION_FIX_V6__ = true;
+
   const originalStartSimonGame = window.startSimonGame;
 
   if (typeof originalStartSimonGame !== "function") {
-    console.error("Animation-Fix 5.1: startSimonGame wurde nicht gefunden.");
+    console.error("Animation-Fix v6: startSimonGame wurde nicht gefunden.");
     return;
   }
 
   window.startSimonGame = function startSimonGameWithAnimationFix(...args) {
     const game = originalStartSimonGame.apply(this, args);
-
     if (game) {
       waitForScene(game);
     }
-
     return game;
   };
 
   function waitForScene(game, attempt = 0) {
-    const scene =
-      game.scene?.getScene("MilchbuckScene") ||
-      game.scene?.getScene("PrototypeScene");
+    const scene = game.scene?.getScene("MilchbuckScene") || game.scene?.getScene("PrototypeScene");
 
     if (scene?.player?.body) {
       installAnimationFix(scene);
       return;
     }
 
-    if (attempt >= 140) {
-      console.error("Animation-Fix 5.1: Spielszene wurde nicht rechtzeitig bereit.");
+    if (attempt >= 160) {
+      console.error("Animation-Fix v6: Spielszene wurde nicht rechtzeitig bereit.");
       return;
     }
 
@@ -37,27 +36,15 @@
   }
 
   function installAnimationFix(scene) {
-    if (scene.__simonAnimationFixInstalled51) return;
-    scene.__simonAnimationFixInstalled51 = true;
+    if (scene.__simonAnimationFixInstalledV6) return;
+    scene.__simonAnimationFixInstalledV6 = true;
 
     /*
-      LAUFEN
-
-      Das Original verwendet 8–17 linear. Mehrere davon sind fast identische
-      Beinpositionen (vor allem 10–12), wodurch Simon optisch kurz "hängen"
-      bleibt. Gleichzeitig ist Frame 17 bereits sehr nah an einer Idle-/Walk-Pose.
-
-      Wir benutzen deshalb nur die deutlich unterscheidbaren Schlüsselposen:
-      8  = Kontakt / langer Schritt
-      9  = Bein hebt ab
-      10 = frühe Schwungphase
-      11 = große Schwungphase
-      13 = Landung / Kompression
-      14 = Durchgang
-      15 = Gegenschritt
-      16 = Rückkehr zum Kontakt
-
-      Kein Ping-Pong: die Bewegung läuft immer vorwärts durch den Zyklus.
+      RUN FIX
+      Das Problem liegt nicht nur im Loop, sondern in der Auswahl der Frames.
+      Deshalb definieren wir einen komplett neuen Run-Zyklus auf Basis der
+      brauchbarsten Laufposen. Weniger "hängende" Zwischenbilder, klarere
+      Beinwechsel, dadurch flüssiger.
     */
     if (scene.anims.exists("simon-run")) {
       scene.anims.remove("simon-run");
@@ -65,17 +52,10 @@
 
     scene.anims.create({
       key: "simon-run",
-      frames: [
-        { key: "simon", frame: 8,  duration: 78 },
-        { key: "simon", frame: 9,  duration: 62 },
-        { key: "simon", frame: 10, duration: 58 },
-        { key: "simon", frame: 11, duration: 62 },
-        { key: "simon", frame: 13, duration: 72 },
-        { key: "simon", frame: 14, duration: 66 },
-        { key: "simon", frame: 15, duration: 62 },
-        { key: "simon", frame: 16, duration: 72 }
-      ],
-      frameRate: 14,
+      frames: scene.anims.generateFrameNumbers("simon", {
+        frames: [8, 9, 10, 11, 12, 13, 14, 15, 14, 13, 12, 11]
+      }),
+      frameRate: 16,
       repeat: -1,
       skipMissedFrames: true
     });
@@ -83,25 +63,15 @@
     let wasGrounded = true;
     let landingUntil = 0;
 
-    /*
-      SPRINGEN
-      Die bestehende Verbesserung bleibt: nicht 18–25 blind als Film abspielen,
-      sondern eine passende Pose anhand der echten Y-Geschwindigkeit wählen.
-      Das ist jetzt zusätzlich mit uiLocked/dialogues kompatibel.
-    */
     scene.events.on("postupdate", (time) => {
       const player = scene.player;
       const body = player?.body;
-
       if (!player || !body) return;
 
       const grounded = body.blocked.down || body.touching.down;
-      const shooting =
-        typeof scene.shootingUntil === "number" &&
-        time < scene.shootingUntil;
+      const shooting = typeof scene.shootingUntil === 'number' && time < scene.shootingUntil;
 
-      // Bei Ticketmodal/Dialog/Türsteher-Dialogen lässt der Fix die aktuelle
-      // Spiellogik vollständig in Ruhe.
+      // Dialoge / Modal / UI-Lock unangetastet lassen.
       if (scene.uiLocked) {
         wasGrounded = grounded;
         return;
@@ -112,22 +82,21 @@
         return;
       }
 
+      // Jump fix bleibt aktiv.
       if (!grounded) {
         wasGrounded = false;
         player.anims.stop();
 
         const vy = body.velocity.y;
-
         if (vy < -260) {
-          player.setFrame(19); // kräftiger Absprung
+          player.setFrame(19);
         } else if (vy < -80) {
-          player.setFrame(20); // Aufstieg
+          player.setFrame(20);
         } else if (vy < 100) {
-          player.setFrame(21); // Scheitelpunkt
+          player.setFrame(21);
         } else {
-          player.setFrame(22); // Fall
+          player.setFrame(22);
         }
-
         return;
       }
 
@@ -142,6 +111,6 @@
       }
     });
 
-    console.info("Simon Animation-Fix 5.1 aktiv.");
+    console.info("Simon Animation-Fix v6 aktiv.");
   }
 })();
