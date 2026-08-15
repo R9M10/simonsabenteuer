@@ -1,64 +1,76 @@
-# Simons Abenteuer – Zigarette + Orell Füssli v17
+# Simons Abenteuer – Milchmann Story Fight v18
 
-Aktueller GitHub-Ausgangsstand vor der Änderung:
+Unmittelbar vor dem Build wurde der aktuelle Repository-Stand geprüft:
 
-- `game.js`: `c211bedb4ab40a540184694ffb0c7fe2b8ae03bd`
-- `index.html`: `0a7fa9ea1d8127fa47ef3b7e89b8ac9b6f157e33`
-- `hive-expansion.js`: `dae204ca8f2bef85e0fb64a1f5487c224d5444e4`
+- `game.js`: `81f566e68b5e74c8997a9f48dda0723e88b0c8e6`
+- `index.html`: `0179c7d461056d7991094abdd06aadd9bcc18c52`
+- `hive-expansion.js`: `b9f89ac568cb0954cb0e72a7a897ddf95c25f98f` (Version 14.2)
 
-Die aktuelle HIVE-Datei bleibt unangetastet.
+Die aktuelle `hive-expansion.js` deiner Freundin wird **nicht ersetzt**.
 
-## Zu ersetzen
+## Dateien ersetzen
 
 - `game.js`
 - `index.html`
 
-## Zigarette
+## Milchmann-Story
 
-Das bisherige sichtbare Item `Camel Gelb` heißt nun überall einfach:
+Beim **ersten Verlassen von Orell Füssli**:
 
-`Zigarette`
+1. Ein weiß-blauer Milchlieferwagen fährt von rechts ins aktuelle Kamerabild.
+2. Ein wütender Milchmann steigt aus.
+3. Dialog per Bildschirmtap:
+   - `Dich kenn ich doch!`
+   - `Din Fründ het mer mini Milch klaut!`
+   - `Jetzt wirsch mini rache spüre!`
+4. Nach dem nächsten Tap beginnt der Kampf.
 
-Das Symbol in Store, ITEMS und Hotbar ist keine Packung mehr, sondern eine
-einzelne Zigarette.
+### Kampf
 
-Der Sprint läuft weiterhin 60 Sekunden, ist jetzt aber nicht mehr doppelt
-so schnell:
+- Milchmann: 100 HP.
+- Seine exakte Healthbar steht direkt über ihm und bewegt sich mit ihm.
+- Alle 2 Sekunden wirft er eine Milchflasche.
+- Die Flasche fliegt knapp über dem Boden, sodass Simon darüber springen kann.
+- Treffer an Simon: -10 HP + HIT-Animation.
+- X bleibt optisch Simons Schlag/Attack-Animation.
+- Ist der Milchmann in Schlagreichweite und vor Simon: -10 HP.
+- Bewegt Simon sich weit weg, folgt der Milchmann ihm.
+- Während Dialog/Kampf können keine Stores betreten werden.
+- Während Dialog/Kampf kann auch nicht per Tram aus dem Kampf geflohen werden.
 
-- normal: 175
-- Sprint: 306.25
-- also exakt 75 % schneller
+Nach 0 HP fällt der Milchmann um und bleibt anklickbar.
 
-## Orell Füssli
+Dann:
 
-Weiter rechts neben `Der Inder` steht jetzt der Buchladen:
+`Milchmann beklauen?`
 
-`ORELL FÜSSLI`
+- JA -> +500 Coins (einmalig)
+- NEIN -> Fenster schließt
 
-Er ist anklickbar und hat wieder den stabilen Ablauf:
+## Store-Hitbox-Fix
 
-`Betreten?` -> `JA / NEIN`
+`Der Inder` und `Orell Füssli` reagieren jetzt nur noch auf ihre Fassaden
+**oberhalb der Tramgleise**.
 
-Innen gibt es ein großes Bücherregal. Ein Tap auf das Regal öffnet den
-Bücherkatalog.
+Zusätzlich werden ihre Welt-Hitboxen deaktiviert, sobald:
+- ITEMS offen ist,
+- ein Infofenster offen ist,
+- ein Store-/Kaufffenster offen ist,
+- ein Ticket-/Tramdialog offen ist,
+- der Milchmann-Dialog/Kampf aktiv ist.
 
-Aktuelle Bücher:
+Damit können Hotbar/Items/Touchbuttons keinen Store mehr versehentlich öffnen.
 
-1. General Relativity – 500 Coins
-2. Phänomenologie des Geistes – 300 Coins
-3. The Playbook – 1000 Coins
-4. Also sprach Zarathustra – 500 Coins
+## Rückkehr nach Milchbuck / HIVE
 
-Jedes Buch kann einmal gekauft werden. Danach zeigt es `GEKAUFT`.
-Die gekauften Bücher werden im Spielzustand gespeichert und bei Tramfahrten
-zwischen Milchbuck und Bahnhofstrasse/HB mitgenommen. Später können daran
-Abilities angebunden werden.
+Bei einer Rückkehr von Bahnhofstrasse wird der alte, erneut erzeugte
+prozedurale Türsteher entfernt.
 
-Im Developer Mode sind auch die Bücher kostenlos.
-
-Aus dem Katalog geht es mit `← LADEN` zurück und aus dem Buchladen jederzeit
-mit `← STRASSE` wieder hinaus.
+Danach wird ein frischer HIVE-Eingang erzeugt, der direkt die **aktuelle
+`HiveInteriorScene` aus `hive-expansion.js v14.2`** startet. Damit bleiben die
+neuen HIVE-Funktionen deiner Freundin (Bar/Brouwes, Frau, Wallet, Drunk-Effect
+usw.) erhalten.
 
 ## Cache
 
-`game.js?v=17`
+`game.js?v=18`

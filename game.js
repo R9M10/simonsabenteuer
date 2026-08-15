@@ -321,6 +321,12 @@
         this.updateHpBar();
         this.updateInventoryUI();
         this.updateSprintIndicator(true);
+
+        // The original street bouncer belongs to the already-resolved HIVE
+        // story. On a later return from Bahnhofstrasse he must not respawn.
+        // Rebuild only the HIVE entrance and hand it to the latest HIVE
+        // expansion so all of its current interior options remain available.
+        this.restoreHiveAfterStoryReturn();
       }
 
       // Developer-Startziele werden erst NACH der normalen Szeneninitialisierung
@@ -356,6 +362,66 @@
       this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
       this.cameras.main.setDeadzone(240, 80);
       this.cameras.main.roundPixels = true;
+    }
+
+    restoreHiveAfterStoryReturn() {
+      // Remove the procedural/old bouncer created again by createWorld().
+      if (this.bouncer) {
+        this.tweens.killTweensOf(this.bouncer);
+        this.bouncer.removeAllListeners?.();
+        this.bouncer.destroy?.(true);
+        this.bouncer = null;
+      }
+
+      // Remove stale references to a door from a previous scene run.
+      const oldZone = this.__hiveV12DoorZone;
+      const oldLabel = this.__hiveV12DoorLabel;
+
+      if (oldZone?.active) oldZone.destroy?.();
+      if (oldLabel?.active) oldLabel.destroy?.();
+
+      const zone = this.add.zone(1700, 282, 100, 116)
+        .setDepth(90)
+        .setInteractive({ useHandCursor: true });
+
+      const label = this.add.text(1700, 208, "HIVE ↥", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "7px",
+        color: "#ffe6a5",
+        backgroundColor: "#34203f",
+        padding: { x: 6, y: 5 }
+      })
+        .setOrigin(0.5)
+        .setDepth(91);
+
+      zone.on("pointerup", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.enterLatestHiveInterior();
+      });
+
+      this.hiveEntranceUnlocked = true;
+      this.__hiveV12DoorZone = zone;
+      this.__hiveV12DoorLabel = label;
+    }
+
+    enterLatestHiveInterior() {
+      if (
+        this.playerDying ||
+        this.uiLocked ||
+        !this.game?.scene?.keys?.HiveInteriorScene ||
+        this.game.scene.isActive("HiveInteriorScene")
+      ) {
+        return;
+      }
+
+      this.setUILocked(true);
+      this.scene.pause();
+
+      this.game.scene.start("HiveInteriorScene", {
+        overworld: this,
+        simonDances: false
+      });
     }
 
     createWorld() {
@@ -4209,6 +4275,25 @@
       this.bookstoreBackUI = null;
       this.bookstoreShelfHitbox = null;
       this.bookstoreCatalogModal = null;
+
+      // Story encounter after leaving Orell Füssli for the first time.
+      this.milkmanEncounterStarted = false;
+      this.milkmanDialogueActive = false;
+      this.milkmanDialogueStep = 0;
+      this.milkmanDialogueBubble = null;
+      this.milkVan = null;
+      this.milkman = null;
+      this.milkmanMaxHp = 100;
+      this.milkmanHp = 100;
+      this.milkmanHealthBar = null;
+      this.milkmanHealthFill = null;
+      this.milkmanFightActive = false;
+      this.milkmanDefeated = false;
+      this.milkmanLooted = false;
+      this.milkmanLootModal = null;
+      this.milkBottles = [];
+      this.nextMilkBottleAt = 0;
+      this.nextMilkmanPunchAt = 0;
     }
 
     init(data = {}) {
@@ -4330,6 +4415,25 @@
       this.cameras.main.fadeIn(650, 0, 0, 0);
 
       this.time.delayedCall(320, () => this.playArrivalAnimation());
+
+      this.input.on("pointerup", (pointer, currentlyOver) => {
+        if (!this.milkmanDialogueActive) return;
+
+        // Don't advance dialogue when a DOM UI element is actually active.
+        if (
+          this.itemsModal ||
+          this.ticketModal ||
+          this.storeEntryModal ||
+          this.bookstoreEntryModal ||
+          this.indianStoreOverlay ||
+          this.bookstoreOverlay
+        ) {
+          return;
+        }
+
+        this.advanceMilkmanDialogue();
+      });
+
       this.cameras.main.roundPixels = true;
     }
 
@@ -4707,13 +4811,25 @@
       veg.fillRoundedRect(x + 103, GROUND_TOP - 24, 18, 20, 5);
 
       // Die gesamte Fassade ist großzügig anklickbar.
-      this.indianStoreHitbox = this.add.zone(x + w / 2, y + h / 2, w + 18, h + 18)
+      // Only the facade ABOVE the tram tracks is clickable. The street,
+      // touch controls and hotbar below it can never trigger this store.
+      const clickableBottom = 278;
+      const clickableHeight = clickableBottom - y;
+
+      this.indianStoreHitbox = this.add.zone(
+        x + w / 2,
+        y + clickableHeight / 2,
+        w - 18,
+        clickableHeight
+      )
         .setDepth(40)
         .setInteractive({ useHandCursor: true });
 
       this.indianStoreHitbox.on("pointerdown", (pointer) => {
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
+
+        if (!this.canOpenStreetStore(pointer)) return;
         this.openIndianStorePrompt();
       });
     }
@@ -4762,11 +4878,14 @@
         .setOrigin(0.5)
         .setDepth(-1);
 
+      const clickableBottom = 278;
+      const clickableHeight = clickableBottom - y;
+
       this.bookstoreHitbox = this.add.zone(
         x + w / 2,
-        y + h / 2,
-        w + 12,
-        h + 12
+        y + clickableHeight / 2,
+        w - 20,
+        clickableHeight
       )
         .setDepth(40)
         .setInteractive({ useHandCursor: true });
@@ -4774,7 +4893,60 @@
       this.bookstoreHitbox.on("pointerdown", (pointer) => {
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
+
+        if (!this.canOpenStreetStore(pointer)) return;
         this.openBookstorePrompt();
+      });
+    }
+
+    canOpenStreetStore(pointer) {
+      // Stores are intentionally facade-only interactions.
+      if (pointer && Number.isFinite(pointer.worldY) && pointer.worldY >= 279) {
+        return false;
+      }
+
+      if (!this.arrivalFinished || this.playerDying) return false;
+
+      // Absolutely no world-store interaction while any overlay/menu is open.
+      if (
+        this.uiLocked ||
+        this.itemsModal ||
+        this.itemInfoModal ||
+        this.ticketModal ||
+        this.tramDestinationModal ||
+        this.storeEntryModal ||
+        this.indianStoreOverlay ||
+        this.shopModal ||
+        this.bookstoreEntryModal ||
+        this.bookstoreOverlay ||
+        this.bookstoreCatalogModal ||
+        this.itemsModal ||
+        this.itemInfoModal ||
+        this.shopModal ||
+        this.milkmanDialogueActive ||
+        this.milkmanFightActive ||
+        this.milkmanDialogueActive ||
+        this.milkmanFightActive ||
+        this.milkmanLootModal
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+
+    syncStreetStoreHitboxes() {
+      const enabled = Boolean(
+        this.arrivalFinished &&
+        !this.uiLocked &&
+        !this.milkmanDialogueActive &&
+        !this.milkmanFightActive &&
+        !this.playerDying
+      );
+
+      [this.indianStoreHitbox, this.bookstoreHitbox].forEach((zone) => {
+        if (!zone?.input) return;
+        zone.input.enabled = enabled;
       });
     }
 
@@ -5256,6 +5428,10 @@
       this.refreshUILock();
       this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
       this.cameras.main.setDeadzone(240, 80);
+
+      if (!this.milkmanEncounterStarted) {
+        this.time.delayedCall(320, () => this.startMilkmanEncounter());
+      }
     }
 
     refreshUILock() {
@@ -5278,11 +5454,14 @@
         this.bookstoreCatalogModal ||
         this.tramDestinationModal ||
         this.itemInfoModal ||
-        this.drinkingItem
+        this.drinkingItem ||
+        this.milkmanDialogueActive ||
+        this.milkmanLootModal
       );
 
       this.setUILocked(locked);
       this.updateHotbarActionUI?.();
+      this.syncStreetStoreHitboxes?.();
     }
 
     openIndianStorePrompt() {
@@ -5291,7 +5470,12 @@
         this.playerDying ||
         this.storeEntryModal ||
         this.indianStoreOverlay ||
-        this.shopModal
+        this.shopModal ||
+        this.itemsModal ||
+        this.itemInfoModal ||
+        this.bookstoreCatalogModal ||
+        this.milkmanDialogueActive ||
+        this.milkmanFightActive
       ) {
         return;
       }
@@ -5809,6 +5993,596 @@
       this.cameras.main.setDeadzone(240, 80);
     }
 
+    startMilkmanEncounter() {
+      if (
+        this.milkmanEncounterStarted ||
+        this.playerDying ||
+        !this.arrivalFinished
+      ) {
+        return;
+      }
+
+      this.milkmanEncounterStarted = true;
+      this.milkmanDialogueActive = true;
+      this.milkmanDialogueStep = 0;
+      this.milkmanHp = this.milkmanMaxHp;
+
+      this.setUILocked(true);
+      this.syncStreetStoreHitboxes();
+
+      const cameraRight = this.cameras.main.worldView.right;
+      const vanStartX = Math.min(WORLD_WIDTH - 150, cameraRight + 310);
+      const vanStopX = Math.min(WORLD_WIDTH - 210, cameraRight - 70);
+
+      this.milkVan = this.createMilkVan(vanStartX, 248);
+
+      this.tweens.add({
+        targets: this.milkVan,
+        x: vanStopX,
+        duration: 1250,
+        ease: "Sine.easeOut",
+        onComplete: () => {
+          this.time.delayedCall(250, () => {
+            this.milkman = this.createMilkman(vanStopX + 40, GROUND_TOP - 8);
+            this.milkman.setAlpha(0);
+
+            this.tweens.add({
+              targets: this.milkman,
+              x: vanStopX - 78,
+              alpha: 1,
+              duration: 560,
+              ease: "Back.easeOut",
+              onComplete: () => {
+                this.faceMilkmanTowardSimon();
+                this.showMilkmanDialogue("Dich kenn ich doch!");
+
+                // Screen taps advance only this dialogue.
+                this.dialogueIgnoreUntil = this.time.now + 300;
+              }
+            });
+          });
+        }
+      });
+    }
+
+    createMilkVan(x, y) {
+      const van = this.add.container(x, y).setDepth(12);
+      const g = this.add.graphics();
+
+      // White milk delivery van.
+      g.fillStyle(0xf2f3ee, 1);
+      g.fillRoundedRect(-105, -52, 210, 78, 12);
+      g.fillStyle(0xd9e7ee, 1);
+      g.fillRect(-82, -39, 58, 31);
+      g.fillRect(40, -39, 44, 31);
+
+      g.fillStyle(0x5a96bb, 1);
+      g.fillRect(-105, 4, 210, 22);
+
+      g.fillStyle(0x24313a, 1);
+      g.fillCircle(-62, 29, 18);
+      g.fillCircle(65, 29, 18);
+      g.fillStyle(0xaeb7ba, 1);
+      g.fillCircle(-62, 29, 8);
+      g.fillCircle(65, 29, 8);
+
+      // Milk bottle emblem.
+      g.fillStyle(0xffffff, 1);
+      g.fillRoundedRect(-5, -35, 19, 37, 4);
+      g.fillRect(0, -43, 9, 9);
+      g.fillStyle(0x5a96bb, 1);
+      g.fillRect(-1, -18, 11, 12);
+
+      const label = this.add.text(5, -6, "MILCH", {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "8px",
+        color: "#24506b"
+      }).setOrigin(0.5);
+
+      van.add([g, label]);
+      return van;
+    }
+
+    createMilkman(x, groundY) {
+      const man = this.add.container(x, groundY - 68).setDepth(32);
+      const g = this.add.graphics();
+
+      // Legs / boots.
+      g.fillStyle(0x26323a, 1);
+      g.fillRect(-18, 29, 13, 45);
+      g.fillRect(5, 29, 13, 45);
+      g.fillStyle(0x151a1d, 1);
+      g.fillRect(-22, 69, 21, 9);
+      g.fillRect(1, 69, 22, 9);
+
+      // White-blue milkman uniform.
+      g.fillStyle(0xe8ece9, 1);
+      g.fillRoundedRect(-28, -26, 56, 62, 8);
+      g.fillStyle(0x4f86a9, 1);
+      g.fillRect(-28, 9, 56, 10);
+      g.fillRect(-5, -26, 10, 62);
+
+      // Arms.
+      g.fillStyle(0xd0a17e, 1);
+      g.fillRoundedRect(-36, -13, 12, 42, 5);
+      g.fillRoundedRect(24, -13, 12, 42, 5);
+
+      // Head.
+      g.fillStyle(0xd2a27e, 1);
+      g.fillRoundedRect(-18, -58, 36, 34, 8);
+
+      // Hair + cap.
+      g.fillStyle(0x44362e, 1);
+      g.fillRect(-16, -60, 32, 7);
+      g.fillStyle(0xe8ece9, 1);
+      g.fillRect(-21, -67, 42, 10);
+      g.fillStyle(0x4f86a9, 1);
+      g.fillRect(-23, -59, 46, 5);
+
+      // Angry eyebrows / mouth.
+      g.lineStyle(3, 0x36251f, 1);
+      g.lineBetween(-12, -49, -4, -45);
+      g.lineBetween(4, -45, 12, -49);
+      g.lineBetween(-8, -31, 8, -31);
+
+      man.add(g);
+      man.setSize(82, 150);
+
+      return man;
+    }
+
+    faceMilkmanTowardSimon() {
+      if (!this.milkman || !this.player) return;
+      this.milkman.scaleX = this.player.x < this.milkman.x ? -1 : 1;
+    }
+
+    showMilkmanDialogue(message) {
+      this.clearMilkmanDialogue();
+
+      if (!this.milkman) return;
+
+      this.milkmanDialogueBubble = this.createSpeechBubble(
+        this.milkman.x,
+        this.milkman.y - 120,
+        message,
+        0
+      ).setDepth(120);
+    }
+
+    clearMilkmanDialogue() {
+      if (this.milkmanDialogueBubble) {
+        this.milkmanDialogueBubble.destroy(true);
+        this.milkmanDialogueBubble = null;
+      }
+    }
+
+    advanceMilkmanDialogue() {
+      if (
+        !this.milkmanDialogueActive ||
+        this.time.now < this.dialogueIgnoreUntil
+      ) {
+        return false;
+      }
+
+      if (this.milkmanDialogueStep === 0) {
+        this.milkmanDialogueStep = 1;
+        this.showMilkmanDialogue("Din Fründ het mer mini Milch klaut!");
+        this.dialogueIgnoreUntil = this.time.now + 240;
+        return true;
+      }
+
+      if (this.milkmanDialogueStep === 1) {
+        this.milkmanDialogueStep = 2;
+        this.showMilkmanDialogue("Jetzt wirsch mini rache spüre!");
+        this.dialogueIgnoreUntil = this.time.now + 240;
+        return true;
+      }
+
+      this.clearMilkmanDialogue();
+      this.milkmanDialogueActive = false;
+      this.startMilkmanFight();
+      return true;
+    }
+
+    startMilkmanFight() {
+      if (!this.milkman || this.milkmanDefeated) return;
+
+      this.milkmanFightActive = true;
+      this.milkmanHp = this.milkmanMaxHp;
+      this.nextMilkBottleAt = this.time.now + 750;
+      this.nextMilkmanPunchAt = 0;
+
+      this.createMilkmanHealthBar();
+      this.setUILocked(false);
+      this.setControlsVisible(true);
+      this.syncStreetStoreHitboxes();
+    }
+
+    createMilkmanHealthBar() {
+      this.destroyMilkmanHealthBar();
+
+      const container = this.add.container(
+        this.milkman.x,
+        this.milkman.y - 98
+      ).setDepth(130);
+
+      const frame = this.add.graphics();
+      frame.fillStyle(0x16191c, 0.95);
+      frame.fillRoundedRect(-52, -8, 104, 16, 4);
+      frame.lineStyle(2, 0xf4eee2, 0.9);
+      frame.strokeRoundedRect(-52, -8, 104, 16, 4);
+
+      this.milkmanHealthFill = this.add.rectangle(
+        -48,
+        0,
+        96,
+        9,
+        0xcf4148
+      ).setOrigin(0, 0.5);
+
+      container.add([frame, this.milkmanHealthFill]);
+      this.milkmanHealthBar = container;
+      this.updateMilkmanHealthBar();
+    }
+
+    updateMilkmanHealthBar() {
+      if (!this.milkmanHealthBar || !this.milkman) return;
+
+      const ratio = Phaser.Math.Clamp(
+        this.milkmanHp / this.milkmanMaxHp,
+        0,
+        1
+      );
+
+      this.milkmanHealthFill.displayWidth = 96 * ratio;
+      this.milkmanHealthBar.setPosition(
+        this.milkman.x,
+        this.milkman.y - 105
+      );
+    }
+
+    destroyMilkmanHealthBar() {
+      if (this.milkmanHealthBar) {
+        this.milkmanHealthBar.destroy(true);
+        this.milkmanHealthBar = null;
+        this.milkmanHealthFill = null;
+      }
+    }
+
+    createMilkBottleProjectile() {
+      if (
+        !this.milkmanFightActive ||
+        !this.milkman ||
+        this.milkmanDefeated ||
+        this.playerDying
+      ) {
+        return;
+      }
+
+      const direction = this.player.x < this.milkman.x ? -1 : 1;
+      this.faceMilkmanTowardSimon();
+
+      const bottle = this.add.container(
+        this.milkman.x + direction * 28,
+        GROUND_TOP - 30
+      ).setDepth(28);
+
+      const g = this.add.graphics();
+      g.fillStyle(0xf5f6ef, 1);
+      g.fillRoundedRect(-7, -12, 14, 24, 4);
+      g.fillRect(-4, -18, 8, 7);
+      g.fillStyle(0x80acd1, 1);
+      g.fillRect(-5, -3, 10, 8);
+      g.lineStyle(2, 0x80919a, 1);
+      g.strokeRoundedRect(-7, -12, 14, 24, 4);
+      bottle.add(g);
+
+      this.physics.add.existing(bottle);
+      bottle.body.setSize(16, 34);
+      bottle.body.setAllowGravity(false);
+      bottle.body.setVelocityX(direction * 225);
+
+      bottle.__milkHit = false;
+      this.milkBottles.push(bottle);
+
+      this.physics.add.overlap(
+        this.player,
+        bottle,
+        () => this.hitSimonWithMilkBottle(bottle),
+        null,
+        this
+      );
+    }
+
+    hitSimonWithMilkBottle(bottle) {
+      if (
+        !bottle?.active ||
+        bottle.__milkHit ||
+        !this.milkmanFightActive ||
+        this.playerDying
+      ) {
+        return;
+      }
+
+      bottle.__milkHit = true;
+      bottle.destroy(true);
+
+      this.hp = Math.max(0, this.hp - 10);
+      this.updateHpBar();
+      this.showImpact(this.player.x, this.player.y - 55, "-10");
+      this.cameras.main.shake(110, 0.006);
+
+      if (this.hp <= 0) {
+        this.killSimonAndRestart();
+        return;
+      }
+
+      this.playerHitUntil = this.time.now + 320;
+      this.player.anims.stop();
+      this.player.play("simon-hit", true);
+      this.player.setTint(0xcfe9ff);
+
+      this.time.delayedCall(320, () => {
+        if (this.playerDying) return;
+        this.player.clearTint();
+      });
+    }
+
+    performMilkmanPunch(time) {
+      if (
+        !this.milkmanFightActive ||
+        !this.milkman ||
+        this.milkmanDefeated ||
+        time < this.nextMilkmanPunchAt
+      ) {
+        return;
+      }
+
+      this.nextMilkmanPunchAt = time + 420;
+
+      const dx = this.milkman.x - this.player.x;
+      const facingCorrect =
+        Math.sign(dx || this.facing) === this.facing;
+
+      if (Math.abs(dx) > 105 || !facingCorrect) {
+        return;
+      }
+
+      this.milkmanHp = Math.max(0, this.milkmanHp - 10);
+      this.showImpact(this.milkman.x, this.milkman.y - 48, "POW!");
+      this.cameras.main.shake(70, 0.003);
+      this.updateMilkmanHealthBar();
+
+      this.tweens.add({
+        targets: this.milkman,
+        x: this.milkman.x + Math.sign(dx || 1) * 16,
+        duration: 90,
+        yoyo: true
+      });
+
+      if (this.milkmanHp <= 0) {
+        this.defeatMilkman();
+      }
+    }
+
+    updateMilkmanFight(time, delta) {
+      if (
+        !this.milkmanFightActive ||
+        !this.milkman ||
+        this.milkmanDefeated ||
+        this.playerDying
+      ) {
+        return;
+      }
+
+      // Follow Simon if he moves far enough that the encounter would leave
+      // the camera. Within fighting range he holds his ground and throws.
+      const dx = this.player.x - this.milkman.x;
+      const followThreshold = 300;
+
+      if (Math.abs(dx) > followThreshold) {
+        const direction = Math.sign(dx) || 1;
+        this.milkman.x += direction * 125 * (delta / 1000);
+        this.faceMilkmanTowardSimon();
+      }
+
+      this.updateMilkmanHealthBar();
+
+      if (time >= this.nextMilkBottleAt) {
+        this.nextMilkBottleAt = time + 2000;
+        this.createMilkBottleProjectile();
+      }
+
+      // Remove projectiles that have left the active world/camera area.
+      this.milkBottles = this.milkBottles.filter((bottle) => {
+        if (!bottle?.active) return false;
+
+        const tooFar =
+          bottle.x < this.cameras.main.worldView.left - 160 ||
+          bottle.x > this.cameras.main.worldView.right + 160;
+
+        if (tooFar) {
+          bottle.destroy(true);
+          return false;
+        }
+
+        return true;
+      });
+    }
+
+    defeatMilkman() {
+      if (this.milkmanDefeated || !this.milkman) return;
+
+      this.milkmanDefeated = true;
+      this.milkmanFightActive = false;
+
+      this.milkBottles.forEach((bottle) => bottle?.destroy?.(true));
+      this.milkBottles = [];
+
+      this.destroyMilkmanHealthBar();
+
+      this.tweens.killTweensOf(this.milkman);
+      this.milkman.setAngle(84);
+      this.milkman.setY(GROUND_TOP - 17);
+      this.milkman.setDepth(25);
+      this.milkman.setSize(120, 75);
+      this.milkman.setInteractive({ useHandCursor: true });
+
+      this.milkman.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openMilkmanLootModal();
+      });
+
+      this.showImpact(this.milkman.x, this.milkman.y - 35, "K.O.!");
+      this.syncStreetStoreHitboxes();
+    }
+
+    openMilkmanLootModal() {
+      if (
+        !this.milkmanDefeated ||
+        this.milkmanLootModal ||
+        this.itemsModal ||
+        this.shopModal ||
+        this.bookstoreCatalogModal
+      ) {
+        return;
+      }
+
+      this.setUILocked(true);
+
+      const modal = this.createDOMModal({
+        key: "milkman-loot",
+        width: "min(88%, 460px)",
+        background: "#edf2ef",
+        border: "#4f86a9",
+        shade: "rgba(5, 7, 11, 0.7)",
+        padding: "18px"
+      });
+
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.milkmanLootModal = modal;
+
+      const question = this.createDOMText(
+        this.milkmanLooted
+          ? "Da isch nüt meh z hole."
+          : "Milchmann beklauen?",
+        {
+          fontSize: "10px",
+          color: "#24343e",
+          margin: "0 0 18px"
+        }
+      );
+
+      const row = document.createElement("div");
+      Object.assign(row.style, {
+        display: "grid",
+        gridTemplateColumns: this.milkmanLooted ? "1fr" : "1fr 1fr",
+        gap: "10px",
+        maxWidth: "310px",
+        margin: "0 auto"
+      });
+
+      if (!this.milkmanLooted) {
+        row.append(
+          this.createDOMButton(
+            "JA",
+            () => this.lootMilkman(),
+            {
+              color: "#214f32",
+              background: "#b8d7b5",
+              border: "#688568",
+              fontSize: "10px"
+            }
+          ),
+          this.createDOMButton(
+            "NEIN",
+            () => this.closeMilkmanLootModal(),
+            {
+              color: "#3d4244",
+              background: "#d6dcda",
+              border: "#78878a",
+              fontSize: "10px"
+            }
+          )
+        );
+      } else {
+        row.append(
+          this.createDOMButton(
+            "ZURÜCK",
+            () => this.closeMilkmanLootModal(),
+            {
+              color: "#3d4244",
+              background: "#d6dcda",
+              border: "#78878a",
+              fontSize: "8px"
+            }
+          )
+        );
+      }
+
+      modal.panel.append(question, row);
+      this.refreshUILock();
+    }
+
+    lootMilkman() {
+      if (this.milkmanLooted) return;
+
+      this.milkmanLooted = true;
+
+      if (!this.developerMode) {
+        this.coins += 500;
+      } else {
+        this.coins = 999999;
+      }
+
+      this.updateCoinHUD();
+      this.animateCoinGain(500);
+      this.closeMilkmanLootModal();
+    }
+
+    closeMilkmanLootModal() {
+      if (!this.milkmanLootModal) return;
+
+      this.destroyDOMModal(this.milkmanLootModal);
+      this.milkmanLootModal = null;
+      this.refreshUILock();
+    }
+
+    // During the encounter, transit and stores are intentionally blocked so
+    // the boss fight cannot be escaped into another scene/modal.
+    boardTram() {
+      if (this.milkmanDialogueActive || this.milkmanFightActive) return;
+      super.boardTram();
+    }
+
+    openItemsModal() {
+      if (this.milkmanDialogueActive) return;
+      super.openItemsModal();
+    }
+
+    update(time, delta) {
+      // Read the X press before the base update consumes touchShootRequested.
+      if (this.milkmanFightActive && !this.uiLocked && !this.playerDying) {
+        const keyboardPunch =
+          this.input.keyboard &&
+          Phaser.Input.Keyboard.JustDown(this.keyShoot);
+
+        const touchPunch = this.touchShootRequested;
+
+        if (keyboardPunch || touchPunch) {
+          this.performMilkmanPunch(time);
+        }
+      }
+
+      super.update(time, delta);
+      this.updateMilkmanFight(time, delta);
+    }
+
     getTramDestinations() {
       return [
         {
@@ -5992,6 +6766,7 @@
                   this.setUILocked(false);
                   this.ensureTicketMachineInteractive();
                   this.ensureTramBoardingInteractive();
+                  this.syncStreetStoreHitboxes();
                   this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
                   this.cameras.main.setDeadzone(240, 80);
                 }
