@@ -169,17 +169,18 @@ h1 {
 .characters {
   position: absolute;
   left: 50%;
-  bottom: 12%;
+  bottom: 15%;
   transform: translateX(-50%);
   display: flex;
-  gap: 28px;
+  gap: 24px;
   align-items: flex-end;
+  z-index: 3;
 }
 
 .character {
   position: relative;
-  width: 44px;
-  height: 92px;
+  width: 40px;
+  height: 84px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -233,45 +234,42 @@ h1 {
 .speech-bubble {
   position: absolute;
   left: 50%;
-  bottom: 31%;
-  transform: translateX(-50%);
-  width: min(78%, 480px);
-  background: rgba(255, 248, 230, 0.97);
-  color: #1c1735;
-  padding: 14px 18px 12px;
-  border: 4px solid #ffffff;
+  bottom: 43%;
+  transform: translateX(-50%) rotate(-1deg);
+  width: auto;
+  max-width: min(62%, 360px);
+  min-width: 210px;
+  background: #fffaf0;
+  color: #171326;
+  padding: 10px 14px;
+  border: 3px solid #171326;
+  border-radius: 18px;
   box-shadow:
-    0 0 0 4px #303fbb,
-    8px 8px 0 rgba(18, 22, 78, 0.85);
+    4px 5px 0 #ffffff,
+    8px 9px 0 rgba(32, 39, 127, 0.85);
   text-align: center;
+  z-index: 4;
 }
 
 .speech-bubble::after {
   content: "";
   position: absolute;
-  left: 50%;
-  bottom: -16px;
+  left: 44%;
+  bottom: -14px;
   width: 18px;
   height: 18px;
-  background: rgba(255, 248, 230, 0.97);
-  border-right: 4px solid #ffffff;
-  border-bottom: 4px solid #ffffff;
-  transform: translateX(-50%) rotate(45deg);
-  box-shadow: 4px 4px 0 rgba(18, 22, 78, 0.85);
+  background: #fffaf0;
+  border-right: 3px solid #171326;
+  border-bottom: 3px solid #171326;
+  transform: rotate(35deg) skew(-8deg, -8deg);
 }
 
 .speech-bubble p {
   margin: 0;
-  line-height: 1.6;
-  font-size: clamp(0.52rem, 1.5vw, 0.8rem);
+  line-height: 1.45;
+  font-size: clamp(0.48rem, 1.35vw, 0.72rem);
 }
 
-.tap-hint {
-  display: block;
-  margin-top: 10px;
-  opacity: 0.72;
-  font-size: clamp(0.42rem, 1vw, 0.56rem);
-}
 
 #rotate-warning {
   display: none;
@@ -316,12 +314,13 @@ h1 {
 
 @media (max-height: 430px) {
   .speech-bubble {
-    bottom: 30%;
-    padding: 12px 14px 10px;
+    bottom: 42%;
+    padding: 8px 12px;
+    min-width: 190px;
   }
 
   .characters {
-    bottom: 11%;
+    bottom: 14%;
   }
 
   #start-screen {

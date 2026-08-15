@@ -12,6 +12,8 @@ Erster spielbarer Prototyp für iPhone im Querformat (besonders gedacht für ein
 - Dialog per Tippen:
   1. `Dini Schueh sind nice.`
   2. `Aber nöd sooooo nice.`
+- Kleinere, comicartige Sprechblase ohne Weiterklick-Hinweis
+- Beide Figuren vollständig sichtbar
 
 ## Projektdateien
 
