@@ -1,18 +1,18 @@
 (() => {
   "use strict";
 
-  const VERSION = "13";
+  const VERSION = "14";
   const GROUND_TOP = 338;
   const BOUNCER_KEY = "bouncer-v12";
   const LION_KEY = "lion-v12";
 
-  if (window.__SIMON_HIVE_V12__) return;
-  window.__SIMON_HIVE_V12__ = true;
+  if (window.__SIMON_HIVE_V14__) return;
+  window.__SIMON_HIVE_V14__ = true;
 
   const wrappedStartSimonGame = window.startSimonGame;
 
   if (typeof wrappedStartSimonGame !== "function") {
-    console.error("HIVE v12: startSimonGame fehlt.");
+    console.error("HIVE v14: startSimonGame fehlt.");
     return;
   }
 
@@ -34,6 +34,12 @@
       this.coinText = null;
       this.coins = 0;
       this.brouwersCount = 0;
+      this.drunkLevel = 0;
+      this.touchDance = false;
+      this.actionLocked = false;
+      this.womanSprite = null;
+      this.speechBubble = null;
+      this.danceBobTween = null;
     }
 
     init(data = {}) {
@@ -43,6 +49,9 @@
       this.brouwersCount = Number.isFinite(this.overworld?.brouwersCount)
         ? this.overworld.brouwersCount
         : 0;
+      this.drunkLevel = Number.isFinite(this.overworld?.drunkLevel)
+        ? this.overworld.drunkLevel
+        : Math.max(0, Number(window.__SIMON_DRUNK_LEVEL__) || 0);
     }
 
     preload() {
@@ -57,6 +66,20 @@
         this.load.spritesheet(LION_KEY, "lion-spritesheet-v12.png", {
           frameWidth: 150,
           frameHeight: 110
+        });
+      }
+
+      if (!this.textures.exists("simon-actions-v14")) {
+        this.load.spritesheet("simon-actions-v14", "simon-actions-spritesheet-v14.png", {
+          frameWidth: 190,
+          frameHeight: 220
+        });
+      }
+
+      if (!this.textures.exists("woman-v14")) {
+        this.load.spritesheet("woman-v14", "woman-spritesheet-v14.png", {
+          frameWidth: 165,
+          frameHeight: 185
         });
       }
     }
@@ -74,8 +97,12 @@
       }
 
       this.cameras.main.fadeIn(320, 0, 0, 0);
+      setGlobalDrunkLevel(this.drunkLevel);
 
-      this.events.once("shutdown", () => this.cleanupDOM());
+      this.events.once("shutdown", () => {
+        this.destroySpeechBubble();
+        this.cleanupDOM();
+      });
       this.events.once("destroy", () => this.cleanupDOM());
 
       if (this.input.keyboard) {
@@ -97,18 +124,32 @@
         });
       };
 
-      make("bouncer-v12-idle", BOUNCER_KEY, [0,1,2,3], 4, -1);
-      make("bouncer-v12-talk", BOUNCER_KEY, [4,5,6,7,8,9,10,8,7], 4, -1);
-      make("bouncer-v12-run", BOUNCER_KEY, [11,12,13,14,15,16], 10, -1);
-      make("bouncer-v12-attack", BOUNCER_KEY, [17,18,19,20,21], 9, 0);
-      make("bouncer-v12-hit", BOUNCER_KEY, [22,23], 7, 0);
-      make("bouncer-v12-down", BOUNCER_KEY, [24,25,26,27], 8, 0);
+      // Türsteher: especially the dialogue is deliberately slower. His old
+      // four-fps loop changed hand poses too rapidly for spoken dialogue.
+      make("bouncer-v12-idle", BOUNCER_KEY, [0,1,2,3,2,1], 2.4, -1);
+      make("bouncer-v12-talk", BOUNCER_KEY, [4,4,5,5,6,7,8,9,10,10,9,8,7,6,5], 2.5, -1);
+      make("bouncer-v12-run", BOUNCER_KEY, [11,12,13,14,15,16], 9, -1);
+      make("bouncer-v12-attack", BOUNCER_KEY, [17,18,19,20,21], 8, 0);
+      make("bouncer-v12-hit", BOUNCER_KEY, [22,23], 6, 0);
+      make("bouncer-v12-down", BOUNCER_KEY, [24,25,26,27], 7, 0);
 
       make("lion-v12-idle", LION_KEY, [0,1,2,3], 4, -1);
-      make("lion-v12-run", LION_KEY, [4,5,6,7,8,9], 10, -1);
-      make("lion-v12-attack", LION_KEY, [10,11,12,13,14,15], 10, 0);
-      make("lion-v12-purr", LION_KEY, [16,17,18,17], 4, -1);
-      make("lion-v12-dance", LION_KEY, [20,21,20,22,20,24,21,20], 5, -1);
+      make("lion-v12-run", LION_KEY, [4,5,6,7,8,9], 9.5, -1);
+      make("lion-v12-attack", LION_KEY, [10,11,12,13,14,15], 9, 0);
+      make("lion-v12-purr", LION_KEY, [16,17,18,17], 3.5, -1);
+      make("lion-v12-dance", LION_KEY, [20,21,20,22,20,24,21,20], 4.3, -1);
+
+      // New Simon sheet is action-only. The game's established 240x280 Simon
+      // sheet remains untouched, so the friend's movement/combat work cannot break.
+      make("simon-v14-talk", "simon-actions-v14", [0,1,2,3,2,1], 3, -1);
+      make("simon-v14-dance", "simon-actions-v14", [4,5,6,7,8,9,10,9,8,7,6,5], 5.8, -1);
+      make("simon-v14-drink", "simon-actions-v14", [11,12,13,13,12,14], 5.2, 0);
+      make("simon-v14-flirt", "simon-actions-v14", [15,16,17,18,19], 4.8, 0);
+
+      make("woman-v14-idle", "woman-v14", [0,1,2,1], 2.2, -1);
+      // The clean pointing/arms gestures from the source atlas work best for rejection.
+      make("woman-v14-reject", "woman-v14", [4,5,6,7,6,5], 3.2, 0);
+      make("woman-v14-cheers", "woman-v14", [8,9,10,11,10,9], 4, 0);
     }
 
     createRoom() {
@@ -221,7 +262,7 @@
         padding: { x: 5, y: 4 }
       }).setOrigin(0.5).setDepth(25);
 
-      this.createBarWoman(657, 278);
+      this.createBarWoman(657, 315);
 
       // Other people dancing.
       this.createDancer(245, 291, 0x5a89d0, 0);
@@ -312,35 +353,12 @@
     }
 
     createBarWoman(x, y) {
-      const c = this.add.container(x, y).setDepth(42);
-      const g = this.add.graphics();
+      this.womanSprite = this.add.sprite(x, y, "woman-v14", 0)
+        .setOrigin(0.5, 1)
+        .setScale(0.62)
+        .setDepth(42);
 
-      g.fillStyle(0x6b3a24, 1);
-      g.fillRect(-11, -57, 22, 11);
-
-      g.fillStyle(0xf1c7aa, 1);
-      g.fillCircle(0, -40, 11);
-
-      g.fillStyle(0x9c517c, 1);
-      g.fillRoundedRect(-13, -27, 26, 30, 5);
-
-      g.fillStyle(0x322338, 1);
-      g.fillRect(-11, 2, 9, 25);
-      g.fillRect(2, 2, 9, 25);
-
-      g.fillStyle(0xf1c7aa, 1);
-      g.fillRect(10, -20, 25, 6);
-
-      c.add(g);
-
-      this.tweens.add({
-        targets: c,
-        y: y - 2,
-        duration: 760,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut"
-      });
+      this.womanSprite.play("woman-v14-idle", true);
     }
 
     createPlayer() {
@@ -359,20 +377,21 @@
         this.cursors = this.input.keyboard.createCursorKeys();
         this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
         this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+        this.keyDance = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
       }
     }
 
     createTouchControls() {
-      const make = (x, label, down, up) => {
-        const bg = this.add.circle(x, 347, 30, 0x111621, 0.68)
+      const make = (x, label, down, up, radius = 30, fontSize = "16px") => {
+        const bg = this.add.circle(x, 347, radius, 0x111621, 0.68)
           .setStrokeStyle(3, 0xfff0cf, 0.7)
           .setDepth(220)
           .setScrollFactor(0)
           .setInteractive();
 
-        const text = this.add.text(x, 347, label, {
+        this.add.text(x, 347, label, {
           fontFamily: '"Press Start 2P", monospace',
-          fontSize: "16px",
+          fontSize,
           color: "#fff4d5"
         })
           .setOrigin(0.5)
@@ -396,6 +415,7 @@
 
       make(55, "←", () => { this.touchLeft = true; }, () => { this.touchLeft = false; });
       make(123, "→", () => { this.touchRight = true; }, () => { this.touchRight = false; });
+      make(765, "♪", () => { this.touchDance = true; }, () => { this.touchDance = false; }, 28, "14px");
     }
 
     createPersistentDOM() {
@@ -465,20 +485,18 @@
 
     startSimonDanceIntro() {
       this.introDancing = true;
-      this.player.play("simon-run", true);
+      this.playSimonAction("simon-v14-dance", { loop: true });
 
-      this.tweens.add({
+      this.danceBobTween = this.tweens.add({
         targets: this.player,
-        y: this.player.y - 8,
-        angle: { from: -7, to: 7 },
-        duration: 320,
+        y: this.player.y - 6,
+        angle: { from: -5, to: 5 },
+        duration: 300,
         yoyo: true,
         repeat: 4,
         ease: "Sine.easeInOut",
         onComplete: () => {
-          this.player.setAngle(0);
-          this.player.setY(286);
-          this.player.play("simon-idle", true);
+          this.stopSimonAction();
           this.introDancing = false;
         }
       });
@@ -512,7 +530,7 @@
         `Es Brouwers kostet 3 Coins.\nDu hesch ${this.coins} Coins.`,
         [
           {
-            label: canBuy ? "BROUWERS -3" : "Z'WENIG COINS",
+            label: canBuy ? "BROUWERS TRINKE -3" : "Z'WENIG COINS",
             disabled: !canBuy,
             action: () => this.buyBrouwers()
           },
@@ -522,26 +540,38 @@
     }
 
     buyBrouwers() {
-      if (this.coins < 3) return;
+      if (this.coins < 3 || this.actionLocked) return;
 
       this.coins -= 3;
       this.brouwersCount += 1;
+      this.drunkLevel = Math.min(6, this.drunkLevel + 1);
 
       if (this.overworld) {
+        this.overworld.drunkLevel = this.drunkLevel;
         this.overworld.brouwersCount = this.brouwersCount;
       }
 
       this.syncCoinsToOverworld();
       this.updateCoinHUD();
+      setGlobalDrunkLevel(this.drunkLevel);
+      this.closeModal();
 
-      this.openDialog(
-        "BROUWERS",
-        "Simon kauft es Brouwers.",
-        [
-          { label: "PROST", action: () => this.closeModal() },
-          { label: "NO EIS", action: () => this.openBeerMenu() }
-        ]
-      );
+      this.actionLocked = true;
+      this.playSimonAction("simon-v14-drink");
+
+      this.time.delayedCall(1200, () => {
+        this.stopSimonAction();
+        this.actionLocked = false;
+
+        this.openDialog(
+          "BROUWERS",
+          "Simon het sis Brouwers trunke.",
+          [
+            { label: "NO EIS", action: () => this.openBeerMenu() },
+            { label: "WEITER", action: () => this.closeModal() }
+          ]
+        );
+      });
     }
 
     getOwnedFlirts() {
@@ -560,17 +590,11 @@
 
       this.openDialog(
         "FRAU A DE BAR",
-        "Sie luegt kurz zu Simon.",
+        "Was söll Simon mache?",
         [
           {
-            label: "HEY",
-            action: () => {
-              this.openDialog(
-                "FRAU A DE BAR",
-                'Simon: "Hey."\nSie: "Hey."',
-                [{ label: "FERTIG", action: () => this.closeModal() }]
-              );
-            }
+            label: "ANSPRECHEN",
+            action: () => this.startRejectedDanceInvite()
           },
           {
             label: hasFlirt ? "FLIRT" : "FLIRT 🔒",
@@ -587,12 +611,14 @@
                 return;
               }
 
-              const flirt = String(flirts[0]);
+              // The current repository still has no implemented flirt shop and no
+              // canonical flirt IDs. Do not guess permanent mappings yet.
               this.openDialog(
                 "FLIRT",
-                `Simon setzt "${flirt}" i.\nSie lächlet.`,
+                "Flirts sind im HIVE vorbereitet, aber die einzelnen gekauften Moves werden erst mit dem Flirt-Shop verknüpft.",
                 [
-                  { label: "FERTIG", action: () => this.closeModal() }
+                  { label: "ZURÜCK", action: () => this.openWomanMenu() },
+                  { label: "SCHLIESSEN", action: () => this.closeModal() }
                 ]
               );
             }
@@ -600,6 +626,96 @@
           { label: "SCHLIESSEN", action: () => this.closeModal() }
         ]
       );
+    }
+
+    startRejectedDanceInvite() {
+      this.closeModal();
+      this.actionLocked = true;
+
+      if (this.womanSprite) {
+        this.womanSprite.setFlipX(this.player.x > this.womanSprite.x);
+      }
+      this.player.setFlipX(this.womanSprite ? this.womanSprite.x < this.player.x : false);
+
+      this.playSimonAction("simon-v14-talk", { loop: true });
+      this.showSpeechBubble(this.player, "hey süße, Witsch tanzen?", 2100);
+
+      this.time.delayedCall(2150, () => {
+        this.destroySpeechBubble();
+        this.stopSimonAction();
+
+        if (this.womanSprite?.active) {
+          this.womanSprite.play("woman-v14-reject", true);
+        }
+        this.showSpeechBubble(this.womanSprite, "nöd mit dir.", 1900);
+      });
+
+      this.time.delayedCall(4100, () => {
+        this.destroySpeechBubble();
+        if (this.womanSprite?.active) {
+          this.womanSprite.play("woman-v14-idle", true);
+        }
+        this.actionLocked = false;
+      });
+    }
+
+    playSimonAction(animationKey, { loop = false } = {}) {
+      if (!this.player) return;
+      this.player.setScale(0.52);
+      this.player.play(animationKey, true);
+    }
+
+    stopSimonAction() {
+      if (!this.player) return;
+      if (this.danceBobTween) {
+        this.danceBobTween.stop();
+        this.danceBobTween = null;
+      }
+      this.player.setAngle(0);
+      this.player.setY(286);
+      this.player.setScale(0.42);
+      this.player.play("simon-idle", true);
+    }
+
+    showSpeechBubble(sprite, message, duration = 1800) {
+      this.destroySpeechBubble();
+      if (!sprite) return;
+
+      const x = Phaser.Math.Clamp(sprite.x, 135, 685);
+      const y = Phaser.Math.Clamp(sprite.y - 118, 58, 245);
+
+      const text = this.add.text(0, 0, message, {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: "9px",
+        color: "#28222a",
+        align: "center",
+        wordWrap: { width: 230 }
+      }).setOrigin(0.5);
+
+      const w = Math.max(150, Math.min(270, text.width + 34));
+      const h = Math.max(52, text.height + 28);
+      const g = this.add.graphics();
+      g.fillStyle(0xfff8df, 1);
+      g.lineStyle(3, 0x382d36, 1);
+      g.fillRoundedRect(-w / 2, -h / 2, w, h, 12);
+      g.strokeRoundedRect(-w / 2, -h / 2, w, h, 12);
+      g.fillTriangle(-10, h / 2 - 1, 8, h / 2 - 1, 0, h / 2 + 14);
+      g.lineBetween(-10, h / 2, 0, h / 2 + 14);
+      g.lineBetween(0, h / 2 + 14, 8, h / 2);
+
+      this.speechBubble = this.add.container(x, y, [g, text]).setDepth(400);
+
+      if (duration > 0) {
+        this.time.delayedCall(duration, () => {
+          if (this.speechBubble?.active) this.destroySpeechBubble();
+        });
+      }
+    }
+
+    destroySpeechBubble() {
+      if (!this.speechBubble) return;
+      this.speechBubble.destroy(true);
+      this.speechBubble = null;
     }
 
     openDialog(title, text, buttons) {
@@ -759,6 +875,9 @@
       this.__leaving = true;
 
       this.syncCoinsToOverworld();
+      if (this.overworld) this.overworld.drunkLevel = this.drunkLevel;
+      setGlobalDrunkLevel(this.drunkLevel);
+      this.destroySpeechBubble();
       this.cleanupDOM();
 
       const overworld = this.overworld;
@@ -780,7 +899,7 @@
     update(time, delta) {
       if (!this.player) return;
 
-      if (this.modalOpen || this.introDancing) {
+      if (this.modalOpen || this.introDancing || this.actionLocked) {
         return;
       }
 
@@ -794,6 +913,8 @@
         Boolean(this.keyD?.isDown) ||
         this.touchRight;
 
+      const dance = Boolean(this.keyDance?.isDown) || this.touchDance;
+
       let direction = 0;
       if (left && !right) direction = -1;
       if (right && !left) direction = 1;
@@ -805,18 +926,95 @@
       );
 
       if (direction !== 0) {
+        if (this.player.anims.currentAnim?.key?.startsWith("simon-v14-")) {
+          this.stopSimonAction();
+        }
         this.player.setFlipX(direction < 0);
+        this.player.setScale(0.42);
         this.player.play("simon-run", true);
+        return;
+      }
+
+      if (dance) {
+        if (this.player.anims.currentAnim?.key !== "simon-v14-dance") {
+          this.playSimonAction("simon-v14-dance", { loop: true });
+        }
+        return;
+      }
+
+      if (this.player.anims.currentAnim?.key?.startsWith("simon-v14-")) {
+        this.stopSimonAction();
       } else {
+        this.player.setScale(0.42);
         this.player.play("simon-idle", true);
       }
     }
   }
 
-  window.startSimonGame = function startSimonGameWithHiveV12(options = {}) {
+
+
+  let activeSimonGame = null;
+  let drunkRAFStarted = false;
+  const drunkCameraBase = new WeakMap();
+
+  function setGlobalDrunkLevel(level) {
+    window.__SIMON_DRUNK_LEVEL__ = Math.max(0, Math.min(6, Number(level) || 0));
+  }
+
+  function ensureDrunkController(game) {
+    activeSimonGame = game || activeSimonGame;
+    if (drunkRAFStarted) return;
+    drunkRAFStarted = true;
+
+    const tick = (now) => {
+      const level = Math.max(0, Number(window.__SIMON_DRUNK_LEVEL__) || 0);
+      const currentGame = activeSimonGame;
+
+      if (currentGame?.canvas) {
+        currentGame.canvas.style.filter = level > 0
+          ? `blur(${Math.min(1.5, level * 0.22).toFixed(2)}px) saturate(${(1 + level * 0.035).toFixed(2)})`
+          : "";
+      }
+
+      if (currentGame?.scene) {
+        const scenes = currentGame.scene.getScenes(true);
+        scenes.forEach((scene) => {
+          const camera = scene?.cameras?.main;
+          if (!camera) return;
+
+          if (!drunkCameraBase.has(camera)) {
+            drunkCameraBase.set(camera, {
+              zoom: camera.zoom || 1,
+              rotation: camera.rotation || 0
+            });
+          }
+
+          const base = drunkCameraBase.get(camera);
+          if (level <= 0) {
+            camera.setZoom(base.zoom);
+            camera.setRotation(base.rotation);
+            return;
+          }
+
+          const sway = Math.sin(now / 620) * level;
+          const breathe = Math.sin(now / 930) * level;
+          camera.setRotation(base.rotation + sway * 0.0027);
+          camera.setZoom(base.zoom * (1 + level * 0.0025 + breathe * 0.0008));
+        });
+      }
+
+      window.requestAnimationFrame(tick);
+    };
+
+    window.requestAnimationFrame(tick);
+  }
+
+  window.startSimonGame = function startSimonGameWithHiveV14(options = {}) {
     const game = wrappedStartSimonGame.call(this, options);
 
     if (!game) return game;
+
+    ensureDrunkController(game);
 
     if (!game.scene.keys.HiveInteriorScene) {
       game.scene.add("HiveInteriorScene", HiveInteriorScene, false);
@@ -920,18 +1118,18 @@
       });
     };
 
-    make("bouncer-v12-idle", BOUNCER_KEY, [0,1,2,3], 4, -1);
-    make("bouncer-v12-talk", BOUNCER_KEY, [4,5,6,7,8,9,10,8,7], 4, -1);
-    make("bouncer-v12-run", BOUNCER_KEY, [11,12,13,14,15,16], 10, -1);
-    make("bouncer-v12-attack", BOUNCER_KEY, [17,18,19,20,21], 9, 0);
-    make("bouncer-v12-hit", BOUNCER_KEY, [22,23], 7, 0);
-    make("bouncer-v12-down", BOUNCER_KEY, [24,25,26,27], 8, 0);
+    make("bouncer-v12-idle", BOUNCER_KEY, [0,1,2,3,2,1], 2.4, -1);
+    make("bouncer-v12-talk", BOUNCER_KEY, [4,4,5,5,6,7,8,9,10,10,9,8,7,6,5], 2.5, -1);
+    make("bouncer-v12-run", BOUNCER_KEY, [11,12,13,14,15,16], 9, -1);
+    make("bouncer-v12-attack", BOUNCER_KEY, [17,18,19,20,21], 8, 0);
+    make("bouncer-v12-hit", BOUNCER_KEY, [22,23], 6, 0);
+    make("bouncer-v12-down", BOUNCER_KEY, [24,25,26,27], 7, 0);
 
     make("lion-v12-idle", LION_KEY, [0,1,2,3], 4, -1);
-    make("lion-v12-run", LION_KEY, [4,5,6,7,8,9], 10, -1);
-    make("lion-v12-attack", LION_KEY, [10,11,12,13,14,15], 10, 0);
-    make("lion-v12-purr", LION_KEY, [16,17,18,17], 4, -1);
-    make("lion-v12-dance", LION_KEY, [20,21,20,22,20,24,21,20], 5, -1);
+    make("lion-v12-run", LION_KEY, [4,5,6,7,8,9], 9.5, -1);
+    make("lion-v12-attack", LION_KEY, [10,11,12,13,14,15], 9, 0);
+    make("lion-v12-purr", LION_KEY, [16,17,18,17], 3.5, -1);
+    make("lion-v12-dance", LION_KEY, [20,21,20,22,20,24,21,20], 4.3, -1);
   }
 
   function installIntoMilchbuck(scene) {
@@ -945,7 +1143,7 @@
     patchAnimationMoments(scene);
     installHiveDoor(scene);
 
-    console.info("HIVE v13 aktiv: Richtungen + Bar-Position.");
+    console.info("HIVE v14 aktiv: Woman-Sheet, Tanz, Bier & Drunk-Effect.");
   }
 
   function isBouncerSprite(object) {
