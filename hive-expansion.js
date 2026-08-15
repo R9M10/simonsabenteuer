@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "12";
+  const VERSION = "13";
   const GROUND_TOP = 338;
   const BOUNCER_KEY = "bouncer-v12";
   const LION_KEY = "lion-v12";
@@ -167,18 +167,25 @@
         }
       }
 
-      // BAR on the right.
+      // BAR on the right. The counter now visibly stands on the same floor
+      // Simon walks on instead of floating high on the wall.
       const bar = this.add.graphics().setDepth(15);
-      bar.fillStyle(0x3d241a, 1);
-      bar.fillRect(575, 105, 230, 118);
-      bar.fillStyle(0x70452f, 1);
-      bar.fillRect(563, 203, 250, 42);
-      bar.fillStyle(0x9a6842, 1);
-      bar.fillRect(558, 198, 260, 10);
-      bar.fillStyle(0x24130f, 1);
-      bar.fillRect(580, 99, 220, 8);
 
-      this.add.text(688, 86, "BAR · BROUWERS", {
+      // Back wall / bottle niche.
+      bar.fillStyle(0x3d241a, 1);
+      bar.fillRect(575, 128, 230, 92);
+      bar.fillStyle(0x24130f, 1);
+      bar.fillRect(580, 122, 220, 8);
+
+      // Counter front reaches all the way down to the club floor (y = 315).
+      bar.fillStyle(0x70452f, 1);
+      bar.fillRect(563, 238, 250, 77);
+      bar.fillStyle(0x9a6842, 1);
+      bar.fillRect(558, 231, 260, 11);
+      bar.fillStyle(0x4c2d21, 1);
+      bar.fillRect(575, 251, 226, 55);
+
+      this.add.text(688, 111, "BAR · BROUWERS", {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: "8px",
         color: "#ffe4a4"
@@ -186,27 +193,27 @@
 
       const shelf = this.add.graphics().setDepth(17);
       shelf.fillStyle(0x2a1712, 1);
-      shelf.fillRect(603, 132, 172, 7);
+      shelf.fillRect(603, 172, 172, 7);
       const bottleColors = [0x47754b, 0x7a4a48, 0x486c91, 0x9b7b35];
       for (let i = 0; i < 9; i += 1) {
         shelf.fillStyle(bottleColors[i % bottleColors.length], 1);
-        shelf.fillRect(608 + i * 18, 109 + (i % 2) * 3, 8, 23);
+        shelf.fillRect(608 + i * 18, 149 + (i % 2) * 3, 8, 23);
         shelf.fillStyle(0xe5d7ae, 1);
-        shelf.fillRect(610 + i * 18, 105 + (i % 2) * 3, 4, 4);
+        shelf.fillRect(610 + i * 18, 145 + (i % 2) * 3, 4, 4);
       }
 
-      // Bar stools.
+      // Bar stools also touch the same floor line.
       const stools = this.add.graphics().setDepth(18);
       [607, 660, 713, 766].forEach((x) => {
         stools.fillStyle(0x84563a, 1);
-        stools.fillRoundedRect(x - 14, 252, 28, 9, 4);
+        stools.fillRoundedRect(x - 14, 273, 28, 9, 4);
         stools.fillStyle(0x3a2319, 1);
-        stools.fillRect(x - 9, 261, 4, 35);
-        stools.fillRect(x + 5, 261, 4, 35);
+        stools.fillRect(x - 9, 282, 4, 33);
+        stools.fillRect(x + 5, 282, 4, 33);
       });
 
-      // Bartender hint.
-      this.add.text(773, 176, "BIER", {
+      // Beer interaction hint sits just above the counter.
+      this.add.text(773, 216, "BIER", {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: "6px",
         color: "#fff0bb",
@@ -214,7 +221,7 @@
         padding: { x: 5, y: 4 }
       }).setOrigin(0.5).setDepth(25);
 
-      this.createBarWoman(657, 251);
+      this.createBarWoman(657, 278);
 
       // Other people dancing.
       this.createDancer(245, 291, 0x5a89d0, 0);
@@ -226,6 +233,7 @@
       this.lion = this.add.sprite(403, 282, LION_KEY, 20)
         .setDepth(45)
         .setScale(1.1)
+        .setFlipX(true)
         .play("lion-v12-dance");
 
       this.tweens.add({
@@ -255,13 +263,13 @@
       this.walletZone.on("pointerup", () => this.collectWallet());
 
       // Bar hit area, below woman zone in input depth.
-      this.add.zone(748, 170, 112, 145)
+      this.add.zone(748, 246, 112, 132)
         .setDepth(80)
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => this.openBeerMenu());
 
       // Woman hit area.
-      this.add.zone(657, 220, 62, 104)
+      this.add.zone(657, 253, 62, 104)
         .setDepth(100)
         .setInteractive({ useHandCursor: true })
         .on("pointerup", () => this.openWomanMenu());
@@ -937,7 +945,7 @@
     patchAnimationMoments(scene);
     installHiveDoor(scene);
 
-    console.info("HIVE v12 aktiv.");
+    console.info("HIVE v13 aktiv: Richtungen + Bar-Position.");
   }
 
   function isBouncerSprite(object) {
@@ -946,6 +954,29 @@
 
   function isLionSprite(object) {
     return Boolean(object?.__lionV12);
+  }
+
+  // Both imported sheets are drawn facing RIGHT by default.
+  // Always normalize negative scales left behind by older placeholder logic,
+  // then use flipX as the single source of truth for direction.
+  function faceX(sprite, targetX) {
+    if (!sprite || !Number.isFinite(targetX)) return;
+
+    const sx = Math.max(0.01, Math.abs(sprite.scaleX || 1));
+    const sy = Math.max(0.01, Math.abs(sprite.scaleY || 1));
+    sprite.setScale(sx, sy);
+    sprite.setFlipX(targetX < sprite.x);
+  }
+
+  function faceToward(sprite, target) {
+    if (!sprite || !target) return;
+    faceX(sprite, target.x);
+  }
+
+  function faceEachOther(first, second) {
+    if (!first || !second) return;
+    faceToward(first, second);
+    faceToward(second, first);
   }
 
   function replaceStaticBouncer(scene) {
@@ -967,6 +998,7 @@
       .setInteractive({ useHandCursor: true });
 
     sprite.__bouncerV12 = true;
+    sprite.setFlipX(true);
     sprite.play("bouncer-v12-idle");
 
     sprite.on("pointerdown", (pointer) => {
@@ -997,6 +1029,7 @@
         .setSize(78, 140);
 
       sprite.__bouncerV12 = true;
+      sprite.setFlipX(false);
       sprite.play("bouncer-v12-run");
       return sprite;
     };
@@ -1014,6 +1047,7 @@
         .setSize(120, 92);
 
       sprite.__lionV12 = true;
+      sprite.setFlipX(true);
       sprite.play("lion-v12-idle");
       return sprite;
     };
@@ -1026,8 +1060,10 @@
     if (typeof scene.showBouncerDialogueStep === "function") {
       const original = scene.showBouncerDialogueStep.bind(scene);
       scene.showBouncerDialogueStep = function (...args) {
+        faceEachOther(this.bouncer, this.player);
         const result = original(...args);
         if (isBouncerSprite(this.bouncer)) {
+          faceEachOther(this.bouncer, this.player);
           this.bouncer.play("bouncer-v12-talk", true);
         }
         return result;
@@ -1042,12 +1078,26 @@
         this.fightBouncers.forEach((guard) => {
           if (isBouncerSprite(guard)) {
             guard.setAngle(0);
+            guard.setFlipX(false);
             guard.play("bouncer-v12-run", true);
           }
         });
 
         this.time.delayedCall(1280, () => {
           if (isLionSprite(this.fightLion)) {
+            const nearestGuard = this.fightBouncers
+              .filter((guard) => guard?.active)
+              .sort((a, b) => Math.abs(a.x - this.fightLion.x) - Math.abs(b.x - this.fightLion.x))[0];
+
+            if (nearestGuard) faceEachOther(this.fightLion, nearestGuard);
+            else faceX(this.fightLion, this.fightLion.x - 100);
+
+            this.fightBouncers.forEach((guard) => {
+              if (isBouncerSprite(guard) && guard.active) {
+                faceToward(guard, this.fightLion);
+              }
+            });
+
             this.fightLion.play("lion-v12-run", true);
           }
         });
@@ -1060,10 +1110,17 @@
       const original = scene.runFightRounds.bind(scene);
       scene.runFightRounds = function (...args) {
         this.fightBouncers.forEach((guard) => {
-          if (isBouncerSprite(guard)) guard.play("bouncer-v12-attack", true);
+          if (isBouncerSprite(guard)) {
+            faceToward(guard, this.fightLion);
+            guard.play("bouncer-v12-attack", true);
+          }
         });
 
         if (isLionSprite(this.fightLion)) {
+          const nearestGuard = this.fightBouncers
+            .filter((guard) => guard?.active)
+            .sort((a, b) => Math.abs(a.x - this.fightLion.x) - Math.abs(b.x - this.fightLion.x))[0];
+          if (nearestGuard) faceEachOther(this.fightLion, nearestGuard);
           this.fightLion.play("lion-v12-idle", true);
         }
 
@@ -1077,19 +1134,27 @@
         const guard = order?.[index];
 
         if (isBouncerSprite(guard)) {
+          faceToward(guard, this.fightLion);
           guard.play("bouncer-v12-run", true);
 
           this.time.delayedCall(315, () => {
-            if (guard.active) guard.play("bouncer-v12-attack", true);
+            if (guard.active) {
+              faceToward(guard, this.fightLion);
+              guard.play("bouncer-v12-attack", true);
+            }
           });
 
           this.time.delayedCall(535, () => {
-            if (guard.active) guard.play("bouncer-v12-hit", true);
+            if (guard.active) {
+              faceToward(guard, this.fightLion);
+              guard.play("bouncer-v12-hit", true);
+            }
           });
         }
 
         this.time.delayedCall(455, () => {
           if (isLionSprite(this.fightLion) && this.fightLion.active) {
+            if (guard?.active) faceEachOther(this.fightLion, guard);
             this.fightLion.play("lion-v12-attack", true);
           }
         });
@@ -1134,6 +1199,7 @@
           if (isLionSprite(this.fightLion) && this.fightLion.active) {
             this.fightLion.setScale(1);
             this.fightLion.setAngle(0);
+            faceEachOther(this.fightLion, this.player);
             this.fightLion.play("lion-v12-purr", true);
           }
         });
@@ -1151,10 +1217,21 @@
           if (isLionSprite(this.fightLion) && this.fightLion.active) {
             this.fightLion.setScale(1);
             this.fightLion.setAngle(0);
+            faceEachOther(this.fightLion, this.player);
             this.fightLion.play("lion-v12-purr", true);
           }
         });
 
+        return result;
+      };
+    }
+
+    if (typeof scene.showLionChoiceQuestion === "function") {
+      const original = scene.showLionChoiceQuestion.bind(scene);
+      scene.showLionChoiceQuestion = function (...args) {
+        faceEachOther(this.fightLion, this.player);
+        const result = original(...args);
+        faceEachOther(this.fightLion, this.player);
         return result;
       };
     }
@@ -1164,8 +1241,22 @@
       scene.startLionCombat = function (...args) {
         const result = original(...args);
         if (isLionSprite(this.fightLion)) {
+          faceEachOther(this.fightLion, this.player);
           this.fightLion.play("lion-v12-run", true);
         }
+        return result;
+      };
+    }
+
+    if (typeof scene.updateLionCombat === "function") {
+      const original = scene.updateLionCombat.bind(scene);
+      scene.updateLionCombat = function (...args) {
+        const result = original(...args);
+
+        if (this.lionCombatActive && isLionSprite(this.fightLion)) {
+          faceToward(this.fightLion, this.player);
+        }
+
         return result;
       };
     }
@@ -1174,6 +1265,7 @@
       const original = scene.applyPlayerDamage.bind(scene);
       scene.applyPlayerDamage = function (amount) {
         if (isLionSprite(this.fightLion)) {
+          faceToward(this.fightLion, this.player);
           this.fightLion.play("lion-v12-attack", true);
           this.time.delayedCall(560, () => {
             if (
@@ -1208,6 +1300,7 @@
       this.refreshUILock?.();
 
       const lion = this.fightLion;
+      faceX(lion, 1700);
       lion.play?.("lion-v12-run", true);
 
       this.tweens.add({
