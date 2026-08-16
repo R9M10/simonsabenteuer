@@ -45,6 +45,9 @@
 
       this.coins = 0;
       this.hasCityTicket = false;
+      this.hasLongDistanceTicket = false;
+      this.longDistanceTicketsUnlocked = false;
+      this.longDistanceTicketStatusText = null;
       this.coinText = null;
       this.hudContainer = null;
       this.voidHudDepthState = null;
@@ -270,6 +273,8 @@
 
       this.hp = Number.isFinite(data.hp) ? data.hp : this.maxHp;
       this.hasCityTicket = Boolean(data.hasCityTicket);
+      this.hasLongDistanceTicket = Boolean(data.hasLongDistanceTicket);
+      this.longDistanceTicketsUnlocked = Boolean(data.longDistanceTicketsUnlocked);
 
       this.inventory = {
         gatorade: Math.max(0, Number(data.inventory?.gatorade) || 0),
@@ -490,6 +495,8 @@
           coins: 999999,
           hp: this.maxHp,
           hasCityTicket: true,
+          hasLongDistanceTicket: false,
+          longDistanceTicketsUnlocked: false,
           fromDeveloperMode: true,
           developerMode: true,
           inventory: { ...this.inventory },
@@ -519,6 +526,8 @@
           coins: 999999,
           hp: this.maxHp,
           hasCityTicket: true,
+          hasLongDistanceTicket: false,
+          longDistanceTicketsUnlocked: false,
           fromDeveloperMode: true,
           developerMode: true,
           developerCheckpoint: "post-milkman",
@@ -2099,13 +2108,9 @@
           ? direction
           : (this.facing < 0 ? -1 : 1);
 
-      const displayWidth =
-        Number(this.player.displayWidth) || 101;
-      const displayHeight =
-        Number(this.player.displayHeight) || 118;
+      const displayWidth = Number(this.player.displayWidth) || 101;
+      const displayHeight = Number(this.player.displayHeight) || 118;
 
-      // Simon's sprite origin is centered. This anchor follows his face rather
-      // than using hard-coded world offsets that drift between animations.
       return {
         x: this.player.x + dir * Math.max(15, displayWidth * 0.16),
         y: this.player.y - Math.max(34, displayHeight * 0.30),
@@ -2128,9 +2133,6 @@
       const direction = this.facing < 0 ? -1 : 1;
       const mouth = this.getPlayerMouthAnchor(direction);
 
-      // Start near Simon's hand, then move the bottle so its neck/cap reaches
-      // the mouth. The opposite rotation for left/right keeps it physically
-      // consistent instead of flipping to an arbitrary angle.
       const icon = this.createWorldItemIcon(
         key,
         mouth.x + direction * 24,
@@ -2247,104 +2249,120 @@
       this.bookQuoteBanner = null;
     }
 
-    showRandomBookQuote(bookKey) {
-      // The Playbook intentionally has no quote banner.
-      if (!bookKey || bookKey === "playbook") return;
-
-      const quotes = this.getBookQuotes(bookKey);
-      if (quotes.length !== 5) return;
-
+    showTopTextNotice(
+      message,
+      {
+        duration = 7000,
+        source = "",
+        color = "#fff0c7",
+        sourceColor = "#d3bd83",
+        key = "notice"
+      } = {}
+    ) {
       const root = this.getDOMUIRoot?.();
-      if (!root) return;
+      if (!root) return null;
 
-      this.cleanupBookQuoteBanner();
-
-      const token =
-        (Number(this.bookQuoteToken) || 0) + 1;
-      this.bookQuoteToken = token;
-
-      const quote =
-        quotes[Phaser.Math.Between(0, quotes.length - 1)];
-
-      const sourceLabel = {
-        generalRelativity:
-          "ALBERT EINSTEIN · RELATIVITÄTSTHEORIE",
-        phaenomenologie:
-          "G. W. F. HEGEL · PHÄNOMENOLOGIE DES GEISTES",
-        zarathustra:
-          "FRIEDRICH NIETZSCHE · ALSO SPRACH ZARATHUSTRA"
-      }[bookKey];
+      root
+        .querySelectorAll?.(`[data-simon-top-notice="${key}"]`)
+        .forEach?.((node) => node.remove());
 
       const banner = document.createElement("div");
-      banner.dataset.simonUi = "book-quote-banner";
+      banner.dataset.simonTopNotice = key;
 
       Object.assign(banner.style, {
         position: "absolute",
         left: "50%",
-        top: "8px",
-        transform: "translate(-50%, -130%)",
-        width: "min(94%, 720px)",
-        minHeight: "94px",
-        boxSizing: "border-box",
+        top: "10px",
+        transform: "translate(-50%, -24px)",
+        width: "min(92%, 700px)",
         zIndex: "400500",
-        padding: "12px 20px 10px",
-        border: "2px solid rgba(231,216,173,.82)",
-        borderRadius: "8px",
-        background: "rgba(9,11,18,.96)",
-        color: "#fff0c7",
+        padding: "4px 8px",
+        color,
         fontFamily: '\"Press Start 2P\", monospace',
         textAlign: "center",
         pointerEvents: "none",
         opacity: "0",
-        transition: "transform 340ms cubic-bezier(.2,.85,.25,1.25), opacity 260ms ease",
-        boxShadow: "0 5px 0 rgba(0,0,0,.35)"
+        transition: "transform 260ms cubic-bezier(.2,.85,.25,1.2), opacity 220ms ease",
+        textShadow:
+          "3px 3px 0 rgba(0,0,0,.92), -2px -2px 0 rgba(0,0,0,.72), 0 0 8px rgba(0,0,0,.9)"
       });
 
-      const quoteText = document.createElement("div");
-      quoteText.textContent = `„${quote}“`;
-      Object.assign(quoteText.style, {
+      const main = document.createElement("div");
+      main.textContent = message;
+      Object.assign(main.style, {
         fontSize: "8px",
         lineHeight: "1.65",
         overflowWrap: "anywhere"
       });
+      banner.appendChild(main);
 
-      const source = document.createElement("div");
-      source.textContent = sourceLabel || "";
-      Object.assign(source.style, {
-        marginTop: "8px",
-        fontSize: "5px",
-        lineHeight: "1.4",
-        color: "#bda978"
-      });
+      if (source) {
+        const sourceLine = document.createElement("div");
+        sourceLine.textContent = source;
+        Object.assign(sourceLine.style, {
+          marginTop: "5px",
+          fontSize: "5px",
+          lineHeight: "1.4",
+          color: sourceColor,
+          textShadow: "2px 2px 0 rgba(0,0,0,.92)"
+        });
+        banner.appendChild(sourceLine);
+      }
 
-      banner.append(quoteText, source);
       root.appendChild(banner);
-      this.bookQuoteBanner = banner;
 
       requestAnimationFrame(() => {
-        if (this.bookQuoteBanner !== banner) return;
         banner.style.transform = "translate(-50%, 0)";
         banner.style.opacity = "1";
       });
 
       window.setTimeout(() => {
-        if (
-          token !== this.bookQuoteToken ||
-          this.bookQuoteBanner !== banner
-        ) {
-          return;
-        }
-
-        banner.style.transform = "translate(-50%, -130%)";
+        banner.style.transform = "translate(-50%, -20px)";
         banner.style.opacity = "0";
+        window.setTimeout(() => banner.remove?.(), 320);
+      }, Math.max(400, Number(duration) || 7000));
 
-        window.setTimeout(() => {
-          if (this.bookQuoteBanner === banner) {
-            this.bookQuoteBanner = null;
-          }
-          banner.remove?.();
-        }, 380);
-      }, 10000);
+      return banner;
+    }
+
+    showRandomBookQuote(bookKey) {
+      if (!bookKey || bookKey === "playbook") return;
+
+      const quotes = this.getBookQuotes(bookKey);
+      if (quotes.length !== 5) return;
+
+      this.cleanupBookQuoteBanner();
+
+      const token = (Number(this.bookQuoteToken) || 0) + 1;
+      this.bookQuoteToken = token;
+      const quote = quotes[Phaser.Math.Between(0, quotes.length - 1)];
+
+      const sourceLabel = {
+        generalRelativity: "ALBERT EINSTEIN · RELATIVITÄTSTHEORIE",
+        phaenomenologie: "G. W. F. HEGEL · PHÄNOMENOLOGIE DES GEISTES",
+        zarathustra: "FRIEDRICH NIETZSCHE · ALSO SPRACH ZARATHUSTRA"
+      }[bookKey];
+
+      const banner = this.showTopTextNotice(
+        `„${quote}“`,
+        {
+          duration: 7000,
+          source: sourceLabel || "",
+          key: "book-quote"
+        }
+      );
+
+      if (!banner) return;
+      this.bookQuoteBanner = banner;
+
+      window.setTimeout(() => {
+        if (
+          token === this.bookQuoteToken &&
+          this.bookQuoteBanner === banner
+        ) {
+          this.bookQuoteBanner = null;
+        }
+      }, 7350);
     }
 
     playBookReadingAnimation(itemKey) {
@@ -2696,79 +2714,45 @@
 
       const weaponSelected = this.isThrowingSticksSelected?.() || false;
       const abilityX = weaponSelected
-        ? GAME_WIDTH - 178
+        ? GAME_WIDTH - 166
         : GAME_WIDTH - 102;
-      const abilityY = GAME_HEIGHT - 137;
-
+      const abilityY = GAME_HEIGHT - 130;
       const isTime = this.activeAbility === "eternalReturn";
-      const accent = isTime ? 0xe6c66b : 0xb9c9df;
-      const fill = isTime ? 0x2b2415 : 0x171c24;
-      const pressedFill = isTime ? 0x5b4920 : 0x34404e;
-      const titleColor = isTime ? "#fff0af" : "#edf4ff";
 
-      const container = this.add.container(abilityX, abilityY)
-        .setScrollFactor(0)
-        .setDepth(1000);
+      const button = this.makeTouchButton(
+        abilityX,
+        abilityY,
+        isTime ? "ZEIT\n−3s" : "VOID\nBEREIT",
+        () => {
+          if (isTime) {
+            this.rewindGameThreeSeconds();
+          } else {
+            this.enterForItselfVoid();
+          }
+        },
+        () => {}
+      );
 
-      const shadow = this.add.rectangle(3, 4, 76, 48, 0x05070b, 0.6)
-        .setOrigin(0.5);
+      // Smaller than J/X and still fully interactive because the actual
+      // makeTouchButton circle owns the Phaser input hit area.
+      button.circle.setScale(0.76);
+      button.circle.setFillStyle(isTime ? 0x2b2415 : 0x171c24, 0.92);
+      button.circle.setStrokeStyle(
+        3,
+        isTime ? 0xe6c66b : 0xb9c9df,
+        0.96
+      );
+      button.text.setFontSize(6);
+      button.text.setLineSpacing(2);
+      button.text.setColor(isTime ? "#fff0af" : "#edf4ff");
 
-      const panel = this.add.rectangle(0, 0, 76, 48, fill, 0.94)
-        .setOrigin(0.5)
-        .setStrokeStyle(3, accent, 0.95)
-        .setInteractive({ useHandCursor: false });
-
-      const title = this.add.text(
-        0,
-        -10,
-        isTime ? "ZEIT" : "VOID",
-        {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "7px",
-          color: titleColor
-        }
-      ).setOrigin(0.5);
-
-      const status = this.add.text(
-        0,
-        10,
-        isTime ? "−3 SEK." : "BEREIT",
-        {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "5px",
-          color: isTime ? "#d7b85f" : "#c9ffd2"
-        }
-      ).setOrigin(0.5);
-
-      container.add([shadow, panel, title, status]);
-
-      const press = (pointer) => {
-        pointer.event?.preventDefault?.();
-        panel.setFillStyle(pressedFill, 1);
-        container.setY(abilityY + 2);
-
-        if (isTime) {
-          this.rewindGameThreeSeconds();
-        } else {
-          this.enterForItselfVoid();
-        }
-      };
-
-      const release = () => {
-        panel.setFillStyle(fill, 0.94);
-        container.setY(abilityY);
-      };
-
-      panel.on("pointerdown", press);
-      panel.on("pointerup", release);
-      panel.on("pointerout", release);
-      panel.on("pointerupoutside", release);
-
-      this.controlObjects.push(container);
-      this.abilityControlObjects.push(container);
+      this.abilityControlObjects.push(
+        button.circle,
+        button.text
+      );
 
       if (!isTime) {
-        this.abilityCooldownText = status;
+        this.abilityCooldownText = button.text;
         this.updateAbilityCooldownLabel();
       }
     }
@@ -2992,7 +2976,7 @@
       );
 
       if (remaining <= 0) {
-        this.abilityCooldownText.setText("BEREIT");
+        this.abilityCooldownText.setText("VOID\nBEREIT");
         this.abilityCooldownText.setColor("#c9ffd2");
         return;
       }
@@ -3002,7 +2986,7 @@
       const seconds = totalSeconds % 60;
 
       this.abilityCooldownText.setText(
-        `${minutes}:${String(seconds).padStart(2, "0")}`
+        `VOID\n${minutes}:${String(seconds).padStart(2, "0")}`
       );
       this.abilityCooldownText.setColor("#ffd6aa");
     }
@@ -3176,6 +3160,7 @@
           camel: this.getItemCount("camel")
         },
         hasCityTicket: Boolean(this.hasCityTicket),
+        hasLongDistanceTicket: Boolean(this.hasLongDistanceTicket),
         hotbarItems: [...this.hotbarItems],
         selectedHotbarIndex: this.selectedHotbarIndex,
         sprintRemainingMs: Math.max(
@@ -3237,6 +3222,7 @@
         Math.max(0, Number(snapshot.inventory?.camel) || 0);
 
       this.hasCityTicket = Boolean(snapshot.hasCityTicket);
+      this.hasLongDistanceTicket = Boolean(snapshot.hasLongDistanceTicket);
       this.hotbarItems = Array.isArray(snapshot.hotbarItems)
         ? snapshot.hotbarItems.slice(0, HOTBAR_SIZE)
         : Array(HOTBAR_SIZE).fill(null);
@@ -4020,14 +4006,14 @@
 
       const direction = this.facing < 0 ? -1 : 1;
       const mouth = this.getPlayerMouthAnchor(direction);
+      const cigaretteY = mouth.y + 7;
 
       const cigarette = this.add.container(
         mouth.x,
-        mouth.y
+        cigaretteY
       ).setDepth(this.getActionEffectDepth(85));
 
       const cig = this.add.graphics();
-      // Draw from the lips outward, then mirror only the cigarette graphic.
       cig.fillStyle(0xc78a44, 1);
       cig.fillRect(-2, -2, 6, 4);
       cig.fillStyle(0xf1eee2, 1);
@@ -4037,10 +4023,9 @@
       cig.scaleX = direction;
       cigarette.add(cig);
 
-      // Small breathing motion while the cigarette stays at mouth height.
       this.tweens.add({
         targets: cigarette,
-        y: mouth.y - 1,
+        y: cigaretteY - 1,
         angle: direction * 2,
         duration: 260,
         yoyo: true,
@@ -4048,7 +4033,6 @@
         ease: "Sine.easeInOut"
       });
 
-      // Smoke originates at the ember, not behind Simon's head.
       [0, 270, 540].forEach((delay, index) => {
         this.time.delayedCall(310 + delay, () => {
           if (!cigarette.active) return;
@@ -4079,10 +4063,8 @@
 
         const item = this.getItemDefinition("camel");
         const now = Date.now();
-
         this.sprintExpiresAt =
-          Math.max(now, Number(this.sprintExpiresAt) || 0) +
-          item.sprintMs;
+          Math.max(now, Number(this.sprintExpiresAt) || 0) + item.sprintMs;
 
         if (this.getItemCount("camel") <= 0) {
           this.removeItemFromHotbar("camel");
@@ -4716,7 +4698,6 @@
         });
 
         const icon = this.createDOMAbilityIcon(abilityKey, 42);
-
         const titleWrap = document.createElement("div");
         titleWrap.style.minWidth = "0";
 
@@ -4735,7 +4716,6 @@
           }
         );
         type.style.textAlign = "left";
-
         titleWrap.append(name, type);
         header.append(icon, titleWrap);
 
@@ -5211,7 +5191,10 @@
     }
 
     enableTramBoarding() {
-      if (!this.hasCityTicket || this.tramTransitActive) return;
+      if (
+        this.tramTransitActive ||
+        this.getTramDestinations().length === 0
+      ) return;
 
       this.tramBoardingEnabled = true;
 
@@ -5227,17 +5210,30 @@
     }
 
     ensureTramBoardingInteractive() {
-      if (!this.hasCityTicket || this.tramTransitActive) return;
+      if (this.tramTransitActive) return;
+
+      const destinations = this.getTramDestinations();
+      if (!Array.isArray(destinations) || destinations.length === 0) {
+        this.tramBoardingEnabled = false;
+        if (this.tramHitbox?.input) this.tramHitbox.input.enabled = false;
+        this.tramBoardingMarker?.setVisible(false);
+        return;
+      }
+
       this.enableTramBoarding();
     }
 
     getTramDestinations() {
-      return [
-        {
+      const destinations = [];
+
+      if (this.hasCityTicket) {
+        destinations.push({
           key: "bahnhofstrasse",
           label: "BAHNHOFSTRASSE/HB"
-        }
-      ];
+        });
+      }
+
+      return destinations;
     }
 
     boardTram() {
@@ -5246,7 +5242,7 @@
       if (
         this.inVoid ||
         this.rewindActive ||
-        !this.hasCityTicket ||
+        this.getTramDestinations().length === 0 ||
         !this.tramBoardingEnabled ||
         this.tramTransitActive ||
         this.uiLocked ||
@@ -5262,7 +5258,7 @@
     openTramDestinationModal() {
       if (
         this.tramDestinationModal ||
-        !this.hasCityTicket ||
+        this.getTramDestinations().length === 0 ||
         this.tramTransitActive
       ) {
         return;
@@ -5346,7 +5342,11 @@
     }
 
     chooseTramDestination(destinationKey) {
-      if (!this.tramDestinationModal || !this.hasCityTicket) return;
+      if (!this.tramDestinationModal) return;
+
+      const valid = this.getTramDestinations()
+        .some((destination) => destination.key === destinationKey);
+      if (!valid) return;
 
       this.destroyDOMModal(this.tramDestinationModal);
       this.tramDestinationModal = null;
@@ -5376,6 +5376,21 @@
       return true;
     }
 
+    consumeLongDistanceTicket() {
+      if (!this.hasLongDistanceTicket) return false;
+
+      this.hasLongDistanceTicket = false;
+      this.tramBoardingEnabled = false;
+
+      if (this.tramHitbox?.input) {
+        this.tramHitbox.input.enabled = false;
+      }
+      this.tramBoardingMarker?.setVisible(false);
+      this.updateInventoryUI();
+      this.updateHotbarActionUI();
+      return true;
+    }
+
     startTramJourney(destinationKey) {
       if (destinationKey !== "bahnhofstrasse") {
         this.refreshUILock();
@@ -5399,6 +5414,8 @@
         coins: this.developerMode ? 999999 : this.coins,
         hp: this.hp,
         hasCityTicket: false,
+        hasLongDistanceTicket: this.hasLongDistanceTicket,
+        longDistanceTicketsUnlocked: this.longDistanceTicketsUnlocked,
         fromDeveloperMode: this.developerMode,
         developerMode: this.developerMode,
         inventory: { ...this.inventory },
@@ -5543,7 +5560,7 @@
 
       const modal = this.createDOMModal({
         key: "ticket",
-        width: "min(92%, 530px)",
+        width: "min(92%, 560px)",
         background: "#f2e5bf",
         border: "#253a4b",
         shade: "rgba(5, 6, 11, 0.78)",
@@ -5556,6 +5573,7 @@
       }
 
       this.ticketModal = modal;
+      this.longDistanceTicketStatusText = null;
 
       const top = document.createElement("div");
       Object.assign(top.style, {
@@ -5574,25 +5592,32 @@
         fontSize: "8px",
         padding: "7px 9px"
       });
-
       top.appendChild(back);
 
       const title = this.createDOMText("TICKETAUTOMAT", {
         fontSize: "15px",
         color: "#253a4b",
-        margin: "4px 0 18px"
+        margin: "4px 0 16px"
+      });
+
+      const cityBox = document.createElement("section");
+      Object.assign(cityBox.style, {
+        border: "2px solid #9c8c69",
+        padding: "11px",
+        margin: "0 0 10px",
+        background: "rgba(255,248,221,.56)"
       });
 
       const line = this.createDOMText("1 TRAM-TICKET · 1 FAHRT", {
-        fontSize: "10px",
+        fontSize: "9px",
         color: "#2d2a25",
-        margin: "0 0 8px"
+        margin: "0 0 7px"
       });
 
       const price = this.createDOMText("10.-", {
-        fontSize: "18px",
+        fontSize: "16px",
         color: "#2d2a25",
-        margin: "0 0 15px"
+        margin: "0 0 12px"
       });
 
       const buy = this.createDOMButton("KAUFEN", () => this.tryBuyTicket(), {
@@ -5600,9 +5625,9 @@
         background: (this.developerMode || this.coins >= 10) ? "#bfe0c6" : "#cbc5b8",
         border: "#6b705f",
         width: "180px",
-        minHeight: "46px",
-        fontSize: "11px",
-        padding: "9px 12px"
+        minHeight: "42px",
+        fontSize: "9px",
+        padding: "8px 10px"
       });
       buy.style.margin = "0 auto";
       buy.dataset.ticketBuy = "true";
@@ -5616,13 +5641,86 @@
                 : (this.coins < 10 ? `${this.coins} COINS · NOCH NICHT GENUG` : `${this.coins} COINS`)
             ),
         {
-          fontSize: "7px",
+          fontSize: "6px",
           color: this.hasCityTicket || this.developerMode || this.coins >= 10 ? "#315d43" : "#8b3a36",
-          margin: "15px 0 0"
+          margin: "11px 0 0"
         }
       );
+      cityBox.append(line, price, buy, this.ticketStatusText);
 
-      modal.panel.append(top, title, line, price, buy, this.ticketStatusText);
+      modal.panel.append(top, title, cityBox);
+
+      const canShowLongDistance =
+        this.currentStationKey === "bahnhofstrasse" &&
+        this.longDistanceTicketsUnlocked;
+
+      if (canShowLongDistance) {
+        const longBox = document.createElement("section");
+        Object.assign(longBox.style, {
+          border: "2px solid #7f5c86",
+          padding: "11px",
+          margin: "0",
+          background: "rgba(226,211,235,.48)"
+        });
+
+        const longLine = this.createDOMText("LANGSTRECKENTICKET · 1 FAHRT", {
+          fontSize: "8px",
+          color: "#392c40",
+          margin: "0 0 7px"
+        });
+
+        const longPrice = this.createDOMText("150.-", {
+          fontSize: "16px",
+          color: "#392c40",
+          margin: "0 0 12px"
+        });
+
+        const longBuy = this.createDOMButton(
+          this.hasLongDistanceTicket ? "GEKAUFT" : "KAUFEN",
+          () => this.tryBuyLongDistanceTicket(),
+          {
+            color: (this.developerMode || this.coins >= 150 || this.hasLongDistanceTicket)
+              ? "#f8efff"
+              : "#777078",
+            background: this.hasLongDistanceTicket
+              ? "#655070"
+              : ((this.developerMode || this.coins >= 150) ? "#704f7a" : "#c8bdc9"),
+            border: "#a983b2",
+            width: "180px",
+            minHeight: "42px",
+            fontSize: "9px",
+            padding: "8px 10px"
+          }
+        );
+        longBuy.style.margin = "0 auto";
+        longBuy.dataset.longTicketBuy = "true";
+
+        this.longDistanceTicketStatusText = this.createDOMText(
+          this.hasLongDistanceTicket
+            ? "LANGSTRECKENTICKET BEREITS GEKAUFT"
+            : (
+                this.developerMode
+                  ? "∞ COINS · DEVELOPER"
+                  : (this.coins < 150 ? `${this.coins} COINS · NOCH NICHT GENUG` : `${this.coins} COINS`)
+              ),
+          {
+            fontSize: "6px",
+            color: this.hasLongDistanceTicket || this.developerMode || this.coins >= 150
+              ? "#60456a"
+              : "#8b3a36",
+            margin: "11px 0 0"
+          }
+        );
+
+        longBox.append(
+          longLine,
+          longPrice,
+          longBuy,
+          this.longDistanceTicketStatusText
+        );
+        modal.panel.appendChild(longBox);
+      }
+
       this.refreshUILock();
     }
 
@@ -5668,12 +5766,63 @@
       }
     }
 
+    tryBuyLongDistanceTicket() {
+      if (
+        !this.ticketModal ||
+        this.currentStationKey !== "bahnhofstrasse" ||
+        !this.longDistanceTicketsUnlocked
+      ) {
+        return;
+      }
+
+      if (this.hasLongDistanceTicket) {
+        if (this.longDistanceTicketStatusText) {
+          this.longDistanceTicketStatusText.textContent =
+            "LANGSTRECKENTICKET BEREITS GEKAUFT";
+        }
+        return;
+      }
+
+      if (!this.developerMode && this.coins < 150) {
+        if (this.longDistanceTicketStatusText) {
+          this.longDistanceTicketStatusText.textContent = "NICHT GENUG COINS!";
+          this.longDistanceTicketStatusText.style.color = "#8b3a36";
+        }
+        return;
+      }
+
+      if (!this.developerMode) {
+        this.coins -= 150;
+      }
+
+      this.hasLongDistanceTicket = true;
+      this.updateCoinHUD();
+      this.updateInventoryUI();
+      this.ensureTramBoardingInteractive();
+
+      if (this.longDistanceTicketStatusText) {
+        this.longDistanceTicketStatusText.textContent =
+          "LANGSTRECKENTICKET GEKAUFT!";
+        this.longDistanceTicketStatusText.style.color = "#60456a";
+      }
+
+      const buy = this.ticketModal?.panel?.querySelector(
+        "[data-long-ticket-buy='true']"
+      );
+      if (buy) {
+        buy.textContent = "GEKAUFT";
+        buy.style.background = "#655070";
+        buy.style.color = "#f8efff";
+      }
+    }
+
     closeTicketModal() {
       if (!this.ticketModal) return;
 
       this.destroyDOMModal(this.ticketModal);
       this.ticketModal = null;
       this.ticketStatusText = null;
+      this.longDistanceTicketStatusText = null;
       this.refreshUILock();
       this.ensureTicketMachineInteractive();
       this.ensureTramBoardingInteractive();
@@ -6990,6 +7139,59 @@
       );
     }
 
+    isFreeMovementConversationActive() {
+      return Boolean(
+        this.bouncerDialogueActive ||
+        this.milkmanDialogueActive ||
+        this.gandhiDialogueActive ||
+        this.amsifDialogueActive
+      );
+    }
+
+    updateConversationMovement(time, onGround) {
+      // Keep touch movement available on iPhone even though the conversation
+      // itself still locks shops, attacks, jumping and other interactions.
+      this.setControlsVisible(true);
+
+      const leftDown =
+        Boolean(this.cursors?.left?.isDown) ||
+        Boolean(this.keyA?.isDown) ||
+        this.touchLeft;
+
+      const rightDown =
+        Boolean(this.cursors?.right?.isDown) ||
+        Boolean(this.keyD?.isDown) ||
+        this.touchRight;
+
+      let moveDirection = 0;
+      if (leftDown && !rightDown) moveDirection = -1;
+      if (rightDown && !leftDown) moveDirection = 1;
+
+      const speed = this.isSprintActive() ? 306.25 : 175;
+      this.player.setVelocityX(moveDirection * speed);
+      this.updateSprintIndicator();
+
+      if (moveDirection !== 0) {
+        this.facing = moveDirection;
+        this.player.setFlipX(moveDirection < 0);
+      }
+
+      // Conversations allow walking only: no jump/attack is consumed here.
+      this.touchJumpRequested = false;
+      this.touchShootRequested = false;
+
+      if (!onGround) return;
+
+      if (moveDirection !== 0) {
+        this.player.play("simon-run", true);
+      } else if (
+        this.player.anims.currentAnim?.key !== "simon-idle" &&
+        this.player.anims.currentAnim?.key !== "simon-ko"
+      ) {
+        this.player.play("simon-idle", true);
+      }
+    }
+
     update(time, delta) {
       if (!this.player?.body) return;
 
@@ -7029,6 +7231,11 @@
       }
 
       if (this.uiLocked) {
+        if (this.isFreeMovementConversationActive()) {
+          this.updateConversationMovement(time, onGround);
+          return;
+        }
+
         this.updateSprintIndicator();
         this.player.setVelocityX(0);
         if (
@@ -7359,6 +7566,11 @@
 
       this.hp = Number.isFinite(data.hp) ? data.hp : this.maxHp;
       this.hasCityTicket = data.hasCityTicket !== false;
+      this.hasLongDistanceTicket = Boolean(data.hasLongDistanceTicket);
+      this.longDistanceTicketsUnlocked = Boolean(
+        data.longDistanceTicketsUnlocked || this.longDistanceTicketsUnlocked
+      );
+      this.longDistanceTicketStatusText = null;
 
       this.inventory = {
         gatorade: Math.max(0, Number(data.inventory?.gatorade) || 0),
@@ -8378,8 +8590,8 @@
         }
       ).setOrigin(0.5);
 
-      // Keep the name outside the flipped/rotated character container so it
-      // always remains upright and readable.
+      // Keep the name outside the flipped character container so it is
+      // permanently upright and readable.
       amsif.add([g]);
       name.setPosition(amsif.x, amsif.y - 82).setDepth(56);
       amsif.__nameText = name;
@@ -8411,8 +8623,7 @@
     faceAmsifTowardSimon() {
       if (!this.amsif?.active || !this.player?.active) return;
 
-      const direction = this.player.x < this.amsif.x ? -1 : 1;
-      this.amsif.scaleX = direction;
+      this.amsif.scaleX = this.player.x < this.amsif.x ? -1 : 1;
       this.amsif.scaleY = Math.abs(this.amsif.scaleY || 1);
       this.syncAmsifName();
     }
@@ -8585,7 +8796,7 @@
         { speaker: "amsif", text: "han ich mir gschwore en schuelade uf z mache." },
         { speaker: "amsif", text: "Niemert söt meh falschi Schueh ha in Züri!" },
         { speaker: "amsif", text: "Das isch min Lade..." },
-        { speaker: "amsif", text: "aber en bösewicht het min Ladeschlüssel klaut!" },
+        { speaker: "amsif", text: "aber en Bösewicht het min Ladeschlüssel klaut!" },
         { speaker: "amsif", text: "Er het sich Général gnennt!" },
         { speaker: "amsif", text: "Wenn du mir de Schlüssel zrug bringsch, wird ich dir die schönste Schueh aller Zite schenke!" },
         { speaker: "simon", text: "Weisch du wo de Général jetzt isch?" },
@@ -13211,20 +13422,25 @@
         return;
       }
 
-      [
-        this.arrivalTram,
-        this.arrivalDoor,
-        this.tramHitbox,
-        this.tramBoardingMarker
-      ].forEach((object) => object?.destroy?.());
-
-      this.arrivalTram = null;
-      this.arrivalDoor = null;
-      this.tramHitbox = null;
-      this.tramBoardingMarker = null;
-      this.tramBoardingEnabled = false;
+      // Developer checkpoints must use the same real station tram as normal
+      // gameplay. The old checkpoint destroyed it, which made later locations
+      // unreachable from Dev Mode.
       this.tramTransitActive = false;
       this.__tramSwitching = false;
+
+      if (!this.arrivalTram?.active) {
+        this.createArrivalTram();
+      }
+
+      if (this.arrivalTram?.active) {
+        this.arrivalTram.setX(470);
+        this.tram = this.arrivalTram;
+      }
+
+      if (this.arrivalDoor?.active) {
+        this.arrivalDoor.setScale(0.08, 1);
+        this.arrivalDoor.setAlpha(0.35);
+      }
 
       // Start completely to the right of Der Inder.
       this.player.setPosition(1885, 246);
@@ -13271,6 +13487,7 @@
       this.updateCoinHUD();
       this.updateHpBar();
       this.updateInventoryUI();
+      this.ensureDeveloperTramReady();
       this.syncStreetStoreHitboxes();
 
       this.showImpact(
@@ -13486,6 +13703,55 @@
       super.openItemsModal();
     }
 
+    ensureDeveloperTramReady() {
+      if (
+        !this.developerMode ||
+        !this.arrivalFinished ||
+        this.tramTransitActive ||
+        this.__tramSwitching
+      ) {
+        return;
+      }
+
+      if (!this.arrivalTram?.active) {
+        this.createArrivalTram();
+      }
+
+      if (this.arrivalTram?.active) {
+        this.arrivalTram.setX(470);
+        this.tram = this.arrivalTram;
+      }
+
+      if (this.arrivalDoor?.active) {
+        this.arrivalDoor.setScale(0.08, 1);
+        this.arrivalDoor.setAlpha(0.35);
+      }
+
+      this.ensureTramBoardingInteractive();
+    }
+
+    updateLongDistanceTicketUnlock() {
+      if (
+        this.longDistanceTicketsUnlocked ||
+        !this.__sv36ZofingiaOpen
+      ) {
+        return;
+      }
+
+      this.longDistanceTicketsUnlocked = true;
+
+      this.showTopTextNotice(
+        "LANGSTRECKENTICKETS FREIGESCHALTET!",
+        {
+          duration: 7000,
+          color: "#fff1a8",
+          key: "long-ticket-unlock"
+        }
+      );
+
+      this.ensureTicketMachineInteractive();
+    }
+
     update(time, delta) {
       // Read X before the base update consumes the touch request. In combat we
       // own the whole boxing cycle here so repeated taps cannot restart one
@@ -13512,19 +13778,37 @@
       this.updateDarkGandhiBoss(time, delta);
       this.updateGandhiStory();
       this.updateAmsifStory();
+      this.updateLongDistanceTicketUnlock();
+      this.ensureDeveloperTramReady();
       this.syncStreetStoreHitboxes();
     }
 
     getTramDestinations() {
-      return [
-        {
+      const destinations = [];
+
+      if (this.hasCityTicket) {
+        destinations.push({
           key: "milchbuck",
           label: "MILCHBUCK"
-        }
-      ];
+        });
+      }
+
+      if (this.hasLongDistanceTicket) {
+        destinations.push({
+          key: "venice",
+          label: "VENEDIG"
+        });
+      }
+
+      return destinations;
     }
 
     startTramJourney(destinationKey) {
+      if (destinationKey === "venice") {
+        this.startVeniceDeparture();
+        return;
+      }
+
       if (destinationKey !== "milchbuck") {
         this.refreshUILock();
         return;
@@ -13563,6 +13847,8 @@
         coins: this.developerMode ? 999999 : this.coins,
         hp: this.hp,
         hasCityTicket: false,
+        hasLongDistanceTicket: this.hasLongDistanceTicket,
+        longDistanceTicketsUnlocked: this.longDistanceTicketsUnlocked,
         developerMode: this.developerMode,
         inventory: { ...this.inventory },
         booksOwned: { ...this.booksOwned },
@@ -13638,6 +13924,116 @@
             });
           } else {
             leave();
+          }
+        }
+      });
+    }
+
+    startVeniceDeparture() {
+      if (
+        this.__tramSwitching ||
+        this.tramTransitActive ||
+        !this.hasLongDistanceTicket ||
+        !this.arrivalTram?.active ||
+        this.darkGandhiBossActive ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiLootModal ||
+        this.gandhiNukeActive ||
+        this.amsifDialogueActive ||
+        this.amsifMenuModal ||
+        this.amsifArrivalActive ||
+        this.shoeStoreClosedModal ||
+        this.__sv36ZofingiaOpen
+      ) {
+        return;
+      }
+
+      if (!this.consumeLongDistanceTicket()) {
+        this.refreshUILock();
+        return;
+      }
+
+      this.__tramSwitching = true;
+      this.tramTransitActive = true;
+      this.setUILocked(true);
+      this.player.setVelocity(0, 0);
+      this.cameras.main.stopFollow();
+
+      const doorX = (this.arrivalTram?.x || 470) + 156;
+
+      this.tweens.add({
+        targets: this.player,
+        x: doorX,
+        y: 250,
+        duration: 430,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          if (!this.sys.isActive()) return;
+
+          this.player.setVisible(false);
+          if (this.player.body) this.player.body.enable = false;
+
+          const leaveForVenice = () => {
+            if (!this.sys.isActive()) return;
+
+            this.tweens.add({
+              targets: this.arrivalTram,
+              x: -360,
+              duration: 1850,
+              ease: "Sine.easeIn"
+            });
+
+            this.time.delayedCall(760, () => {
+              if (!this.sys.isActive()) return;
+
+              this.cameras.main.fadeOut(700, 0, 0, 0);
+
+              this.time.delayedCall(720, () => {
+                if (!this.sys.isActive()) return;
+
+                // Venice is intentionally not implemented yet. Keep the screen
+                // black and expose a clean hand-off point for the next sequence.
+                this.veniceDepartureComplete = true;
+                window.__SIMON_PENDING_DESTINATION__ = "venice";
+                window.__SIMON_PENDING_TRAVEL_STATE__ = {
+                  coins: this.developerMode ? 999999 : this.coins,
+                  hp: this.hp,
+                  developerMode: this.developerMode,
+                  hasCityTicket: this.hasCityTicket,
+                  hasLongDistanceTicket: false,
+                  longDistanceTicketsUnlocked: this.longDistanceTicketsUnlocked,
+                  inventory: { ...this.inventory },
+                  booksOwned: { ...this.booksOwned },
+                  booksRead: { ...this.booksRead },
+                  abilitiesUnlocked: { ...this.abilitiesUnlocked },
+                  activeAbility: this.activeAbility,
+                  forItselfCooldownUntil: this.forItselfCooldownUntil,
+                  hotbarItems: [...this.hotbarItems],
+                  selectedHotbarIndex: this.selectedHotbarIndex,
+                  sprintExpiresAt: this.sprintExpiresAt,
+                  gandhiStoryEligible: this.gandhiStoryEligible,
+                  gandhiEncounterFinished: this.gandhiEncounterFinished,
+                  darkGandhiDefeated: this.darkGandhiDefeated,
+                  amsifEncounterStarted: this.amsifEncounterStarted,
+                  amsifIntroCompleted: this.amsifIntroCompleted,
+                  amsifStoryCompleted: this.amsifStoryCompleted
+                };
+              });
+            });
+          };
+
+          if (this.arrivalDoor?.active) {
+            this.tweens.add({
+              targets: this.arrivalDoor,
+              scaleX: 1,
+              alpha: 1,
+              duration: 220,
+              ease: "Quad.easeOut",
+              onComplete: leaveForVenice
+            });
+          } else {
+            leaveForVenice();
           }
         }
       });
