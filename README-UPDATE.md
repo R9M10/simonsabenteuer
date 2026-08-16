@@ -1,85 +1,81 @@
-# Simons Abenteuer – Gandhi-Phasen / Wurfstöcke / Stabilität v26
+# Simons Abenteuer – v27
 
-Ausgangsstand wurde direkt vor dem Build gegen GitHub geprüft:
+## Änderungen
 
-- game.js: `f8f3af8f53fe33c60a6787e2bbf9848080bd5418`
-- index.html: `fcca57279a6b57cfb5abe1b1eecadd9db2338038`
-- HIVE v14.2 und game-polish-v15 bleiben unangetastet
-- hive-language-patch-v17 bleibt unangetastet
+### Zigaretten
+- Eine Zigarette gibt 20 Sekunden Sprint.
+- Weitere Zigaretten addieren 20 Sekunden auf die verbleibende Sprintzeit.
+- 3 Zigaretten = 60 Sekunden Sprint.
+- Sprintgeschwindigkeit bleibt unverändert bei +75 %.
 
-## Wichtig
-Vom aktuellen Repository aus nur ersetzen:
+### Dark Gandhi
+Dark Gandhi behält seine drei Phasen und Fähigkeiten, ist aber deutlich fairer.
+
+Jede Phase:
+- exakt 3 erfolgreiche Treffer von Simon
+- normaler Schlag weiterhin 10 Schaden
+- mindestens 4,5 Sekunden sichtbare Phasendauer
+
+Gesamt:
+- Phase 1: 3 Treffer
+- Phase 2: 3 Treffer
+- Phase 3: 3 Treffer
+- insgesamt 9 Treffer
+
+Balancing:
+- Salzmarsch: 2 statt 3 Salzhügel, Geschwindigkeit 82/92 statt 132/144/156
+- Salz: 5 Schaden, Slow nur noch 1 Sekunde
+- Stock: 6 Schaden, längerer Abstand
+- Karma: langsamere Kugel, längere Vorwarnung, 6 Schaden
+- Wiedergeburt: langsamere Schatten, 4 Schaden
+- Nuclear: 1,55 Sekunden Vorwarnung, kleinerer Radius, 12 Schaden
+- Ahimsa: 1,8 Sekunden, reflektiert 5 Schaden
+- Dark Gandhi bewegt sich in allen Phasen langsamer
+- Spezialangriffe treten seltener auf
+- Ahimsa entzieht Gandhi nicht mehr automatisch HP, damit auch Phase 3 exakt 3 Treffer braucht
+
+### Developer Mode
+Neues Ziel:
+`3. ENDE MILCHMANN`
+
+Start:
+- Bahnhofstrasse
+- Milchmann liegt besiegt am Boden und ist noch plünderbar
+- Milchwagen steht noch da
+- Simon startet vollständig rechts von Der Inder
+- Gandhi-Story ist freigeschaltet
+- Simon muss Der Inder danach komplett von rechts nach links passieren
+
+### Milchwagen
+Nach dem Plündern werden Milchmann und Milchwagen gemeinsam nach 30 Sekunden entfernt.
+
+### Bösewichte
+Inventar-Tabs:
+- GEGENSTÄNDE
+- FÄHIGKEITEN
+- BÖSEWICHTE
+
+Nach dem jeweiligen Sieg:
+- Milchmann
+- Dark Gandhi
+
+Jeder Eintrag besitzt einen `i`-Button mit einer kurzen Beschreibung.
+
+## Dateien ersetzen
 - `game.js`
 - `index.html`
-
-## Gandhi-Trigger
-Gandhi erscheint erst, wenn der Milchmann besiegt ist und Simon danach Der Inder
-wirklich komplett von einer Seite zur anderen passiert hat. Ein Teleport direkt
-über den Laden zählt nicht, weil die Laden-Zone tatsächlich betreten werden muss.
-
-Gandhi kommt nicht mehr aus Der Inder. Er schwebt von rechts oben aus dem Himmel
-in die aktuelle Kamera und landet vor Simon. Ein Failsafe beendet die Ankunft,
-falls ein Tween-Callback auf Mobile verloren geht.
-
-## Dark Gandhi – klar getrennte drei Phasen
-Simon verursacht mit jedem normalen Treffer weiterhin exakt 10 HP Schaden.
-
-- Phase 1 / 3 – SALZMARSCH (300–201 HP): Stock + Salz.
-- Phase 2 / 3 – KARMA (200–101 HP): Karmische Vergeltung + Rad der Wiedergeburt.
-- Phase 3 / 3 – NUCLEAR LEVEL: MAX (100–0 HP): Nuklear-Zielkreise + Ahimsa Inversion.
-
-Die Phasen können nicht übersprungen werden. Bei jedem Wechsel gibt es eine große,
-fixierte Bildschirm-Einblendung, eine dauerhaft sichtbare Boss-Phasenanzeige und
-eine neue Aura-Farbe. Attacken der vorherigen Phase werden beim Übergang entfernt.
-
-## Loot / Despawn
-Nach dem Beklauen verschwinden besiegte Körper nach 30 Sekunden:
-- Türsteher nach dem Trinkgeld-Diebstahl,
-- Milchmann nach dem Beklauen,
-- Dark Gandhi nach dem Diebstahl seiner Wurfstöcke.
-
-## Gandhis Wurfstöcke
-Nach dem endgültigen Sieg über Dark Gandhi ist sein Körper anklickbar:
-`Gandhis Wurfstöcke klauen?`
-
-Bei JA erscheint `Gandhis Wurfstöcke` unter ITEMS. Die Waffe kann in die Hotbar
-gelegt werden. Ist ihr Slot ausgewählt, erscheint über J/X ein W-Button mit
-`WURF`.
-
-- Flugrichtung: Simons Blickrichtung
-- Schaden: 10 HP
-- Cooldown: 3 Sekunden
-
-Falls gleichzeitig eine Fähigkeit mit eigenem W/F-Button aktiv ist, wandert deren
-Button nach links; beide bleiben bedienbar.
-
-## Zarathustra-Freeze
-Die Leseanimation wurde neu abgesichert. Die alten Buch-/Seiten-Tweens liefen
-länger als der Cleanup und konnten auf Mobile zerstörte Ziele weiter animieren.
-Jetzt enden alle Tween-Zyklen vor dem Cleanup, werden zusätzlich explizit beendet
-und das Entsperren läuft in einem `finally`-Recovery-Pfad.
-
-Außerdem zeichnet `Ewige Wiederkehr` seine 3-Sekunden-Historie erst auf, wenn die
-Fähigkeit tatsächlich ausgerüstet ist – nicht bereits beim ersten Lesen von
-`Also sprach Zarathustra`. Das reduziert unnötige Update-Last direkt nach dem
-Freischalten deutlich.
+- `script.js`
 
 ## Cache
-`game.js?v=26`
+- `game.js?v=27`
+- `script.js?v=12`
 
-## Zusätzliche Stabilisierung vor Ausgabe
-
-- Phase-Übergänge sind 1,25 Sekunden lang unverwundbar. Dadurch kann auch ein
-  bereits fliegender Wurfstock keine Phase überspringen.
-- Die jeweilige Signaturattacke wird unmittelbar nach dem Phasenbanner
-  ausgelöst: Salzmarsch in Phase 1, Rad der Wiedergeburt in Phase 2 und
-  Nuclear-Angriff in Phase 3. Ahimsa folgt früh genug, dass Phase 3 nicht
-  durch schnelles X-Spam übersprungen werden kann.
-- Das permanente Boss-HUD zeigt jetzt zusätzlich die HP-Bereiche jeder Phase.
-- Doppelte Neuerzeugung der Ability-/Weapon-Touchbuttons bei UI-Locks wurde
-  entfernt; das reduziert DOM/Phaser-Objekt-Churn auf iOS.
-- Der direkte Tram-Startpfad blockiert nun ebenfalls während des
-  Gandhi-Lootfensters.
-- Falls Dark Gandhi besiegt wurde, Simon aber vor dem Plündern wegfährt, wird
-  sein plünderbarer Körper bei der nächsten Bahnhofstrasse-Ankunft
-  wiederhergestellt.
+## Tests
+- `node --check game.js`
+- `node --check script.js`
+- Runtime-Test: exakt 3 Treffer pro Dark-Gandhi-Phase
+- Runtime-Test: Phase 1 -> Phase 2 -> Phase 3 -> Niederlage
+- Runtime-Test: Developer-Checkpoint Ende Milchmann
+- Runtime-Test: 3 Zigaretten addieren sich auf 60 Sekunden
+- statische Prüfung der Bösewichte-Bibliothek
+- statische Prüfung der Script-Reihenfolge und Developer-UI

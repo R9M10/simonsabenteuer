@@ -144,6 +144,11 @@ function chooseDeveloperDestination(target) {
 
   if (target === "hb") {
     launchGame({ startMode: "hb" });
+    return;
+  }
+
+  if (target === "post-milkman") {
+    launchGame({ startMode: "post-milkman" });
   }
 }
 
