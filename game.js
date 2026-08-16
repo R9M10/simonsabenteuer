@@ -3224,7 +3224,9 @@
 
       this.coins = this.developerMode
         ? 999999
-        : Math.max(0, Number(snapshot.coins) || 0);
+        : (Number.isFinite(Number(snapshot.coins))
+            ? Number(snapshot.coins)
+            : 0);
 
       this.inventory.gatorade =
         Math.max(0, Number(snapshot.inventory?.gatorade) || 0);

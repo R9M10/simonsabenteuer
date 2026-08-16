@@ -1,95 +1,151 @@
-# Simons Abenteuer – Bekanntschaften / Venedig v36
+# Simons Abenteuer – Thomas / Pferderennen / Bekanntschaften v37
 
-## Ausgangsbasis
-Direkt vor der Änderung erneut geprüft:
-- aktuelles GitHub `game.js`: `0581d59601c89719d3aaffebacb64088949e5cd3`
-- aktuelle GitHub `index.html`: `6f3c881c46f49484442a7760d32071578f82b9ec`
-- aktuelle Venedig-Szene: `venice-scene-v39.js` SHA `6578b5c0d6945853516167f84e287a22544ca6a1`
-- aktuelles Repository enthält `flirt-system-v40.js?v=40`; diese Erweiterung bleibt unverändert erhalten.
+## Direkt vor der Änderung geprüfter GitHub-Stand
+- `game.js`: `5783ebc63e7f8be8b1c09d141c55023712decfe1`
+- `index.html`: `9ee9f874266e9dbf672ee7d6071838070c8e7b65`
+- `acquaintances-v41.js`: `b388f14f0d5131131c0949a2beafc20fbf0f2449`
+- `venice-scene-v39.js`: `367a135a9676a7371ce3948e6b55b807075f2715`
+- `progression-markers-v38.js`: `f83e3a7029177b948400281908bd9dd1f1806567`
+- `script.js`: `6f7e956074964f5c434fdb69b9dbe374fcc9692d`
+- aktuelles `flirt-system-v42.js`: `5938d658f2095c049eb20a06c774f2319b7533f9`
+
+Die aktuelle v42-Flirtlogik bleibt unangetastet im Repository und wird durch einen kleinen v43-Patch nur an der gewünschten REDEN-Stelle korrigiert.
 
 ## 1. Frau an der Bar
-Die normale REDEN-/Tanzfrage lautet jetzt klickweise:
-1. Simon: `Hey Süessi, willsch tanze?`
-2. Frau: `Du bisch zwar nice...`
-3. Frau: `aber...`
-4. Frau: `nöd soooo nice.`
+Beim ersten normalen Gespräch bleibt der bisherige Schuh-Teil erhalten:
+1. `Hey, weisch du, wo ich fire Schueh chaufe cha?`
+2. `Ja, fahr mit de Tram zur Bahnhofstrass. Det findsch sicher öppis im Schueh-Shop.`
+3. `Merci! Willsch mit mir tanze?`
 
-Die Sequenz läuft mit eigenem Same-Tap-Schutz, damit ein Klick nicht mehrere Sätze überspringt.
+Danach neu exakt:
+4. `Du bisch zwar nice...`
+5. `aber...`
+6. `nöd soooo nice.`
 
-## 2. Bekanntschaften statt Bösewichte
-Der dritte Inventar-Tab heißt jetzt **BEKANNTSCHAFTEN**.
+Bei späteren normalen REDEN-Gesprächen wird die bereits bekannte Schuh-Auskunft nicht unnötig wiederholt; Simon beginnt dann direkt mit `Willsch mit mir tanze?` und erhält dieselben drei Antworten.
 
-Bekannte Figuren werden beim tatsächlichen Kennenlernen gespeichert und nach Kategorien gruppiert:
-- **BÖSEWICHTE** – rot: Milchmann, Dark Gandhi
-- **FRAUEN** – rosa: Frau an der Bar
-- **FREUNDE** – grün: Amsif, Enrique
-- **SONSTIGE** – blau: Der Löwe, Die Türsteher
+## 2. Bekanntschaften
+Neu eingetragen:
+- **Der Inder** – Sonstige; wird beim ersten Ansprechen seines Ladens bekannt.
+- **Gandhi** – Sonstige; wird bei der ersten Gandhi-Begegnung bekannt.
+- **Thomas** – Sonstige; wird beim ersten Anklicken in Venedig bekannt.
 
-Jede Bekanntschaft besitzt eine eigene Karte und einen `i`-Button mit kurzer Beschreibung.
+Damit sind Gandhi und Dark Gandhi bewusst zwei Einträge: Gandhi als Begegnung, Dark Gandhi als Bösewicht-Form.
 
-Das System merkt Begegnungen ab jetzt global innerhalb des laufenden Spiels und bietet über `window.SimonAcquaintancesV41.mark(key)` bereits einen Anschluss für kommende Figuren.
+Zusätzlich besitzt `window.SimonAcquaintancesV41.register(...)` jetzt einen generischen Anschluss, damit künftige neue Figuren sofort in dasselbe System aufgenommen werden können.
 
-## 3. Neuer Developer-Mode-Punkt
-Neu:
-`4. VENEDIG / STAZIONE VENEZIA`
+## 3. Tram in Venedig
+Der feste Ankunftspunkt wurde von `x=420` auf `x=330` verschoben.
 
-Der Checkpoint startet direkt in Venedig mit Developer-Coins und einem Langstreckenticket, damit auch die Rückfahrt sofort getestet werden kann.
+- Tram-Breite: 250 px
+- neue rechte Tramkante: x=580
+- Schließfach beginnt bei etwa x=646
+- Ticketautomat bei etwa x=735
 
-## 4. Despawn
-Geplünderte Figuren despawnen jetzt nach **2 Sekunden** statt 5 Sekunden.
+Damit verdeckt die ankommende Tram weder Schließfach noch Ticketautomat. Die Tram-Hitbox wurde passend mitverschoben.
 
-## 5. Venedig dichter und majestätischer
-Die Zahl der bisherigen Venedig-Hauptebenen bleibt gleich:
-1. Himmel
-2. ferne Stadt/Lagune
-3. mittlere Stadt-/Kanalschicht
-4. Bahnhof/Endstation
-5. Vordergrund/Promenade
+## 4. Thomas in Venedig
+Thomas sitzt als erster neuer NPC rechts vom Bahnhofsbereich bei etwa x=1090:
+- junger Mann
+- schwarze Haare
+- Dreitagebart als Pixel-Stoppeln
+- sitzt auf einem Stuhl
+- Tisch vor ihm
+- drei einfache Pokerkarten in der Hand
+- statischer Name `THOMAS`
 
-Innerhalb der Stadtlayer wurde die Architektur deutlich verdichtet:
-- 23 zusammenhängende ferne Palazzo-Fassaden
-- 19 nähere Palazzo-Fassaden
-- venezianische Bogenfenster
-- Loggien und Arkaden
-- Balkone und Gesimse
-- mehrere Campanili
-- drei Kuppeln im Basilika-Cluster
-- zusätzliche Kirchtürme
-- acht Gondeln und mehr Anlegepfähle
+Beim Anklicken:
+`Ciao Simeone, willsch e Rundi Pferderenne spiele?`
 
-Damit entsteht statt einzelner verstreuter Gebäude eine geschlossene historische Stadtsilhouette.
+Optionen:
+- **JA**
+- **NEIN**
 
-## Weiße Interaktionspunkte
-Die Punkte sitzen jetzt auf den tatsächlichen Interaktionsobjekten:
-- Ticketautomat: Mittelpunkt der Automaten-Hitbox
-- Schließfach: Mittelpunkt der Locker-Hitbox
-- besiegte/lootbare Figuren: direkt auf dem Körper
-- Tram: weiterhin an der Tür
+NEIN schließt den Dialog und gibt die Straße sofort wieder frei.
+
+## 5. Pferderennen mit Thomas
+Nach JA öffnet sich ein eigenes Arcade-Fenster:
+`PFERDERENNEN MIT THOMAS`
+
+Flow:
+1. START
+2. Einsatz als ganze Coinzahl wählen
+3. Pferd wählen: ♥ HERZ / ♦ KARO / ♣ KREUZ / ♠ PIK
+4. Thomas wählt zufällig eine andere Farbe und einen Einsatz von 100–400 Coins
+5. Rennbrett
+
+### Rennbrett
+Das Brett orientiert sich an der gelieferten Karten-Referenz:
+- vier offene Pferde-/Farbenkarten nebeneinander oben
+- sechs verdeckte Streckenkarten senkrecht rechts
+- verdecktes Deck und zuletzt gezogene Karte unten
+- Button **UMDREHEN**
+
+Es werden absichtlich keine Kartenwerte verwendet. Jede Karte trägt nur eines der vier Symbole.
+
+### Rennlogik
+- Eine gezogene Farbe bewegt ihr Pferd genau eine Position vor.
+- Sobald alle vier Pferde Position 1 erreicht/überschritten haben, wird Streckenkarte 1 aufgedeckt.
+- Ihre Farbe bewegt das entsprechende Pferd eine Position zurück.
+- Dasselbe gilt später für Positionen 2 bis 6.
+- Ein Pferd kann nie hinter die Startposition zurückfallen.
+- Sieger ist das erste Pferd, das **Position 6 überschreitet**, also Position 7 erreicht.
+- Falls beim selben Zug erst eine Streckenkarte aufgedeckt werden muss, wird deren Rückschritt vor der Siegerprüfung angewandt.
+
+### Auszahlung
+- Simons Pferd gewinnt: **+2 × Simons gewählter Einsatz**
+- Thomas' Pferd gewinnt: **−Thomas' zufälliger Einsatz (100–400)**
+- eine der zwei neutralen Farben gewinnt: **−50 Coins**
+
+Die Verluste werden direkt vom Coin-Konto abgezogen. Das Konto darf dadurch negativ werden. Die bestehenden Kaufprüfungen bleiben erhalten, sodass Simon mit negativem Kontostand keine Gegenstände/Tickets/Bücher kaufen kann.
+
+Developer Mode behält weiterhin ∞ Coins; die Rennlogik läuft trotzdem vollständig durch und zeigt das Ergebnis.
+
+## 6. Negativer Coinstand und Ewige Wiederkehr
+Die bisherige Rewind-Wiederherstellung hat negative Coinstände still auf 0 gesetzt. Das wurde korrigiert. Ein negativer Pferderennen-Kontostand bleibt nun auch als regulärer Spielzustand erhalten.
 
 ## Dateien hochladen
-- `game.js` ersetzen
-- `index.html` ersetzen
-- `progression-markers-v38.js` ersetzen
-- `venice-scene-v39.js` ersetzen
-- `script.js` ersetzen
-- `acquaintances-v41.js` neu hinzufügen
+Ersetzen:
+- `game.js`
+- `index.html`
+- `venice-scene-v39.js`
+- `acquaintances-v41.js`
 
-`flirt-system-v40.js` bleibt unverändert im Repository.
+Neu hinzufügen:
+- `woman-conversation-v43.js`
+- `thomas-horserace-v44.js`
 
-## Cache
-- `game.js?v=36`
-- `progression-markers-v38.js?v=39`
-- `venice-scene-v39.js?v=42`
-- `acquaintances-v41.js?v=41`
-- `script.js?v=13`
+Nicht ersetzen:
+- `flirt-system-v42.js`
+- `script.js`
+- `progression-markers-v38.js`
+- übrige bestehende Wrapper
+
+## Cache-Versionen
+- `game.js?v=37`
+- `venice-scene-v39.js?v=43`
+- `acquaintances-v41.js?v=42`
+- `flirt-system-v42.js?v=42` unverändert
+- `woman-conversation-v43.js?v=43`
+- `thomas-horserace-v44.js?v=44`
+- `script.js?v=13` unverändert
 
 ## Tests
-- Syntaxcheck aller fünf JS-Dateien – PASS
-- Lootdespawn exakt 2000 ms – PASS
-- Marker wird beim Loot sofort entfernt – PASS
-- alle sieben aktuellen Bekanntschaften werden korrekt registriert – PASS
-- Inventar-Tab wird zu BEKANNTSCHAFTEN – PASS
-- Frau-an-der-Bar-Dialog exakt in vier Klickschritten – PASS
-- Venedig Developer Checkpoint – PASS
-- aktuelles `flirt-system-v40.js` bleibt vor dem neuen Bekanntschaften-Patch geladen – PASS
-- Venedig enthält 23+19 prozedurale Palazzo-Fassaden plus Monumente – PASS
+- Syntax aller geänderten/neuen JS-Dateien – PASS
+- erstes Frau-an-der-Bar-Gespräch inkl. Schuh-Teil – PASS
+- neue drei Ablehnungssätze exakt und einzeln klickbar – PASS
+- zweites Gespräch wiederholt Schuh-Auskunft nicht – PASS
+- Der Inder / Gandhi / Thomas werden als Bekanntschaften markiert – PASS
+- zukünftige dynamische Bekanntschaft registrierbar – PASS
+- Kartendeck: 52 Symbole, 13 pro Farbe – PASS
+- sechs Streckenkarten werden vom Zugdeck abgetrennt – PASS
+- Thomas wählt nie Simons Farbe – PASS
+- Thomas-Einsatz immer 100–400 – PASS
+- Streckenkarte wirft passende Farbe genau eine Position zurück – PASS
+- kein Rückfall hinter Start – PASS
+- Sieg erst nach Position 6 – PASS
+- Simon-Auszahlung +2× Einsatz – PASS
+- Thomas-Verlust −Thomas-Einsatz – PASS
+- Neutralverlust −50 – PASS
+- Tramgeometrie: rechte Kante 580 < Locker 646 – PASS
+- bestehende PWA-/Wrapper-Reihenfolge bleibt erhalten – PASS

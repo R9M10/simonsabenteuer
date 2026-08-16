@@ -80,6 +80,27 @@
       initials: "T5",
       description:
         "Die fünf Türsteher des HIVE. Eine Diskussion darüber, ob fünf Türsteher gegen einen Löwen gewinnen würden, eskaliert deutlich schneller als geplant."
+    },
+    indian: {
+      name: "Der Inder",
+      category: "other",
+      initials: "IN",
+      description:
+        "Der Betreiber des Ladens „Der Inder“ an der Bahnhofstrasse. Simon lernt ihn kennen, sobald er den Laden zum ersten Mal anspricht."
+    },
+    gandhi: {
+      name: "Gandhi",
+      category: "other",
+      initials: "G",
+      description:
+        "Gandhi begegnet Simon an der Bahnhofstrasse. Diese Begegnung entwickelt sich später in eine deutlich gefährlichere Richtung."
+    },
+    thomas: {
+      name: "Thomas",
+      category: "other",
+      initials: "T",
+      description:
+        "Ein junger Mann in Venedig mit schwarzen Haaren und Dreitagebart. Er sitzt mit Karten am Tisch und fordert Simon zu einer Runde Pferderennen heraus."
     }
   };
 
@@ -119,6 +140,14 @@
     scene.acquaintancesMet = state.met;
 
     if (scene.gandhiStoryEligible) mark(scene, "milkman");
+    if (
+      scene.gandhiEncounterStarted ||
+      scene.gandhiEncounterFinished ||
+      scene.darkGandhiBossActive ||
+      scene.darkGandhiDefeated
+    ) {
+      mark(scene, "gandhi");
+    }
     if (scene.darkGandhiBossActive || scene.darkGandhiDefeated) {
       mark(scene, "darkGandhi");
     }
@@ -454,6 +483,8 @@
     wrapMeetMethod(scene, "startBouncerDialogue", "bouncers");
     wrapMeetMethod(scene, "showLionChoiceQuestion", "lion");
     wrapMeetMethod(scene, "startMilkmanEncounter", "milkman");
+    wrapMeetMethod(scene, "openIndianStorePrompt", "indian");
+    wrapMeetMethod(scene, "startGandhiEncounter", "gandhi");
     wrapMeetMethod(scene, "startDarkGandhiBoss", "darkGandhi");
     wrapMeetMethod(scene, "startAmsifIntroDialogue", "amsif");
   }
@@ -495,6 +526,20 @@
     state,
     mark(key) {
       return mark(null, key);
+    },
+    register(key, definition, { markNow = false } = {}) {
+      if (!key || !definition?.name) return false;
+      const category = CATEGORIES[definition.category]
+        ? definition.category
+        : "other";
+      DEFINITIONS[key] = {
+        initials: "?",
+        description: "Simon hat diese Person kennengelernt.",
+        ...definition,
+        category
+      };
+      if (markNow) mark(null, key);
+      return true;
     },
     getKnown() {
       return Object.keys(DEFINITIONS)

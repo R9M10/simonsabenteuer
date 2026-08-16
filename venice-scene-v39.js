@@ -16,6 +16,7 @@
   const GAME_HEIGHT = 390;
   const WORLD_WIDTH = 3000;
   const GROUND_TOP = 338;
+  const VENICE_TRAM_STOP_X = 330;
 
   class VeniceScene extends BaseScene {
     constructor() {
@@ -880,7 +881,7 @@
         ease: "Sine.easeInOut"
       });
 
-      this.tramHitbox = this.add.zone(540, 272, 250, 112)
+      this.tramHitbox = this.add.zone(VENICE_TRAM_STOP_X + 125, 272, 250, 112)
         .setDepth(170)
         .setInteractive({ useHandCursor: true });
       this.tramHitbox.input.enabled = false;
@@ -1094,7 +1095,7 @@
         sprintExpiresAt: this.sprintExpiresAt
       };
 
-      const doorX = (this.arrivalTram?.x || 420) + 156;
+      const doorX = (this.arrivalTram?.x || VENICE_TRAM_STOP_X) + 156;
       this.tweens.add({
         targets: this.player,
         x: doorX,
@@ -1143,7 +1144,7 @@
       if (this.arrivalFinished || !this.sys.isActive() || !this.player?.active) return;
       if (this.arrivalTram?.active) {
         this.tweens.killTweensOf(this.arrivalTram);
-        this.arrivalTram.setX(420);
+        this.arrivalTram.setX(VENICE_TRAM_STOP_X);
       }
       if (this.arrivalDoor?.active) {
         this.tweens.killTweensOf(this.arrivalDoor);
@@ -1151,7 +1152,7 @@
         this.arrivalDoor.setAlpha(0.35);
       }
       this.tweens.killTweensOf(this.player);
-      const exitX = (this.arrivalTram?.x || 420) + 156 + 118;
+      const exitX = (this.arrivalTram?.x || VENICE_TRAM_STOP_X) + 156 + 118;
       this.player.setPosition(exitX, 250);
       this.player.setVelocity(0,0);
       this.player.setVisible(true);
@@ -1184,7 +1185,7 @@
       this.cameras.main.setAlpha(1);
       this.tweens.add({
         targets: this.arrivalTram,
-        x: 420,
+        x: VENICE_TRAM_STOP_X,
         duration: 900,
         ease: "Sine.easeOut",
         onComplete: () => {
