@@ -1,0 +1,22 @@
+/* Simon's Abenteuer — Opening scene v18
+   Uses the established v16 artwork/layout, but moves Benjamin's speech bubble
+   clearly above his head. */
+
+@import url("opening-scene-v16.css?v=16");
+
+#scene-screen .speech-bubble {
+  left: 50.5% !important;
+  right: auto !important;
+  bottom: 69% !important;
+}
+
+#scene-screen .speech-bubble::after {
+  bottom: -14px !important;
+}
+
+@media (max-height: 430px) {
+  #scene-screen .speech-bubble {
+    left: 50.5% !important;
+    bottom: 67% !important;
+  }
+}
