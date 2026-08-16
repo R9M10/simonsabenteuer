@@ -42,6 +42,7 @@
       this.coinText = null;
 
       this.uiLocked = false;
+      this.__worldInteractionBlockedUntil = 0;
       this.controlObjects = [];
       this.ticketModal = null;
       this.ticketStatusText = null;
@@ -222,6 +223,7 @@
       // A Scene instance is reused by Phaser after scene.start(). Any old
       // modal/combat/travel lock must be reset explicitly.
       this.uiLocked = false;
+      this.__worldInteractionBlockedUntil = 0;
       this.touchLeft = false;
       this.touchRight = false;
       this.touchJumpRequested = false;
@@ -558,7 +560,7 @@
         .setDepth(91);
 
       zone.on("pointerup", (pointer) => {
-        if (this.canUseWormholeNow()) return;
+        if (!this.canUseWorldInteraction(pointer)) return;
 
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
@@ -571,6 +573,8 @@
     }
 
     enterLatestHiveInterior() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         this.playerDying ||
         this.uiLocked ||
@@ -827,6 +831,8 @@
       this.tramHitbox.input.enabled = false;
 
       this.tramHitbox.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.boardTram();
@@ -913,6 +919,8 @@
         .setInteractive({ useHandCursor: true });
 
       this.ticketHitbox.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.openTicketModal();
@@ -1184,7 +1192,10 @@
       container.setInteractive({ useHandCursor: true });
 
       container.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
         this.startBouncerDialogue();
       });
 
@@ -3201,6 +3212,96 @@
       });
     }
 
+    blockWorldInteractions(durationMs = 650) {
+      const until = Date.now() + Math.max(0, Number(durationMs) || 0);
+      this.__worldInteractionBlockedUntil = Math.max(
+        Number(this.__worldInteractionBlockedUntil) || 0,
+        until
+      );
+
+      window.__SIMON_WORLD_INTERACTION_BLOCK_UNTIL__ = Math.max(
+        Number(window.__SIMON_WORLD_INTERACTION_BLOCK_UNTIL__) || 0,
+        until
+      );
+    }
+
+    isPlayerGroundedForInteraction() {
+      const body = this.player?.body;
+
+      if (
+        !this.player?.active ||
+        !this.player.visible ||
+        !body ||
+        body.enable === false
+      ) {
+        return false;
+      }
+
+      const grounded = Boolean(
+        body.blocked?.down ||
+        body.touching?.down
+      );
+
+      const verticalSpeed = Math.abs(Number(body.velocity?.y) || 0);
+      return grounded && verticalSpeed < 45;
+    }
+
+    isWorldInteractionBusy() {
+      return Boolean(
+        this.uiLocked ||
+        this.playerDying ||
+        this.inVoid ||
+        this.rewindActive ||
+        this.wormholeTeleporting ||
+        this.tramTransitActive ||
+        this.ticketModal ||
+        this.tramDestinationModal ||
+        this.itemsModal ||
+        this.itemInfoModal ||
+        this.villainInfoModal ||
+        this.lootModal ||
+        this.lionChoiceModal ||
+        this.danceOverlay ||
+        this.bouncerDialogueActive ||
+        this.fightActive ||
+        this.lionCombatActive ||
+        this.lionExitActive ||
+        this.drinkingItem ||
+        this.readingBook ||
+        this.storeEntryModal ||
+        this.indianStoreOverlay ||
+        this.shopModal ||
+        this.bookstoreEntryModal ||
+        this.bookstoreOverlay ||
+        this.bookstoreCatalogModal ||
+        this.milkmanDialogueActive ||
+        this.milkmanFightActive ||
+        this.milkmanLootModal ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiLootModal ||
+        this.gandhiNukeActive ||
+        this.darkGandhiBossActive
+      );
+    }
+
+    canUseWorldInteraction(pointer = null, { requireGround = true } = {}) {
+      const now = Date.now();
+      const blockedUntil = Math.max(
+        Number(this.__worldInteractionBlockedUntil) || 0,
+        Number(window.__SIMON_WORLD_INTERACTION_BLOCK_UNTIL__) || 0
+      );
+
+      if (now < blockedUntil) return false;
+      if (this.isWorldInteractionBusy()) return false;
+      if (requireGround && !this.isPlayerGroundedForInteraction()) return false;
+
+      // Touch-control areas are UI, never world interaction targets.
+      if (pointer && this.isPointerInControlArea(pointer)) return false;
+
+      return true;
+    }
+
     canUseWormholeNow() {
       if (
         this.activeAbility !== "wormhole" ||
@@ -4035,6 +4136,8 @@
         event?.preventDefault?.();
         event?.stopPropagation?.();
 
+        this.blockWorldInteractions?.(700);
+
         const previousBackground = button.style.background;
         button.style.background = "#5a5360";
         button.style.transform = "translateY(2px)";
@@ -4797,6 +4900,8 @@
     }
 
     boardTram() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         this.inVoid ||
         this.rewindActive ||
@@ -5083,6 +5188,7 @@
     }
 
     openTicketModal() {
+      if (!this.canUseWorldInteraction(null)) return;
       if (this.ticketModal || this.playerDying || this.danceOverlay) return;
 
       if (this.itemsModal) this.closeItemsModal();
@@ -5263,6 +5369,8 @@
         guard.setDepth(18);
 
         guard.on("pointerdown", (pointer) => {
+          if (!this.canUseWorldInteraction(pointer)) return;
+
           pointer.event?.preventDefault?.();
           pointer.event?.stopPropagation?.();
           this.openLootModal();
@@ -5271,6 +5379,8 @@
     }
 
     openLootModal() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         this.lootModal ||
         this.ticketModal ||
@@ -5455,6 +5565,8 @@
     }
 
     startBouncerDialogue() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         this.ticketModal ||
         this.bouncerDialogueActive ||
@@ -6727,8 +6839,8 @@
 
       // Dark Gandhi boss.
       this.darkGandhiBossActive = false;
-      this.darkGandhiMaxHp = 90;
-      this.darkGandhiHp = 90;
+      this.darkGandhiMaxHp = 180;
+      this.darkGandhiHp = 180;
       this.darkGandhiPhase = 0;
       this.darkGandhiHealthBar = null;
       this.darkGandhiHealthFill = null;
@@ -7386,6 +7498,8 @@
       this.ticketHitbox.input.enabled = false;
 
       this.ticketHitbox.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.openTicketModal();
@@ -7580,6 +7694,8 @@
     }
 
     canOpenStreetStore(pointer) {
+      if (!this.canUseWorldInteraction(pointer)) return false;
+
       // An airborne Wurmloch click is a map target, never a store click.
       if (this.canUseWormholeNow()) {
         return false;
@@ -7630,6 +7746,7 @@
     syncStreetStoreHitboxes() {
       const enabled = Boolean(
         this.arrivalFinished &&
+        this.canUseWorldInteraction(null) &&
         !this.inVoid &&
         !this.rewindActive &&
         !this.uiLocked &&
@@ -7671,6 +7788,8 @@
     }
 
     openBookstorePrompt() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         !this.arrivalFinished ||
         this.playerDying ||
@@ -8173,6 +8292,8 @@
     }
 
     openIndianStorePrompt() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         !this.arrivalFinished ||
         this.playerDying ||
@@ -9533,19 +9654,19 @@
         1: {
           title: "PHASE 1 / 3",
           name: "SALZMARSCH",
-          detail: "3 TREFFER · STOCK + SALZ",
+          detail: "6 TREFFER · STOCK + SALZ",
           accent: 0xf3e8c6
         },
         2: {
           title: "PHASE 2 / 3",
           name: "KARMA",
-          detail: "3 TREFFER · KARMA + WIEDERGEBURT",
+          detail: "6 TREFFER · KARMA + WIEDERGEBURT",
           accent: 0xb66dff
         },
         3: {
           title: "PHASE 3 / 3",
           name: "NUCLEAR LEVEL: MAX",
-          detail: "3 TREFFER · NUKES + AHIMSA",
+          detail: "6 TREFFER · NUKES + AHIMSA",
           accent: 0xff4b4b
         }
       }[phase];
@@ -9879,8 +10000,8 @@
 
       if (time < this.darkGandhiAhimsaUntil) {
         this.damageSimonFromDarkGandhi(
-          5,
-          "AHIMSA −5"
+          6,
+          "AHIMSA −6"
         );
         this.showImpact(
           this.gandhi.x,
@@ -9890,7 +10011,7 @@
         return false;
       }
 
-      if (this.darkGandhiPhaseHits >= 3) {
+      if (this.darkGandhiPhaseHits >= 6) {
         this.showImpact(
           this.gandhi.x,
           this.gandhi.y - 58,
@@ -9917,13 +10038,13 @@
       this.showImpact(
         this.gandhi.x,
         this.gandhi.y - 82,
-        `TREFFER ${this.darkGandhiPhaseHits}/3`
+        `TREFFER ${this.darkGandhiPhaseHits}/6`
       );
 
-      if (this.darkGandhiPhaseHits >= 3) {
+      if (this.darkGandhiPhaseHits >= 6) {
         const floorByPhase = {
-          1: 60,
-          2: 30,
+          1: 120,
+          2: 60,
           3: 0
         };
 
@@ -9937,7 +10058,7 @@
       // Trigger Karma early enough that Phase 2 is clearly visible.
       if (
         this.darkGandhiPhase === 2 &&
-        this.darkGandhiPhaseHits === 2
+        this.darkGandhiPhaseHits === 3
       ) {
         this.scheduleKarmicRetaliation();
       }
@@ -10014,7 +10135,7 @@
         salt.body.setSize(27, 22);
         salt.body.setAllowGravity(false);
         salt.body.setVelocityX(
-          direction * (82 + i * 10)
+          direction * (94 + i * 10)
         );
 
         salt.__hit = false;
@@ -10036,8 +10157,8 @@
               this.time.now + 1000;
 
             this.damageSimonFromDarkGandhi(
-              5,
-              "SALZ −5"
+              6,
+              "SALZ −6"
             );
 
             salt.destroy(true);
@@ -10075,8 +10196,8 @@
       });
 
       this.damageSimonFromDarkGandhi(
-        6,
-        "STOCK −6"
+        7,
+        "STOCK −7"
       );
     }
 
@@ -10116,7 +10237,7 @@
 
         this.physics.add.existing(orb);
         orb.body.setAllowGravity(false);
-        orb.body.setVelocityX(direction * 170);
+        orb.body.setVelocityX(direction * 188);
         orb.__hit = false;
 
         this.darkGandhiKarmaProjectiles.push(orb);
@@ -10134,8 +10255,8 @@
 
             orb.__hit = true;
             this.damageSimonFromDarkGandhi(
-              6,
-              "KARMA −6"
+              7,
+              "KARMA −7"
             );
             orb.destroy();
           },
@@ -10207,7 +10328,7 @@
           if (!clone?.active) return;
 
           const angle =
-            elapsed / 760 +
+            elapsed / 700 +
             index * (Math.PI * 2 / 3);
 
           clone.x =
@@ -10226,8 +10347,8 @@
               time + 1000;
 
             this.damageSimonFromDarkGandhi(
-              4,
-              "WIEDERKEHR −4"
+              5,
+              "WIEDERKEHR −5"
             );
           }
         }
@@ -10330,8 +10451,8 @@
           Math.abs(this.player.x - targetX) < 70
         ) {
           this.damageSimonFromDarkGandhi(
-            12,
-            "NUKE −12"
+            14,
+            "NUKE −14"
           );
         }
 
@@ -10352,7 +10473,7 @@
       }
 
       this.darkGandhiAhimsaUntil =
-        this.time.now + 1800;
+        this.time.now + 2000;
       this.darkGandhiLastDrainAt =
         this.time.now;
 
@@ -10465,7 +10586,7 @@
 
       const dx = this.player.x - this.gandhi.x;
       const absDx = Math.abs(dx);
-      const speed = [0, 46, 56, 66][this.darkGandhiPhase] || 46;
+      const speed = [0, 53, 63, 73][this.darkGandhiPhase] || 53;
 
       if (absDx > 78) {
         this.gandhi.x +=
@@ -10476,24 +10597,24 @@
         absDx < 90 &&
         time >= this.darkGandhiNextStaffAt
       ) {
-        this.darkGandhiNextStaffAt = time + 2100;
+        this.darkGandhiNextStaffAt = time + 1900;
         this.darkGandhiStaffAttack();
       }
 
       if (this.darkGandhiPhase === 1) {
         if (time >= this.darkGandhiNextSaltAt) {
-          this.darkGandhiNextSaltAt = time + 3400;
+          this.darkGandhiNextSaltAt = time + 3100;
           this.spawnSaltMarch();
         }
       } else if (this.darkGandhiPhase === 2) {
         if (time >= this.darkGandhiNextRebirthAt) {
-          this.darkGandhiNextRebirthAt = time + 6200;
+          this.darkGandhiNextRebirthAt = time + 5700;
           this.startWheelOfRebirth();
         }
         this.updateWheelOfRebirth(time);
       } else if (this.darkGandhiPhase === 3) {
         if (time >= this.darkGandhiNextNukeAt) {
-          this.darkGandhiNextNukeAt = time + 5000;
+          this.darkGandhiNextNukeAt = time + 4600;
           this.scheduleCivilizationNuke();
         }
 
@@ -10501,7 +10622,7 @@
           time >= this.darkGandhiNextAhimsaAt &&
           time >= this.darkGandhiAhimsaUntil
         ) {
-          this.darkGandhiNextAhimsaAt = time + 9000;
+          this.darkGandhiNextAhimsaAt = time + 8200;
           this.startAhimsaInversion();
         }
 
@@ -10569,6 +10690,8 @@
 
       this.gandhi.removeAllListeners?.("pointerdown");
       this.gandhi.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.openGandhiLootModal();
@@ -10611,6 +10734,8 @@
 
       this.gandhi.removeAllListeners?.("pointerdown");
       this.gandhi.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.openGandhiLootModal();
@@ -10618,6 +10743,8 @@
     }
 
     openGandhiLootModal() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         !this.darkGandhiDefeated ||
         !this.gandhi?.active ||
@@ -11466,13 +11593,37 @@
 
       this.tweens.killTweensOf(this.milkman);
       this.milkman.removeAllListeners?.("pointerdown");
-      this.milkman.setAngle(84);
-      this.milkman.setY(GROUND_TOP - 17);
-      this.milkman.setDepth(25);
-      this.milkman.setSize(120, 75);
+
+      if (this.milkman.__milkmanV15) {
+        // Developer checkpoints must use the same current KO visual as normal play.
+        this.milkman
+          .setAngle(0)
+          .setScale(0.78)
+          .setY(GROUND_TOP - 74)
+          .setDepth(25)
+          .setSize(190, 92);
+
+        if (this.anims?.exists?.("milkman-v15-ko")) {
+          this.milkman.play("milkman-v15-ko", true);
+          const target = this.milkman;
+          target.once?.("animationcomplete-milkman-v15-ko", () => {
+            if (target.active) target.setFrame?.(24);
+          });
+        } else {
+          this.milkman.setFrame?.(24);
+        }
+      } else {
+        this.milkman.setAngle(84);
+        this.milkman.setY(GROUND_TOP - 17);
+        this.milkman.setDepth(25);
+        this.milkman.setSize(120, 75);
+      }
+
       this.milkman.setInteractive({ useHandCursor: true });
 
       this.milkman.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.openMilkmanLootModal();
@@ -11587,6 +11738,8 @@
     }
 
     openMilkmanLootModal() {
+      if (!this.canUseWorldInteraction(null)) return;
+
       if (
         !this.milkmanDefeated ||
         this.milkmanLootModal ||
@@ -11783,6 +11936,7 @@
       this.updateGandhiNukeFailsafe(time);
       this.updateDarkGandhiBoss(time, delta);
       this.updateGandhiStory();
+      this.syncStreetStoreHitboxes();
     }
 
     getTramDestinations() {
@@ -11960,6 +12114,8 @@
       this.tramHitbox.input.enabled = false;
 
       this.tramHitbox.on("pointerdown", (pointer) => {
+        if (!this.canUseWorldInteraction(pointer)) return;
+
         pointer.event?.preventDefault?.();
         pointer.event?.stopPropagation?.();
         this.boardTram();
@@ -12115,6 +12271,7 @@
     };
 
     if (game) {
+      window.__SIMON_ACTIVE_GAME_V28__ = game;
       return game;
     }
 
@@ -12148,6 +12305,7 @@
       scene: [MilchbuckScene, BahnhofquaiScene]
     });
 
+    window.__SIMON_ACTIVE_GAME_V28__ = game;
     return game;
   };
 })();
