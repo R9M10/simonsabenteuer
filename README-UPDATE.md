@@ -1,104 +1,65 @@
-# Simons Abenteuer – Schuhladen / Amsif / Void / Gandhi Reward v31
+# Simons Abenteuer – UI / Alignment / Despawn v32
 
-## Ausgangsbasis
-Direkt vor der Änderung erneut aus GitHub geprüft:
-- `game.js`: `d6bf414e5ae34ee70be40dbd8d616e6aaa67e42e`
-- `index.html`: `320cd0f4e653ea68463dad3f64b714ffbf50c173`
+## Aktueller GitHub-Stand
+Direkt vor der Änderung geprüft:
+- `game.js`: `6d32558647e4824b29b1e6e43b9b07b6a158ec25`
+- `index.html`: `a03c18ae8accd05278da70df45c9e843922cec22`
+- `opening-scene-v15.css`: `63705d1b20499548e21ac6e5cadc6712cfa0ec78`
+- aktuelles Repository lädt bereits `simon-ui-v35.js?v=35`; diese Änderung bleibt erhalten.
 
-Die aktuelle `simon-ui-v34.js?v=34`-Erweiterung der parallelen Repository-Arbeit bleibt erhalten.
+## Änderungen
 
-## 1. Für-sich-sein-Void
-Der `← ZURÜCK`-Button sitzt jetzt unten links und berücksichtigt iPhone-Safe-Areas.
+### Fähigkeiten-UI
+- Fähigkeitskarten sind jetzt pro Fähigkeit visuell zusammenhängend gestaltet statt mit einem generischen lila Button.
+- Wurmloch: Cyan/Violett-Weltraumstil.
+- Ewige Wiederkehr: Gold/Zeit-Stil.
+- Für sich sein: dunkler Void/Stahl-Stil.
+- `AUSRÜSTEN` / `AUSGERÜSTET` ist in das Kartendesign integriert.
+- Der Touch-Aktionsbutton wurde ebenfalls neu gestaltet: ein kompakter Arcade-Panel-Button statt eines willkürlichen W/F-Kreises.
+- Ewige Wiederkehr zeigt `ZEIT / −3 SEK.`.
+- Für sich sein zeigt `VOID / BEREIT` bzw. den Countdown direkt im Panel.
+- Tastatursteuerung W/F bleibt unverändert.
 
-## 2. Buchzitate
-Die Zitatbox ist jetzt ein eigener DOM-Layer mit `z-index: 400500`.
-Damit liegt sie vor:
-- dem aktiven Fähigkeitssymbol,
-- Phaser-HUD,
-- Canvas-Effekten.
+### Anfangssequenz
+- Neue `opening-scene-v16.css`.
+- Sprechblase wird über ihre Mitte positioniert statt über die linke Kante.
+- Mittelpunkt bei 50,5 %, Tail ebenfalls mittig; dadurch sitzt die Blase direkt über Benjamin statt deutlich rechts davon.
 
-Sie bleibt 10 Sekunden sichtbar. Die bestehende v34-Quote-Erweiterung kann den neuen DOM-Banner gefahrlos ignorieren, weil sie nur Phaser-Banner mit `active/list` nachbearbeitet.
+### Despawn
+- Geplünderte Figuren verschwinden nach **5 Sekunden** statt 30.
+- Gilt für Türsteher, Dark Gandhi und Milchmann.
+- Der Milchwagen verschwindet weiterhin gemeinsam mit dem Milchmann.
+- Auch der gemeinsame Default für zukünftige plünderbare Figuren ist 5 Sekunden.
 
-## 3. Dark Gandhi Reward
-Beim endgültigen Sieg über Dark Gandhi werden automatisch **300 Coins** gutgeschrieben.
-Im Developer Mode bleibt die Coin-Anzeige unendlich; die +300-Animation wird trotzdem angezeigt.
+### Amsif
+- `Schuher` → `Schueh`.
+- `Himmel` wird im letzten Satz großgeschrieben.
+- Sein Namensschild ist jetzt ein separates, nicht gespiegeltes Displayobjekt. Amsif kann sich drehen, `AMSIF` bleibt immer normal lesbar und waagerecht.
+- Amsif steht jetzt bei x=2494 rechts **neben** dem Schuhladen. Seine Hitbox beginnt erst nach dem Ende der Schuhladen-Fassade, sodass Amsif- und Ladenklick nicht mehr räumlich überlappen.
 
-## 4. Neuer Schuhladen
-Direkt rechts neben Orell Füssli steht jetzt dauerhaft ein arcadeartiger Schuhladen:
-- dunkle Fassade,
-- cyan-/magenta Neonrahmen,
-- pulsierende Leuchtreklame,
-- Pixel-Schuhe in den Fenstern.
+### Rauchen / Trinken
+- Neue gemeinsame Mundposition anhand von Simons tatsächlicher Sprite-Größe.
+- Monster und Gatorade werden aus Handhöhe zum Mund geführt; der Flaschenwinkel wird für links/rechts korrekt gespiegelt.
+- Die Zigarette sitzt direkt auf Mundhöhe.
+- Die Zigarette selbst wird für Simons Blickrichtung gespiegelt, sodass Filter und Glut immer auf der richtigen Seite liegen.
+- Rauch entsteht jetzt an der Glut statt hinter Simons Kopf.
 
-Er ist immer vorhanden – völlig unabhängig davon, ob Gandhi bereits erschienen oder besiegt wurde.
-
-Für ihn gelten dieselben Weltinteraktionsregeln wie für Der Inder/Orell:
-- nur am Boden anklickbar,
-- kein Wurmloch-Fall-through,
-- nicht während Kämpfen/Dialogen/Modals,
-- Fassaden-Hitbox endet oberhalb der Touch-Steuerung.
-
-Beim Anklicken erscheint:
-`Schuhladen geschlossen.`
-mit `ZURÜCK`.
-
-## 5. Amsif
-Beim ersten `ZURÜCK` aus dem geschlossenen Schuhladen kommt Amsif von rechts auf die Map und bleibt anschließend vor dem Laden stehen.
-
-Aussehen:
-- männliche, Middle-Eastern-inspirierte Arcade-Figur,
-- dunkles Haar/Bart,
-- grün-türkise Jacke,
-- rot-gold gemusterter Schal,
-- Name `AMSIF` permanent über dem Kopf.
-
-### Erster Dialog
-- `Dich kenn ich doch!`
-- `Mir hend mal Fuessball gspielt und ich han falschi Schueh kha!`
-
-Danach:
-- `AMSIFS GESCHICHTE HÖREN`
-- `WEITER`
-
-Bei `WEITER` läuft das Spiel normal weiter. Amsif bleibt stehen und anklickbar; sein Menü bietet weiterhin Geschichte/Weiter.
-
-### Geschichte
-Die komplette vorgegebene Sequenz wurde unverändert eingebaut, inklusive Simons Frage nach dem Général.
-
-Nach Abschluss endet die Sequenz ohne weiteres Popup.
-Klickt man Amsif danach erneut an, erscheinen:
-- `AMSIF DEN SCHLÜSSEL GEBEN` – sichtbar, aber deaktiviert
-- `ZURÜCK`
-
-Es wird noch kein Schlüssel erfunden oder vergeben.
-
-## Sequenz-/Stabilitätsschutz
-- Amsif startet pro Spielstand nur einmal.
-- `EncounterStarted`, `IntroCompleted` und `StoryCompleted` werden durch Tramfahrten mitgenommen.
-- Storyzustände sind monoton: `StoryCompleted` impliziert automatisch `IntroCompleted` und `EncounterStarted`.
-- Ein abgebrochener Scene-/Tween-Callback besitzt einen Recovery-Pfad.
-- Während Amsif ankommt oder spricht sind Stores, Tram und Items entsprechend gesperrt.
-- Amsif wird bei späteren Bahnhofstrasse-Besuchen automatisch wieder vor dem Schuhladen aufgebaut.
-- Der Dialog-zu-Menü-Übergang hat zusätzlich 620 ms Same-Tap-Schutz, damit der letzte Dialogtap nicht sofort eine Menüoption auslöst.
-- Gandhi-Story und Amsif-Story besitzen keine gegenseitige Fortschrittsbedingung.
-
-## Dateien ersetzen
+## Dateien hochladen
 - `game.js`
 - `index.html`
+- `opening-scene-v16.css` (neu)
+
+`opening-scene-v15.css` kann im Repository bleiben; die neue index lädt v16.
 
 ## Cache
-- `game.js?v=31`
+- `game.js?v=32`
+- `opening-scene-v16.css?v=16`
 
 ## Tests
 - `node --check game.js` – PASS
-- Void-Zurückbutton unten links / Safe Area – PASS
-- Zitat-DOM-Layer > 300000 – PASS
-- 10-Sekunden-Zitat-Timer – PASS
-- Dark Gandhi +300 Coins – PASS
-- Schuhladen startet Amsif ohne Gandhi-Abhängigkeit – PASS
-- wiederholtes Schuhladen-Zurück startet Amsif nicht doppelt – PASS
-- beide Introzeilen in korrekter Reihenfolge – PASS
-- komplette Amsif-Geschichte = 10 Schritte – PASS
-- Simons Général-Frage ist Sprecher `simon` – PASS
-- Story endet sauber in `amsifStoryCompleted` – PASS
-- aktuelle `simon-ui-v34.js`-Einbindung bleibt erhalten – PASS
+- Default-Lootdespawn = 5000 ms – PASS
+- Mundanker links/rechts symmetrisch – PASS
+- Amsif dreht sich, Namensschild bleibt Scale 1 / Winkel 0 – PASS
+- Amsif-Hitbox liegt vollständig außerhalb der Schuhladen-Fassade – PASS
+- keine 30000-ms-Lootdespawns mehr – PASS
+- aktuelle `simon-ui-v35.js?v=35`-Integration bleibt erhalten – PASS

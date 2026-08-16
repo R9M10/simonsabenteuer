@@ -2089,6 +2089,30 @@
       this.playDrinkAnimation(key);
     }
 
+    getPlayerMouthAnchor(direction = null) {
+      if (!this.player?.active) {
+        return { x: 0, y: 0, direction: 1 };
+      }
+
+      const dir =
+        direction === -1 || direction === 1
+          ? direction
+          : (this.facing < 0 ? -1 : 1);
+
+      const displayWidth =
+        Number(this.player.displayWidth) || 101;
+      const displayHeight =
+        Number(this.player.displayHeight) || 118;
+
+      // Simon's sprite origin is centered. This anchor follows his face rather
+      // than using hard-coded world offsets that drift between animations.
+      return {
+        x: this.player.x + dir * Math.max(15, displayWidth * 0.16),
+        y: this.player.y - Math.max(34, displayHeight * 0.30),
+        direction: dir
+      };
+    }
+
     playDrinkAnimation(key) {
       const item = this.getItemDefinition(key);
       if (!item || this.getItemCount(key) <= 0) return;
@@ -2099,40 +2123,43 @@
 
       this.player.setVelocity(0, 0);
       this.player.anims.stop();
+      this.player.setAngle(0);
 
       const direction = this.facing < 0 ? -1 : 1;
-      const startX = this.player.x + direction * 28;
-      const startY = this.player.y - 52;
-      const icon = this.createWorldItemIcon(key, startX, startY, 0.85)
-        .setDepth(this.getActionEffectDepth(55));
+      const mouth = this.getPlayerMouthAnchor(direction);
 
-      const originalAngle = this.player.angle;
+      // Start near Simon's hand, then move the bottle so its neck/cap reaches
+      // the mouth. The opposite rotation for left/right keeps it physically
+      // consistent instead of flipping to an arbitrary angle.
+      const icon = this.createWorldItemIcon(
+        key,
+        mouth.x + direction * 24,
+        mouth.y + 31,
+        0.85
+      ).setDepth(this.getActionEffectDepth(55));
 
-      this.tweens.add({
-        targets: this.player,
-        angle: -direction * 6,
-        y: this.player.y - 3,
-        duration: 220,
-        yoyo: true,
-        repeat: 1,
-        ease: "Sine.easeInOut"
-      });
+      icon.setAngle(0);
+
+      const sipX = mouth.x + direction * 8;
+      const sipY = mouth.y + 15;
+      const sipAngle = -direction * 58;
 
       this.tweens.add({
         targets: icon,
-        x: this.player.x + direction * 8,
-        y: this.player.y - 84,
-        angle: direction * 72,
-        duration: 330,
+        x: sipX,
+        y: sipY,
+        angle: sipAngle,
+        duration: 300,
         ease: "Sine.easeInOut",
         onComplete: () => {
           this.tweens.add({
             targets: icon,
-            y: icon.y + 4,
-            angle: direction * 95,
-            duration: 210,
+            y: sipY + 2,
+            angle: -direction * 66,
+            duration: 190,
             yoyo: true,
-            repeat: 1,
+            repeat: 2,
+            ease: "Sine.easeInOut",
             onComplete: () => {
               this.inventory[key] = Math.max(0, this.getItemCount(key) - 1);
 
@@ -2171,7 +2198,7 @@
               });
 
               icon.destroy(true);
-              this.player.setAngle(originalAngle);
+              this.player.setAngle(0);
               this.player.play("simon-idle", true);
 
               this.drinkingItem = false;
@@ -2667,59 +2694,81 @@
         return;
       }
 
-      const label =
-        this.activeAbility === "eternalReturn"
-          ? "W"
-          : "F\nBEREIT";
       const weaponSelected = this.isThrowingSticksSelected?.() || false;
       const abilityX = weaponSelected
-        ? GAME_WIDTH - 176
-        : GAME_WIDTH - 100;
+        ? GAME_WIDTH - 178
+        : GAME_WIDTH - 102;
+      const abilityY = GAME_HEIGHT - 137;
 
-      const button = this.makeTouchButton(
-        abilityX,
-        GAME_HEIGHT - 137,
-        label,
-        () => {
-          if (this.activeAbility === "eternalReturn") {
-            this.rewindGameThreeSeconds();
-          } else if (this.activeAbility === "forItself") {
-            this.enterForItselfVoid();
-          }
-        },
-        () => {}
-      );
+      const isTime = this.activeAbility === "eternalReturn";
+      const accent = isTime ? 0xe6c66b : 0xb9c9df;
+      const fill = isTime ? 0x2b2415 : 0x171c24;
+      const pressedFill = isTime ? 0x5b4920 : 0x34404e;
+      const titleColor = isTime ? "#fff0af" : "#edf4ff";
 
-      button.circle.setScale(0.88);
-      button.text.setScale(0.88);
+      const container = this.add.container(abilityX, abilityY)
+        .setScrollFactor(0)
+        .setDepth(1000);
 
-      this.abilityControlObjects.push(button.circle, button.text);
+      const shadow = this.add.rectangle(3, 4, 76, 48, 0x05070b, 0.6)
+        .setOrigin(0.5);
 
-      if (weaponSelected) {
-        const abilityCaption = this.add.text(
-          abilityX,
-          GAME_HEIGHT - 179,
-          this.activeAbility === "eternalReturn" ? "ZEIT" : "VOID",
-          {
-            fontFamily: '"Press Start 2P", monospace',
-            fontSize: "5px",
-            color: "#d8caff",
-            stroke: "#14101c",
-            strokeThickness: 3
-          }
-        )
-          .setOrigin(0.5)
-          .setScrollFactor(0)
-          .setDepth(1002);
+      const panel = this.add.rectangle(0, 0, 76, 48, fill, 0.94)
+        .setOrigin(0.5)
+        .setStrokeStyle(3, accent, 0.95)
+        .setInteractive({ useHandCursor: false });
 
-        this.controlObjects.push(abilityCaption);
-        this.abilityControlObjects.push(abilityCaption);
-      }
+      const title = this.add.text(
+        0,
+        -10,
+        isTime ? "ZEIT" : "VOID",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "7px",
+          color: titleColor
+        }
+      ).setOrigin(0.5);
 
-      if (this.activeAbility === "forItself") {
-        button.text.setFontSize(6);
-        button.text.setLineSpacing(2);
-        this.abilityCooldownText = button.text;
+      const status = this.add.text(
+        0,
+        10,
+        isTime ? "−3 SEK." : "BEREIT",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "5px",
+          color: isTime ? "#d7b85f" : "#c9ffd2"
+        }
+      ).setOrigin(0.5);
+
+      container.add([shadow, panel, title, status]);
+
+      const press = (pointer) => {
+        pointer.event?.preventDefault?.();
+        panel.setFillStyle(pressedFill, 1);
+        container.setY(abilityY + 2);
+
+        if (isTime) {
+          this.rewindGameThreeSeconds();
+        } else {
+          this.enterForItselfVoid();
+        }
+      };
+
+      const release = () => {
+        panel.setFillStyle(fill, 0.94);
+        container.setY(abilityY);
+      };
+
+      panel.on("pointerdown", press);
+      panel.on("pointerup", release);
+      panel.on("pointerout", release);
+      panel.on("pointerupoutside", release);
+
+      this.controlObjects.push(container);
+      this.abilityControlObjects.push(container);
+
+      if (!isTime) {
+        this.abilityCooldownText = status;
         this.updateAbilityCooldownLabel();
       }
     }
@@ -2943,7 +2992,7 @@
       );
 
       if (remaining <= 0) {
-        this.abilityCooldownText.setText("F\nBEREIT");
+        this.abilityCooldownText.setText("BEREIT");
         this.abilityCooldownText.setColor("#c9ffd2");
         return;
       }
@@ -2953,7 +3002,7 @@
       const seconds = totalSeconds % 60;
 
       this.abilityCooldownText.setText(
-        `F\n${minutes}:${String(seconds).padStart(2, "0")}`
+        `${minutes}:${String(seconds).padStart(2, "0")}`
       );
       this.abilityCooldownText.setColor("#ffd6aa");
     }
@@ -3967,42 +4016,46 @@
 
       this.player.setVelocity(0, 0);
       this.player.anims.stop();
+      this.player.setAngle(0);
 
       const direction = this.facing < 0 ? -1 : 1;
+      const mouth = this.getPlayerMouthAnchor(direction);
+
       const cigarette = this.add.container(
-        this.player.x + direction * 17,
-        this.player.y - 62
+        mouth.x,
+        mouth.y
       ).setDepth(this.getActionEffectDepth(85));
 
       const cig = this.add.graphics();
+      // Draw from the lips outward, then mirror only the cigarette graphic.
       cig.fillStyle(0xc78a44, 1);
-      cig.fillRect(-11, -2, 5, 4);
+      cig.fillRect(-2, -2, 6, 4);
       cig.fillStyle(0xf1eee2, 1);
-      cig.fillRect(-6, -2, 15, 4);
+      cig.fillRect(4, -2, 17, 4);
       cig.fillStyle(0xe34f35, 1);
-      cig.fillRect(9, -2, 2, 4);
+      cig.fillRect(21, -2, 3, 4);
+      cig.scaleX = direction;
       cigarette.add(cig);
 
-      const startPlayerY = this.player.y;
-
+      // Small breathing motion while the cigarette stays at mouth height.
       this.tweens.add({
-        targets: this.player,
-        angle: -direction * 4,
-        y: startPlayerY - 2,
-        duration: 230,
+        targets: cigarette,
+        y: mouth.y - 1,
+        angle: direction * 2,
+        duration: 260,
         yoyo: true,
         repeat: 2,
         ease: "Sine.easeInOut"
       });
 
-      // Three pixel-ish smoke puffs.
+      // Smoke originates at the ember, not behind Simon's head.
       [0, 270, 540].forEach((delay, index) => {
         this.time.delayedCall(310 + delay, () => {
           if (!cigarette.active) return;
 
           const puff = this.add.circle(
-            cigarette.x - direction * 10,
-            cigarette.y - 7,
+            cigarette.x + direction * 23,
+            cigarette.y - 4,
             4 + index,
             0xe7e4dc,
             0.72
@@ -4011,7 +4064,7 @@
           this.tweens.add({
             targets: puff,
             y: puff.y - 30 - index * 5,
-            x: puff.x - direction * (8 + index * 3),
+            x: puff.x + direction * (8 + index * 3),
             scale: 1.6,
             alpha: 0,
             duration: 820,
@@ -4027,7 +4080,6 @@
         const item = this.getItemDefinition("camel");
         const now = Date.now();
 
-        // Add to remaining sprint time instead of resetting it.
         this.sprintExpiresAt =
           Math.max(now, Number(this.sprintExpiresAt) || 0) +
           item.sprintMs;
@@ -4040,7 +4092,6 @@
 
         cigarette.destroy(true);
         this.player.setAngle(0);
-        this.player.setY(startPlayerY);
         this.player.play("simon-idle", true);
 
         this.drinkingItem = false;
@@ -4049,6 +4100,7 @@
         this.updateSprintIndicator(true);
       });
     }
+
 
     cleanupSprintIndicator() {
       if (this.sprintIndicatorDOM?.remove) {
@@ -4593,11 +4645,41 @@
         return;
       }
 
+      const themes = {
+        wormhole: {
+          border: "#71d4ff",
+          glow: "rgba(94,108,255,.28)",
+          background: "linear-gradient(180deg,#17142a 0%,#0d1720 100%)",
+          button: "#24577a",
+          buttonBorder: "#71d4ff",
+          text: "#dff7ff",
+          status: "WELTRAUM"
+        },
+        eternalReturn: {
+          border: "#e6c66b",
+          glow: "rgba(226,184,75,.24)",
+          background: "linear-gradient(180deg,#241d11 0%,#16120c 100%)",
+          button: "#695422",
+          buttonBorder: "#e6c66b",
+          text: "#fff0af",
+          status: "ZEIT"
+        },
+        forItself: {
+          border: "#b9c9df",
+          glow: "rgba(184,205,232,.18)",
+          background: "linear-gradient(180deg,#171b22 0%,#090b10 100%)",
+          button: "#34404e",
+          buttonBorder: "#b9c9df",
+          text: "#edf4ff",
+          status: "VOID"
+        }
+      };
+
       const grid = document.createElement("div");
       Object.assign(grid.style, {
         display: "grid",
         gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: "9px",
+        gap: "10px",
         width: "100%"
       });
 
@@ -4605,46 +4687,90 @@
         const ability = this.getAbilityDefinition(abilityKey);
         if (!ability) return;
 
+        const theme = themes[abilityKey] || themes.forItself;
+        const active = this.activeAbility === abilityKey;
+
         const card = document.createElement("div");
         Object.assign(card.style, {
-          padding: "10px 8px",
-          border: "2px solid #7259a5",
-          background: "#17131f",
-          display: "flex",
-          flexDirection: "column",
+          padding: "10px",
+          border: `2px solid ${theme.border}`,
+          borderRadius: "9px",
+          background: theme.background,
+          display: "grid",
+          gridTemplateRows: "auto auto 1fr auto",
           gap: "8px",
           alignItems: "center",
-          boxSizing: "border-box"
+          boxSizing: "border-box",
+          boxShadow: active
+            ? `0 0 0 2px rgba(255,243,201,.18), 0 0 12px ${theme.glow}`
+            : `0 4px 0 rgba(0,0,0,.28), inset 0 0 14px ${theme.glow}`
         });
 
-        const icon = this.createDOMAbilityIcon(abilityKey, 40);
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+          display: "grid",
+          gridTemplateColumns: "48px minmax(0,1fr)",
+          gap: "9px",
+          alignItems: "center",
+          width: "100%"
+        });
+
+        const icon = this.createDOMAbilityIcon(abilityKey, 42);
+
+        const titleWrap = document.createElement("div");
+        titleWrap.style.minWidth = "0";
 
         const name = this.createDOMText(ability.name, {
-          fontSize: "8px",
-          color: "#eee3ff"
+          fontSize: "7px",
+          color: theme.text
+        });
+        name.style.textAlign = "left";
+
+        const type = this.createDOMText(
+          active ? `${theme.status} · AKTIV` : theme.status,
+          {
+            fontSize: "4.5px",
+            color: active ? "#ffe7a2" : "#8796aa",
+            margin: "5px 0 0"
+          }
+        );
+        type.style.textAlign = "left";
+
+        titleWrap.append(name, type);
+        header.append(icon, titleWrap);
+
+        const rule = document.createElement("div");
+        Object.assign(rule.style, {
+          width: "100%",
+          height: "2px",
+          background: theme.border,
+          opacity: "0.32"
         });
 
         const description = this.createDOMText(ability.description, {
-          fontSize: "5.5px",
-          color: "#bfb6cc",
+          fontSize: "5.3px",
+          color: "#c6c7cf",
           lineHeight: "1.55"
         });
+        description.style.textAlign = "left";
 
-        const active = this.activeAbility === abilityKey;
         const button = this.createDOMButton(
-          active ? "AKTIV" : "AUSRÜSTEN",
+          active ? "AUSGERÜSTET" : "AUSRÜSTEN",
           () => this.equipAbility(abilityKey),
           {
-            color: active ? "#f8f0c9" : "#eef2ff",
-            background: active ? "#61522f" : "#493670",
-            border: active ? "#e1c96d" : "#9c82d4",
-            minHeight: "36px",
-            fontSize: "6px"
+            color: active ? "#fff0b8" : theme.text,
+            background: active ? "#4b4328" : theme.button,
+            border: active ? "#c5aa55" : theme.buttonBorder,
+            minHeight: "38px",
+            fontSize: "5.8px",
+            padding: "8px"
           }
         );
         button.disabled = active;
+        button.style.width = "100%";
+        button.style.opacity = active ? "0.78" : "1";
 
-        card.append(icon, name, description, button);
+        card.append(header, rule, description, button);
         grid.appendChild(card);
       });
 
@@ -5553,7 +5679,7 @@
       this.ensureTramBoardingInteractive();
     }
 
-    scheduleLootedCharacterDespawn(target, delayMs = 30000, onDone = null) {
+    scheduleLootedCharacterDespawn(target, delayMs = 5000, onDone = null) {
       const targets = Array.isArray(target)
         ? target.filter(Boolean)
         : [target].filter(Boolean);
@@ -5707,7 +5833,7 @@
       const lootedBouncers = [...this.fightBouncers];
       this.scheduleLootedCharacterDespawn(
         lootedBouncers,
-        30000,
+        5000,
         () => {
           this.fightBouncers = this.fightBouncers.filter(
             (guard) => !lootedBouncers.includes(guard)
@@ -8183,7 +8309,7 @@
       this.syncStreetStoreHitboxes();
     }
 
-    createAmsif(x = 2305, groundY = GROUND_TOP - 8) {
+    createAmsif(x = 2494, groundY = GROUND_TOP - 8) {
       const amsif = this.add.container(
         x,
         groundY - 72
@@ -8252,8 +8378,12 @@
         }
       ).setOrigin(0.5);
 
-      amsif.add([g, name]);
-      amsif.setSize(92, 164);
+      // Keep the name outside the flipped/rotated character container so it
+      // always remains upright and readable.
+      amsif.add([g]);
+      name.setPosition(amsif.x, amsif.y - 82).setDepth(56);
+      amsif.__nameText = name;
+      amsif.setSize(84, 164);
       amsif.setInteractive({ useHandCursor: true });
 
       amsif.on("pointerdown", (pointer) => {
@@ -8267,18 +8397,30 @@
       return amsif;
     }
 
+    syncAmsifName() {
+      if (!this.amsif?.active || !this.amsif.__nameText?.active) return;
+
+      this.amsif.__nameText.setPosition(
+        this.amsif.x,
+        this.amsif.y - 82
+      );
+      this.amsif.__nameText.setAngle(0);
+      this.amsif.__nameText.setScale(1);
+    }
+
     faceAmsifTowardSimon() {
       if (!this.amsif?.active || !this.player?.active) return;
 
-      // The procedural character is visually symmetric enough for a simple flip.
-      this.amsif.scaleX = this.player.x < this.amsif.x ? -1 : 1;
+      const direction = this.player.x < this.amsif.x ? -1 : 1;
+      this.amsif.scaleX = direction;
       this.amsif.scaleY = Math.abs(this.amsif.scaleY || 1);
+      this.syncAmsifName();
     }
 
     restoreAmsifIfNeeded() {
       if (!this.amsifEncounterStarted || this.amsif?.active) return;
 
-      this.amsif = this.createAmsif(2305, GROUND_TOP - 8);
+      this.amsif = this.createAmsif(2494, GROUND_TOP - 8);
       this.faceAmsifTowardSimon();
     }
 
@@ -8293,7 +8435,7 @@
       this.setUILocked(true);
       this.player?.setVelocity?.(0, 0);
 
-      const targetX = 2305;
+      const targetX = 2494;
       const targetY = GROUND_TOP - 80;
       const viewRight = Number(this.cameras.main.worldView?.right) || (targetX + 420);
       const startX = Phaser.Math.Clamp(
@@ -8308,6 +8450,7 @@
 
       this.amsif.setPosition(startX, targetY);
       this.amsif.setAlpha(0.25);
+      this.syncAmsifName();
       if (this.amsif.input) this.amsif.input.enabled = false;
 
       const target = this.amsif;
@@ -8353,9 +8496,10 @@
       }
 
       this.tweens.killTweensOf(target);
-      target.setPosition(2305, GROUND_TOP - 80);
+      target.setPosition(2494, GROUND_TOP - 80);
       target.setAngle(0);
       target.setAlpha(1);
+      this.syncAmsifName();
 
       this.amsifArrivalActive = false;
       this.faceAmsifTowardSimon();
@@ -8443,10 +8587,10 @@
         { speaker: "amsif", text: "Das isch min Lade..." },
         { speaker: "amsif", text: "aber en bösewicht het min Ladeschlüssel klaut!" },
         { speaker: "amsif", text: "Er het sich Général gnennt!" },
-        { speaker: "amsif", text: "Wenn du mir de Schlüssel zrug bringsch, wird ich dir die schönste Schuher aller Zite schenke!" },
+        { speaker: "amsif", text: "Wenn du mir de Schlüssel zrug bringsch, wird ich dir die schönste Schueh aller Zite schenke!" },
         { speaker: "simon", text: "Weisch du wo de Général jetzt isch?" },
         { speaker: "amsif", text: "Nei, nume..." },
-        { speaker: "amsif", text: "dass er uf nere Wulche vom himmel cho isch" }
+        { speaker: "amsif", text: "dass er uf nere Wulche vom Himmel cho isch" }
       ];
     }
 
@@ -8637,6 +8781,8 @@
       this.restoreAmsifIfNeeded();
 
       if (!this.amsif?.active) return;
+
+      this.syncAmsifName();
 
       if (
         !this.amsifArrivalActive &&
@@ -12208,7 +12354,7 @@
       const lootedGandhi = this.gandhi;
       this.scheduleLootedCharacterDespawn(
         lootedGandhi,
-        30000,
+        5000,
         () => {
           if (this.gandhi === lootedGandhi) {
             this.gandhi = null;
@@ -13276,7 +13422,7 @@
 
       this.scheduleLootedCharacterDespawn(
         [lootedMilkman, lootedMilkVan],
-        30000,
+        5000,
         () => {
           if (this.milkman === lootedMilkman) {
             this.milkman = null;
