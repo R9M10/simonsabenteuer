@@ -202,84 +202,236 @@
       });
     }
 
-    createVeniceFarCity() {
-      const water = this.add.graphics().setScrollFactor(0.16).setDepth(-24);
-      water.fillStyle(0x7fb6c8, 1);
-      water.fillRect(0, 246, WORLD_WIDTH, 55);
-      water.fillStyle(0x9dd0db, 0.55);
-      for (let x = 0; x < WORLD_WIDTH; x += 55) {
-        water.fillRect(x, 262 + ((x / 55) % 3), 31, 2);
-        water.fillRect(x + 16, 279 + ((x / 37) % 2), 24, 2);
+    drawVenetianPalazzo(g, x, baseline, w, h, palette, variant = 0) {
+      const top = baseline - h;
+      const wall = palette.wall;
+      const trim = palette.trim;
+      const dark = palette.dark;
+      const glass = palette.glass;
+
+      g.fillStyle(wall, 1);
+      g.fillRect(x, top, w, h);
+
+      // Strong Venetian cornice / roof silhouette.
+      g.fillStyle(trim, 1);
+      g.fillRect(x - 3, top, w + 6, 5);
+      if (variant % 4 === 0) {
+        g.fillTriangle(x - 3, top, x + w / 2, top - 15, x + w + 3, top);
+      } else if (variant % 4 === 1) {
+        g.fillRect(x + 8, top - 8, w - 16, 8);
+        for (let bx = x + 12; bx < x + w - 8; bx += 14) {
+          g.fillRect(bx, top - 12, 7, 5);
+        }
       }
 
-      const skyline = this.add.graphics().setScrollFactor(0.18).setDepth(-23);
-      skyline.fillStyle(0xc6b199, 1);
+      // Ground loggia / arcade.
+      g.fillStyle(dark, 1);
+      g.fillRect(x + 5, baseline - 25, w - 10, 22);
+      const arcadeCount = Math.max(2, Math.floor((w - 14) / 24));
+      const arcadeStep = (w - 14) / arcadeCount;
+      for (let i = 0; i < arcadeCount; i += 1) {
+        const ax = x + 9 + i * arcadeStep;
+        g.fillStyle(glass, 1);
+        g.fillCircle(ax + 7, baseline - 19, 7);
+        g.fillRect(ax, baseline - 19, 14, 13);
+        g.fillStyle(trim, 0.9);
+        g.fillRect(ax - 2, baseline - 5, 18, 3);
+      }
 
-      const palazzi = [
-        [980, 170, 110, 74], [1110, 158, 128, 86], [1264, 182, 96, 62],
-        [1390, 146, 138, 98], [1564, 165, 116, 79], [1710, 152, 132, 92],
-        [1880, 176, 90, 68], [1996, 150, 150, 94], [2192, 168, 116, 76],
-        [2340, 146, 142, 98], [2510, 178, 104, 66], [2654, 160, 144, 84]
-      ];
-      palazzi.forEach(([x,y,w,h], i) => {
-        skyline.fillStyle(i % 2 === 0 ? 0xd0bea8 : 0xc3ab92, 1);
-        skyline.fillRect(x, y, w, h);
-        skyline.fillStyle(i % 2 === 0 ? 0xad957d : 0x9f886f, 1);
-        skyline.fillTriangle(x - 3, y, x + w/2, y - 14, x + w + 3, y);
-        for (let wx = x + 10; wx < x + w - 8; wx += 20) {
-          for (let wy = y + 12; wy < y + h - 14; wy += 22) {
-            skyline.fillStyle(((wx + wy) / 2) % 2 ? 0x6a8fa2 : 0xefe6bf, 1);
-            skyline.fillRect(wx, wy, 8, 12);
-          }
+      // Tall arched windows, denser than before.
+      const columns = Math.max(2, Math.floor((w - 16) / 20));
+      const rows = Math.max(2, Math.floor((h - 42) / 24));
+      const colStep = (w - 16) / columns;
+      for (let row = 0; row < rows; row += 1) {
+        const wy = top + 16 + row * 24;
+        for (let col = 0; col < columns; col += 1) {
+          const wx = x + 8 + col * colStep;
+          const lit = (row + col + variant) % 4 === 0;
+          g.fillStyle(lit ? 0xf3db9b : glass, 1);
+          g.fillCircle(wx + 5, wy + 4, 5);
+          g.fillRect(wx, wy + 4, 10, 10);
+          g.lineStyle(1, trim, 0.9);
+          g.strokeRect(wx, wy + 4, 10, 10);
         }
+      }
+
+      // Decorative balcony on many palazzi.
+      if (variant % 3 !== 2 && h > 82) {
+        const by = top + Math.min(54, h * 0.48);
+        g.fillStyle(trim, 1);
+        g.fillRect(x + 12, by, w - 24, 4);
+        for (let bx = x + 15; bx < x + w - 13; bx += 9) {
+          g.fillRect(bx, by - 8, 2, 9);
+        }
+      }
+
+      // Narrow vertical stone borders give the façades more real weight.
+      g.fillStyle(trim, 0.75);
+      g.fillRect(x, top, 3, h);
+      g.fillRect(x + w - 3, top, 3, h);
+    }
+
+    createVeniceFarCity() {
+      const water = this.add.graphics().setScrollFactor(0.16).setDepth(-24);
+      water.fillStyle(0x72aabc, 1);
+      water.fillRect(0, 236, WORLD_WIDTH, 66);
+      water.fillStyle(0xa8d5dc, 0.6);
+      for (let x = 0; x < WORLD_WIDTH; x += 44) {
+        water.fillRect(x, 250 + ((x / 44) % 4), 27, 2);
+        water.fillRect(x + 13, 271 + ((x / 31) % 3), 20, 2);
+        water.fillRect(x + 6, 287, 34, 1);
+      }
+
+      // Continuous far skyline: Venice should feel like a dense historic city,
+      // not a handful of isolated blocks.
+      const far = this.add.graphics().setScrollFactor(0.18).setDepth(-23);
+      const palettes = [
+        { wall:0xd7b79e, trim:0x9d806a, dark:0x5c5955, glass:0x607e91 },
+        { wall:0xc9907e, trim:0x8f675b, dark:0x554b48, glass:0x66879a },
+        { wall:0xe0c7a1, trim:0xae8d68, dark:0x5a5750, glass:0x5e8095 },
+        { wall:0xb98775, trim:0x7f6157, dark:0x514b49, glass:0x688b9b },
+        { wall:0xd5c9ad, trim:0x9d927a, dark:0x565752, glass:0x668595 },
+        { wall:0xc7a584, trim:0x92745f, dark:0x554f49, glass:0x5d7c8e }
+      ];
+
+      let x = 820;
+      let i = 0;
+      while (x < WORLD_WIDTH + 80) {
+        const w = 78 + ((i * 31) % 53);
+        const h = 88 + ((i * 47) % 72);
+        this.drawVenetianPalazzo(
+          far,
+          x,
+          242,
+          w,
+          h,
+          palettes[i % palettes.length],
+          i
+        );
+        x += w - 3;
+        i += 1;
+      }
+
+      // Multiple monumental landmarks woven into the skyline.
+      const landmarks = this.add.graphics().setScrollFactor(0.18).setDepth(-21);
+
+      // Campanile 1.
+      landmarks.fillStyle(0xb8724e, 1);
+      landmarks.fillRect(1370, 72, 34, 170);
+      landmarks.fillStyle(0xe3d2ad, 1);
+      landmarks.fillRect(1365, 61, 44, 20);
+      landmarks.fillStyle(0x7f6a5d, 1);
+      landmarks.fillTriangle(1361, 61, 1387, 36, 1413, 61);
+      landmarks.fillStyle(0x4d6070, 1);
+      landmarks.fillRect(1378, 88, 18, 23);
+
+      // Campanile 2 further away.
+      landmarks.fillStyle(0xb98964, 1);
+      landmarks.fillRect(2476, 102, 27, 140);
+      landmarks.fillStyle(0xd8c5a5, 1);
+      landmarks.fillRect(2472, 92, 35, 16);
+      landmarks.fillStyle(0x817160, 1);
+      landmarks.fillTriangle(2468, 92, 2489, 72, 2511, 92);
+
+      // Basilica dome cluster.
+      const domeCenters = [1840, 1898, 1955];
+      domeCenters.forEach((cx, idx) => {
+        const radius = idx === 1 ? 34 : 25;
+        landmarks.fillStyle(idx === 1 ? 0xcbb69a : 0xbfa990, 1);
+        landmarks.fillCircle(cx, 151 + (idx === 1 ? -7 : 0), radius);
+        landmarks.fillRect(
+          cx - radius,
+          151 + (idx === 1 ? -7 : 0),
+          radius * 2,
+          91 + (idx === 1 ? 7 : 0)
+        );
+        landmarks.fillStyle(0x9d806f, 1);
+        landmarks.fillTriangle(
+          cx - radius - 6,
+          151 + (idx === 1 ? -7 : 0),
+          cx,
+          116 + (idx === 1 ? -11 : 0),
+          cx + radius + 6,
+          151 + (idx === 1 ? -7 : 0)
+        );
       });
 
-      const campanile = this.add.graphics().setScrollFactor(0.18).setDepth(-22);
-      campanile.fillStyle(0xbc7a52, 1);
-      campanile.fillRect(2138, 92, 38, 152);
-      campanile.fillStyle(0xe7d8b1, 1);
-      campanile.fillRect(2134, 76, 46, 24);
-      campanile.fillStyle(0x90715e, 1);
-      campanile.fillTriangle(2130, 76, 2157, 50, 2184, 76);
-
-      const dome = this.add.graphics().setScrollFactor(0.18).setDepth(-22);
-      dome.fillStyle(0xcab29b, 1);
-      dome.fillCircle(1852, 162, 33);
-      dome.fillRect(1818, 162, 68, 82);
-      dome.fillStyle(0xb38f79, 1);
-      dome.fillTriangle(1808, 162, 1852, 124, 1896, 162);
+      // Thin distant church spires throughout the city.
+      [1030, 1600, 2240, 2780].forEach((sx, idx) => {
+        landmarks.fillStyle(idx % 2 ? 0xa98467 : 0xb38d6d, 1);
+        landmarks.fillRect(sx, 126 + (idx % 2) * 15, 15, 116 - (idx % 2) * 15);
+        landmarks.fillTriangle(
+          sx - 7,
+          126 + (idx % 2) * 15,
+          sx + 7,
+          95 + (idx % 2) * 15,
+          sx + 22,
+          126 + (idx % 2) * 15
+        );
+      });
     }
 
     createVeniceMidCity() {
+      // A closer, richly detailed row of palazzi on the opposite canal bank.
       const mid = this.add.graphics().setScrollFactor(0.28).setDepth(-10);
-      mid.fillStyle(0xdbc6b0, 1);
-      mid.fillRect(890, 214, 2000, 40);
-      mid.fillStyle(0xb99f84, 1);
-      for (let x = 910; x < 2840; x += 18) {
-        mid.fillRect(x, 217, 10, 22);
+      const palettes = [
+        { wall:0xe0b78f, trim:0xa7775e, dark:0x4e4a47, glass:0x547f93 },
+        { wall:0xb96f66, trim:0x87564f, dark:0x4c4644, glass:0x668ca0 },
+        { wall:0xd8c39f, trim:0xa89170, dark:0x4d4c47, glass:0x587f94 },
+        { wall:0xc79672, trim:0x93684f, dark:0x504947, glass:0x63889a },
+        { wall:0xd8a99c, trim:0x9e7069, dark:0x514746, glass:0x577e91 }
+      ];
+
+      let x = 900;
+      let i = 0;
+      while (x < WORLD_WIDTH + 60) {
+        const w = 92 + ((i * 37) % 54);
+        const h = 70 + ((i * 41) % 54);
+        this.drawVenetianPalazzo(
+          mid,
+          x,
+          256,
+          w,
+          h,
+          palettes[i % palettes.length],
+          i + 10
+        );
+        x += w - 2;
+        i += 1;
       }
 
-      const gondolas = [1180, 1630, 2120, 2575];
-      gondolas.forEach((x, idx) => {
-        const g = this.add.graphics().setScrollFactor(0.30).setDepth(-9);
-        g.fillStyle(0x1c2025, 1);
-        g.fillTriangle(x, 272, x + 48, 260, x + 92, 272);
-        g.fillRect(x + 10, 266, 54, 7);
-        g.fillStyle(idx % 2 === 0 ? 0x97262f : 0x27446a, 1);
-        g.fillRect(x + 28, 256, 16, 11);
-        g.fillStyle(0x5a3b23, 1);
-        g.fillRect(x + 72, 242, 2, 25);
+      // Marble quay and frequent stair openings.
+      mid.fillStyle(0xc6ad8d, 1);
+      mid.fillRect(892, 256, 2108, 10);
+      mid.fillStyle(0x92775e, 1);
+      for (let qx = 920; qx < 2980; qx += 72) {
+        mid.fillRect(qx, 266, 44, 4);
+      }
+
+      // Gondolas and mooring poles remain visible in front of the palazzi.
+      const gondolas = [1085, 1325, 1570, 1815, 2070, 2325, 2610, 2825];
+      gondolas.forEach((gx, idx) => {
+        const g = this.add.graphics().setScrollFactor(0.30).setDepth(-8);
+        g.fillStyle(0x171c21, 1);
+        g.fillTriangle(gx, 282, gx + 43, 271, gx + 91, 282);
+        g.fillRect(gx + 8, 276, 58, 7);
+        g.fillStyle(idx % 3 === 0 ? 0x8d2934 : (idx % 3 === 1 ? 0x274f70 : 0x7b5936), 1);
+        g.fillRect(gx + 27, 266, 18, 10);
+        g.fillStyle(0xc6b088, 1);
+        g.fillRect(gx + 72, 249, 2, 29);
       });
 
-      const poles = this.add.graphics().setScrollFactor(0.30).setDepth(-8);
-      [1080, 1320, 1700, 1980, 2310, 2680].forEach((x, idx) => {
-        poles.fillStyle(0x79553d, 1);
-        poles.fillRect(x, 232, 6, 58);
-        poles.fillStyle(idx % 2 === 0 ? 0xd95c53 : 0xf2ece5, 1);
-        poles.fillRect(x, 232, 6, 12);
-        poles.fillStyle(idx % 2 === 0 ? 0xf2ece5 : 0xd95c53, 1);
-        poles.fillRect(x, 244, 6, 12);
-      });
+      const poles = this.add.graphics().setScrollFactor(0.30).setDepth(-7);
+      for (let px = 1010, idx = 0; px < 2960; px += 205, idx += 1) {
+        poles.fillStyle(0x76543c, 1);
+        poles.fillRect(px, 242, 6, 50);
+        const c1 = idx % 2 === 0 ? 0xc7514b : 0xe9e4d9;
+        const c2 = idx % 2 === 0 ? 0xe9e4d9 : 0x35658b;
+        poles.fillStyle(c1, 1);
+        poles.fillRect(px, 242, 6, 11);
+        poles.fillStyle(c2, 1);
+        poles.fillRect(px, 253, 6, 11);
+      }
     }
 
     createVeniceStationQuarter() {
@@ -441,7 +593,7 @@
 
       this.ticketInteractionMarker = this.createPulsingInteractionMarker(
         x + 24,
-        y + 46,
+        y + 45,
         176
       ).setVisible(false);
 
@@ -485,7 +637,7 @@
         .setInteractive({ useHandCursor: true });
       this.lockerHitbox.input.enabled = false;
       this.lockerInteractionMarker = this.createPulsingInteractionMarker(
-        x + 38,
+        x + 26,
         y + 44,
         176
       ).setVisible(false);
@@ -1107,6 +1259,39 @@
     const wrapped = function startSimonGameWithVenice(options = {}) {
       const game = originalStart.call(this, options);
       installOnGame(game);
+
+      if (game && options?.developerMode && options?.startMode === "venice") {
+        const startVeniceDeveloperCheckpoint = () => {
+          installOnGame(game);
+          if (!game.scene?.keys?.VeniceScene) return;
+
+          game.scene.start("VeniceScene", {
+            arrivalFrom: "developer",
+            coins: 999999,
+            hp: 100,
+            developerMode: true,
+            hasCityTicket: false,
+            hasLongDistanceTicket: true,
+            longDistanceTicketsUnlocked: true,
+            inventory: {
+              gatorade: 2,
+              monster: 2,
+              camel: 3,
+              gandhiSticks: 0
+            },
+            booksOwned: {},
+            booksRead: {},
+            abilitiesUnlocked: {},
+            activeAbility: null,
+            hotbarItems: [null, null, null, null, null],
+            selectedHotbarIndex: 0,
+            sprintExpiresAt: 0
+          });
+        };
+
+        window.setTimeout(startVeniceDeveloperCheckpoint, 80);
+      }
+
       return game;
     };
     wrapped.__sv39VeniceWrapped = true;

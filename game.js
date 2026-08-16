@@ -968,7 +968,7 @@
 
       this.ticketInteractionMarker = this.createPulsingInteractionMarker(
         740,
-        250,
+        254,
         176
       );
 
@@ -5116,7 +5116,7 @@
       abilitiesTab.dataset.itemsTab = "abilities";
 
       const villainsTab = this.createDOMButton(
-        "BÖSEWICHTE",
+        "BEKANNTSCHAFTEN",
         () => {
           this.itemsModalTab = "villains";
           this.renderItemsModalTab();
@@ -5889,7 +5889,7 @@
       return marker;
     }
 
-    scheduleLootedCharacterDespawn(target, delayMs = 5000, onDone = null) {
+    scheduleLootedCharacterDespawn(target, delayMs = 2000, onDone = null) {
       const targets = Array.isArray(target)
         ? target.filter(Boolean)
         : [target].filter(Boolean);
@@ -5923,7 +5923,7 @@
         guard.setInteractive({ useHandCursor: true });
         guard.setDepth(18);
         this.attachInteractionMarkerToTarget(guard, {
-          offsetY: -14,
+          offsetY: 0,
           depth: 176
         });
 
@@ -6048,7 +6048,7 @@
       const lootedBouncers = [...this.fightBouncers];
       this.scheduleLootedCharacterDespawn(
         lootedBouncers,
-        5000,
+        2000,
         () => {
           this.fightBouncers = this.fightBouncers.filter(
             (guard) => !lootedBouncers.includes(guard)
@@ -8205,7 +8205,7 @@
 
       this.ticketInteractionMarker = this.createPulsingInteractionMarker(
         x + 24,
-        y + 45,
+        y + 44,
         176
       ).setVisible(false);
 
@@ -12499,7 +12499,7 @@
         .setInteractive({ useHandCursor: true });
 
       this.attachInteractionMarkerToTarget(this.gandhi, {
-        offsetY: -18,
+        offsetY: 0,
         depth: 176
       });
 
@@ -12548,7 +12548,7 @@
         .setInteractive({ useHandCursor: true });
 
       this.attachInteractionMarkerToTarget(this.gandhi, {
-        offsetY: -18,
+        offsetY: 0,
         depth: 176
       });
 
@@ -12666,7 +12666,7 @@
       const lootedGandhi = this.gandhi;
       this.scheduleLootedCharacterDespawn(
         lootedGandhi,
-        5000,
+        2000,
         () => {
           if (this.gandhi === lootedGandhi) {
             this.gandhi = null;
@@ -13506,7 +13506,7 @@
 
       this.milkman.setInteractive({ useHandCursor: true });
       this.attachInteractionMarkerToTarget(this.milkman, {
-        offsetY: -18,
+        offsetY: 0,
         depth: 176
       });
 
@@ -13744,7 +13744,7 @@
 
       this.scheduleLootedCharacterDespawn(
         [lootedMilkman, lootedMilkVan],
-        5000,
+        2000,
         () => {
           if (this.milkman === lootedMilkman) {
             this.milkman = null;
