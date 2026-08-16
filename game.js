@@ -2149,6 +2149,136 @@
       });
     }
 
+
+    getBookQuotes(bookKey) {
+      const quotes = {
+        generalRelativity: [
+          "Ein Satz ist dann richtig bzw. „wahr“, wenn er in der anerkannten Weise aus den Axiomen hergeleitet ist.",
+          "Es ist unklar, was hier unter „Ort“ und „Raum“ zu verstehen ist.",
+          "Daß jegliche Bewegung ihrem Begriff nach nur als relative Bewegung gedacht werden muß, war zu allen Zeiten einleuchtend.",
+          "Jeder Bezugskörper (Koordinatensystem) hat seine besondere Zeit.",
+          "Der Verfasser hat sich die größte Mühe gegeben, die Hauptgedanken möglichst deutlich und einfach vorzubringen."
+        ],
+        phaenomenologie: [
+          "Das Wahre ist das Ganze.",
+          "Das Bekannte überhaupt ist darum, weil es bekannt ist, nicht erkannt.",
+          "Die Zeit ist der daseiende Begriff selbst.",
+          "Das Bewußtsein ist einerseits Bewußtsein des Gegenstandes, anderseits Bewußtsein seiner selbst.",
+          "Das Wahre ist so der bacchantische Taumel, an dem kein Glied nicht trunken ist."
+        ],
+        zarathustra: [
+          "Der Übermensch ist der Sinn der Erde.",
+          "Bleibt der Erde treu.",
+          "Der Mensch ist ein Seil, geknüpft zwischen Thier und Übermensch, — ein Seil über einem Abgrunde.",
+          "Was gross ist am Menschen, das ist, dass er eine Brücke und kein Zweck ist.",
+          "Man muss noch Chaos in sich haben, um einen tanzenden Stern gebären zu können."
+        ]
+      };
+
+      return quotes[bookKey] ? [...quotes[bookKey]] : [];
+    }
+
+    showRandomBookQuote(bookKey) {
+      // The Playbook intentionally has no quote banner.
+      if (!bookKey || bookKey === "playbook") return;
+
+      const quotes = this.getBookQuotes(bookKey);
+      if (quotes.length !== 5) return;
+
+      this.bookQuoteBanner?.destroy?.(true);
+      this.bookQuoteBanner = null;
+
+      const token =
+        (Number(this.bookQuoteToken) || 0) + 1;
+      this.bookQuoteToken = token;
+
+      const quote =
+        quotes[Phaser.Math.Between(0, quotes.length - 1)];
+
+      const container = this.add.container(
+        GAME_WIDTH / 2,
+        -68
+      )
+        .setScrollFactor(0)
+        .setDepth(1800);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0x090b12, 0.94);
+      bg.fillRoundedRect(-352, 0, 704, 72, 8);
+      bg.lineStyle(2, 0xe7d8ad, 0.72);
+      bg.strokeRoundedRect(-352, 0, 704, 72, 8);
+
+      const text = this.add.text(
+        0,
+        12,
+        `„${quote}“`,
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "6px",
+          color: "#fff0c7",
+          align: "center",
+          lineSpacing: 4,
+          wordWrap: { width: 660 }
+        }
+      ).setOrigin(0.5, 0);
+
+      const sourceLabel = {
+        generalRelativity:
+          "ALBERT EINSTEIN · RELATIVITÄTSTHEORIE",
+        phaenomenologie:
+          "G. W. F. HEGEL · PHÄNOMENOLOGIE DES GEISTES",
+        zarathustra:
+          "FRIEDRICH NIETZSCHE · ALSO SPRACH ZARATHUSTRA"
+      }[bookKey];
+
+      const source = this.add.text(
+        0,
+        61,
+        sourceLabel || "",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "4px",
+          color: "#bda978"
+        }
+      ).setOrigin(0.5);
+
+      container.add([bg, text, source]);
+      container.setAlpha(0);
+      this.bookQuoteBanner = container;
+
+      this.tweens.add({
+        targets: container,
+        y: 10,
+        alpha: 1,
+        duration: 340,
+        ease: "Back.easeOut"
+      });
+
+      this.time.delayedCall(10000, () => {
+        if (
+          token !== this.bookQuoteToken ||
+          this.bookQuoteBanner !== container ||
+          !container.active
+        ) {
+          return;
+        }
+
+        this.tweens.add({
+          targets: container,
+          y: -68,
+          alpha: 0,
+          duration: 360,
+          ease: "Quad.easeIn",
+          onComplete: () => {
+            if (this.bookQuoteBanner === container) {
+              this.bookQuoteBanner = null;
+            }
+            container.destroy(true);
+          }
+        });
+      });
+    }
+
     playBookReadingAnimation(itemKey) {
       const item = this.getItemDefinition(itemKey);
 
@@ -2271,6 +2401,8 @@
             this.player.setAlpha(1);
             this.player.play("simon-idle", true);
           }
+
+          this.showRandomBookQuote(item.bookKey);
 
           let unlockedAbilityName = null;
 
@@ -2497,7 +2629,7 @@
       const label =
         this.activeAbility === "eternalReturn"
           ? "W"
-          : "F";
+          : "F\nBEREIT";
       const weaponSelected = this.isThrowingSticksSelected?.() || false;
       const abilityX = weaponSelected
         ? GAME_WIDTH - 176
@@ -2544,25 +2676,9 @@
       }
 
       if (this.activeAbility === "forItself") {
-        const cooldown = this.add.text(
-          abilityX,
-          GAME_HEIGHT - 181,
-          "",
-          {
-            fontFamily: '"Press Start 2P", monospace',
-            fontSize: "5px",
-            color: "#e6edf5",
-            stroke: "#10151b",
-            strokeThickness: 3
-          }
-        )
-          .setOrigin(0.5)
-          .setScrollFactor(0)
-          .setDepth(1002);
-
-        this.controlObjects.push(cooldown);
-        this.abilityControlObjects.push(cooldown);
-        this.abilityCooldownText = cooldown;
+        button.text.setFontSize(6);
+        button.text.setLineSpacing(2);
+        this.abilityCooldownText = button.text;
         this.updateAbilityCooldownLabel();
       }
     }
@@ -2604,35 +2720,18 @@
       const button = this.makeTouchButton(
         GAME_WIDTH - 100,
         GAME_HEIGHT - 137,
-        "W",
+        "WURF",
         () => this.throwGandhiStick(),
         () => {}
       );
 
       button.circle.setScale(0.88);
+      button.text.setFontSize(7);
       button.text.setScale(0.88);
 
-      const caption = this.add.text(
-        GAME_WIDTH - 100,
-        GAME_HEIGHT - 179,
-        "WURF",
-        {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "5px",
-          color: "#ffe1a7",
-          stroke: "#17120e",
-          strokeThickness: 3
-        }
-      )
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(1002);
-
-      this.controlObjects.push(caption);
       this.weaponControlObjects.push(
         button.circle,
-        button.text,
-        caption
+        button.text
       );
     }
 
@@ -2803,7 +2902,7 @@
       );
 
       if (remaining <= 0) {
-        this.abilityCooldownText.setText("BEREIT");
+        this.abilityCooldownText.setText("F\nBEREIT");
         this.abilityCooldownText.setColor("#c9ffd2");
         return;
       }
@@ -2813,7 +2912,7 @@
       const seconds = totalSeconds % 60;
 
       this.abilityCooldownText.setText(
-        `${minutes}:${String(seconds).padStart(2, "0")}`
+        `F\n${minutes}:${String(seconds).padStart(2, "0")}`
       );
       this.abilityCooldownText.setColor("#ffd6aa");
     }
@@ -3281,7 +3380,8 @@
         this.gandhiChoiceModal ||
         this.gandhiLootModal ||
         this.gandhiNukeActive ||
-        this.darkGandhiBossActive
+        this.darkGandhiBossActive ||
+        this.darkGandhiTransitionActive
       );
     }
 
@@ -3298,6 +3398,15 @@
 
       // Touch-control areas are UI, never world interaction targets.
       if (pointer && this.isPointerInControlArea(pointer)) return false;
+
+      // If this world tap opens a DOM confirmation menu, do not let the
+      // touchend/click from the SAME physical tap immediately press its JA.
+      if (pointer) {
+        window.__SIMON_DOM_ACTIVATION_BLOCK_UNTIL__ = Math.max(
+          Number(window.__SIMON_DOM_ACTIVATION_BLOCK_UNTIL__) || 0,
+          Date.now() + 620
+        );
+      }
 
       return true;
     }
@@ -4126,15 +4235,27 @@
 
       const activate = (event) => {
         const now = performance.now();
-        if (now - lastActivation < 350) {
+        const wallNow = Date.now();
+        const globalBlockedUntil =
+          Number(window.__SIMON_DOM_ACTIVATION_BLOCK_UNTIL__) || 0;
+
+        if (
+          now - lastActivation < 350 ||
+          wallNow < globalBlockedUntil
+        ) {
           event?.preventDefault?.();
           event?.stopPropagation?.();
+          event?.stopImmediatePropagation?.();
           return;
         }
-        lastActivation = now;
 
+        lastActivation = now;
         event?.preventDefault?.();
         event?.stopPropagation?.();
+
+        // Cross-button debounce: a button that opens another modal cannot
+        // instantly activate a button in that new modal with the same tap.
+        window.__SIMON_DOM_ACTIVATION_BLOCK_UNTIL__ = wallNow + 560;
 
         this.blockWorldInteractions?.(700);
 
@@ -6839,8 +6960,8 @@
 
       // Dark Gandhi boss.
       this.darkGandhiBossActive = false;
-      this.darkGandhiMaxHp = 180;
-      this.darkGandhiHp = 180;
+      this.darkGandhiMaxHp = 300;
+      this.darkGandhiHp = 300;
       this.darkGandhiPhase = 0;
       this.darkGandhiHealthBar = null;
       this.darkGandhiHealthFill = null;
@@ -6852,6 +6973,10 @@
       this.darkGandhiPhaseMinUntil = 0;
       this.darkGandhiPhaseHits = 0;
       this.darkGandhiPhaseQueued = false;
+      this.darkGandhiTransitionActive = false;
+      this.darkGandhiTransitionToken = 0;
+      this.darkGandhiTransitionBanner = null;
+      this.darkGandhiTransitionBlockerDOM = null;
       this.darkGandhiNextStaffAt = 0;
       this.darkGandhiNextSaltAt = 0;
       this.darkGandhiNextRebirthAt = 0;
@@ -6953,6 +7078,10 @@
       this.darkGandhiPhaseMinUntil = 0;
       this.darkGandhiPhaseHits = 0;
       this.darkGandhiPhaseQueued = false;
+      this.darkGandhiTransitionActive = false;
+      this.darkGandhiTransitionToken = 0;
+      this.darkGandhiTransitionBanner = null;
+      this.darkGandhiTransitionBlockerDOM = null;
       this.darkGandhiNextStaffAt = 0;
       this.darkGandhiNextSaltAt = 0;
       this.darkGandhiNextRebirthAt = 0;
@@ -9654,19 +9783,19 @@
         1: {
           title: "PHASE 1 / 3",
           name: "SALZMARSCH",
-          detail: "6 TREFFER · STOCK + SALZ",
+          detail: "10 TREFFER · STOCK + SALZ",
           accent: 0xf3e8c6
         },
         2: {
           title: "PHASE 2 / 3",
           name: "KARMA",
-          detail: "6 TREFFER · KARMA + WIEDERGEBURT",
+          detail: "10 TREFFER · KARMA + WIEDERGEBURT",
           accent: 0xb66dff
         },
         3: {
           title: "PHASE 3 / 3",
           name: "NUCLEAR LEVEL: MAX",
-          detail: "6 TREFFER · NUKES + AHIMSA",
+          detail: "10 TREFFER · NUKES + AHIMSA",
           accent: 0xff4b4b
         }
       }[phase];
@@ -9780,7 +9909,351 @@
       });
     }
 
-    setDarkGandhiPhase(phase, force = false) {
+
+    cleanupDarkGandhiTransition() {
+      this.darkGandhiTransitionBanner?.destroy?.(true);
+      this.darkGandhiTransitionBanner = null;
+
+      this.darkGandhiTransitionBlockerDOM?.remove?.();
+      this.darkGandhiTransitionBlockerDOM = null;
+
+      this.darkGandhiTransitionActive = false;
+
+      if (this.hotbarDOM) {
+        this.hotbarDOM.style.pointerEvents = "auto";
+        this.hotbarDOM.style.opacity = "1";
+      }
+
+      if (
+        this.darkGandhiBossActive &&
+        !this.playerDying &&
+        !this.inVoid &&
+        !this.rewindActive
+      ) {
+        this.setControlsVisible(true);
+        this.refreshAbilityTouchControl?.();
+        this.refreshWeaponTouchControl?.();
+      }
+    }
+
+    createDarkGandhiTransitionBlocker(durationMs = 2600) {
+      this.darkGandhiTransitionBlockerDOM?.remove?.();
+
+      const root = document.getElementById("phaser-game");
+      if (!root) return null;
+
+      const blocker = document.createElement("div");
+      blocker.dataset.simonUi = "dark-gandhi-phase-transition";
+
+      Object.assign(blocker.style, {
+        position: "absolute",
+        inset: "0",
+        zIndex: "100090",
+        background: "transparent",
+        pointerEvents: "auto",
+        touchAction: "none",
+        userSelect: "none"
+      });
+
+      const swallow = (event) => {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        event.stopImmediatePropagation?.();
+      };
+
+      ["pointerdown", "pointerup", "touchstart", "touchend", "click"].forEach(
+        (eventName) => blocker.addEventListener(
+          eventName,
+          swallow,
+          { passive: false }
+        )
+      );
+
+      root.appendChild(blocker);
+      this.darkGandhiTransitionBlockerDOM = blocker;
+      this.blockWorldInteractions?.(durationMs + 500);
+
+      return blocker;
+    }
+
+    playDarkGandhiTransformation(targetPhase) {
+      if (!this.gandhi?.active) return;
+
+      const cfg = this.getDarkGandhiPhaseConfig(targetPhase);
+      if (!cfg) return;
+
+      const accent = cfg.accent;
+      const centerX = this.gandhi.x;
+      const centerY = this.gandhi.y - 28;
+
+      for (let i = 0; i < 4; i += 1) {
+        const ring = this.add.circle(
+          centerX,
+          centerY,
+          26 + i * 10,
+          0x000000,
+          0
+        )
+          .setStrokeStyle(
+            5 - Math.min(i, 2),
+            accent,
+            0.92 - i * 0.12
+          )
+          .setDepth(61 + i);
+
+        this.tweens.add({
+          targets: ring,
+          scale: targetPhase === 3 ? 4.6 : 3.6,
+          alpha: 0,
+          angle: targetPhase === 3 ? 180 : -120,
+          duration: 980 + i * 120,
+          delay: i * 90,
+          ease: "Quad.easeOut",
+          onComplete: () => ring.destroy()
+        });
+      }
+
+      const originalY = this.gandhi.y;
+      const facingSign = Math.sign(this.gandhi.scaleX || 1) || 1;
+
+      if (targetPhase === 2) {
+        this.tweens.add({
+          targets: this.gandhi,
+          y: originalY - 13,
+          scaleX: facingSign * 1.14,
+          scaleY: 1.14,
+          angle: 11,
+          alpha: 0.58,
+          duration: 160,
+          yoyo: true,
+          repeat: 4,
+          ease: "Sine.easeInOut",
+          onComplete: () => {
+            if (!this.gandhi?.active) return;
+            this.gandhi.setY(originalY);
+            this.gandhi.setAngle(0);
+            this.gandhi.setAlpha(1);
+            this.gandhi.scaleX = facingSign;
+            this.gandhi.scaleY = 1;
+          }
+        });
+
+        this.cameras.main.shake(720, 0.009);
+      } else {
+        this.cameras.main.flash(260, 190, 28, 42);
+        this.cameras.main.shake(900, 0.013);
+
+        this.tweens.add({
+          targets: this.gandhi,
+          y: originalY - 24,
+          scaleX: facingSign * 1.22,
+          scaleY: 1.22,
+          angle: -14,
+          alpha: 0.7,
+          duration: 220,
+          yoyo: true,
+          repeat: 3,
+          ease: "Back.easeInOut",
+          onComplete: () => {
+            if (!this.gandhi?.active) return;
+            this.gandhi.setY(originalY);
+            this.gandhi.setAngle(0);
+            this.gandhi.setAlpha(1);
+            this.gandhi.scaleX = facingSign;
+            this.gandhi.scaleY = 1;
+          }
+        });
+      }
+    }
+
+    playDarkGandhiPhaseTransition(fromPhase, toPhase = null) {
+      if (
+        this.darkGandhiTransitionActive ||
+        !this.darkGandhiBossActive ||
+        !this.gandhi?.active
+      ) {
+        return;
+      }
+
+      const fromCfg = this.getDarkGandhiPhaseConfig(fromPhase);
+      const toCfg = toPhase
+        ? this.getDarkGandhiPhaseConfig(toPhase)
+        : null;
+
+      if (!fromCfg) return;
+
+      this.darkGandhiTransitionActive = true;
+      const token =
+        (Number(this.darkGandhiTransitionToken) || 0) + 1;
+      this.darkGandhiTransitionToken = token;
+
+      const duration = toCfg ? 2500 : 1900;
+
+      this.cleanupDarkGandhiAttackObjects();
+      this.darkGandhiPhaseTransitionUntil =
+        this.time.now + duration + 400;
+
+      this.setControlsVisible(false);
+      this.cleanupAbilityTouchControl?.();
+      this.cleanupWeaponTouchControl?.();
+
+      if (this.hotbarDOM) {
+        this.hotbarDOM.style.pointerEvents = "none";
+        this.hotbarDOM.style.opacity = "0.48";
+      }
+
+      this.createDarkGandhiTransitionBlocker(duration);
+
+      if (this.player?.body) {
+        this.player.setVelocityX(0);
+      }
+
+      const banner = this.add.container(
+        GAME_WIDTH / 2,
+        126
+      )
+        .setScrollFactor(0)
+        .setDepth(900);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0x07060a, 0.96);
+      bg.fillRoundedRect(-310, -53, 620, 106, 10);
+      bg.lineStyle(
+        5,
+        toCfg?.accent || fromCfg.accent,
+        0.96
+      );
+      bg.strokeRoundedRect(-310, -53, 620, 106, 10);
+
+      const line1 = this.add.text(
+        0,
+        -20,
+        `PHASE ${fromCfg.name} BEENDET`,
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "11px",
+          color: "#fff3da",
+          stroke: "#0b0910",
+          strokeThickness: 6,
+          align: "center",
+          wordWrap: { width: 570 }
+        }
+      ).setOrigin(0.5);
+
+      const line2 = this.add.text(
+        0,
+        19,
+        toCfg
+          ? `NEUE PHASE: ${toCfg.name}`
+          : "DARK GANDHI IST BESIEGT",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize:
+            toCfg?.name === "NUCLEAR LEVEL: MAX"
+              ? "9px"
+              : "10px",
+          color:
+            `#${(toCfg?.accent || fromCfg.accent)
+              .toString(16)
+              .padStart(6, "0")}`,
+          stroke: "#0b0910",
+          strokeThickness: 5,
+          align: "center",
+          wordWrap: { width: 570 }
+        }
+      ).setOrigin(0.5);
+
+      banner.add([bg, line1, line2]);
+      this.darkGandhiTransitionBanner = banner;
+
+      // Phase-specific arcade entry.
+      if (toPhase === 2) {
+        banner.x = -260;
+        banner.alpha = 0.12;
+        line1.setX(-40);
+        line2.setX(40);
+
+        this.tweens.add({
+          targets: banner,
+          x: GAME_WIDTH / 2,
+          alpha: 1,
+          duration: 460,
+          ease: "Back.easeOut"
+        });
+
+        this.tweens.add({
+          targets: [line1, line2],
+          x: 0,
+          duration: 620,
+          ease: "Expo.easeOut"
+        });
+
+        this.tweens.add({
+          targets: line2,
+          alpha: { from: 0.28, to: 1 },
+          duration: 110,
+          yoyo: true,
+          repeat: 5
+        });
+      } else if (toPhase === 3) {
+        banner.setScale(0.12, 1);
+        banner.alpha = 0;
+
+        this.tweens.add({
+          targets: banner,
+          scaleX: 1,
+          alpha: 1,
+          duration: 420,
+          ease: "Quad.easeOut"
+        });
+
+        this.tweens.add({
+          targets: line2,
+          scale: { from: 1.45, to: 1 },
+          angle: { from: -3, to: 0 },
+          duration: 620,
+          ease: "Back.easeOut"
+        });
+      } else {
+        banner.alpha = 0;
+        banner.setScale(1.14);
+
+        this.tweens.add({
+          targets: banner,
+          alpha: 1,
+          scale: 1,
+          duration: 300,
+          ease: "Back.easeOut"
+        });
+      }
+
+      if (toCfg) {
+        this.playDarkGandhiTransformation(toPhase);
+      }
+
+      this.time.delayedCall(duration, () => {
+        if (
+          token !== this.darkGandhiTransitionToken ||
+          !this.sys?.isActive?.()
+        ) {
+          return;
+        }
+
+        this.cleanupDarkGandhiTransition();
+
+        if (toCfg) {
+          this.setDarkGandhiPhase(
+            toPhase,
+            true,
+            { skipAnnouncement: true }
+          );
+        } else {
+          this.defeatDarkGandhi();
+        }
+      });
+    }
+
+    setDarkGandhiPhase(phase, force = false, { skipAnnouncement = false } = {}) {
       phase = Phaser.Math.Clamp(Number(phase) || 1, 1, 3);
       if (!force && phase === this.darkGandhiPhase) return;
 
@@ -9791,19 +10264,20 @@
       // Each phase has its own attack vocabulary. Clear leftovers so the
       // transition is visually and mechanically unmistakable.
       this.cleanupDarkGandhiAttackObjects();
-      this.darkGandhiPhaseTransitionUntil = now + 1500;
-      this.darkGandhiPhaseMinUntil = now + 4500;
+      this.darkGandhiPhaseTransitionUntil = now + 1150;
+      this.darkGandhiPhaseMinUntil = now + 6200;
       this.darkGandhiPhaseHits = 0;
       this.darkGandhiPhaseQueued = false;
       this.darkGandhiAhimsaUntil = 0;
       this.darkGandhiHitCounter = 0;
 
-      // Each phase stays visible long enough for its signature move.
-      this.darkGandhiNextStaffAt = now + 2550;
-      this.darkGandhiNextSaltAt = now + 1550;
-      this.darkGandhiNextRebirthAt = now + 1650;
-      this.darkGandhiNextNukeAt = now + 1750;
-      this.darkGandhiNextAhimsaAt = now + 3150;
+      // Ten hits make every phase longer while its signature attack still
+      // arrives early enough to define the phase clearly.
+      this.darkGandhiNextStaffAt = now + 2200;
+      this.darkGandhiNextSaltAt = now + 1450;
+      this.darkGandhiNextRebirthAt = now + 1550;
+      this.darkGandhiNextNukeAt = now + 1650;
+      this.darkGandhiNextAhimsaAt = now + 3000;
       this.darkGandhiLastDrainAt = now;
 
       this.darkGandhiPhaseAura?.destroy?.();
@@ -9827,7 +10301,10 @@
         this.darkGandhiPhaseHUD.__detailText?.setText(cfg.detail);
       }
 
-      this.announceDarkGandhiPhase(phase);
+      if (!skipAnnouncement) {
+        this.announceDarkGandhiPhase(phase);
+      }
+
       this.cameras.main.flash(150, 110, 45, 70);
     }
 
@@ -10000,8 +10477,8 @@
 
       if (time < this.darkGandhiAhimsaUntil) {
         this.damageSimonFromDarkGandhi(
-          6,
-          "AHIMSA −6"
+          7,
+          "AHIMSA −7"
         );
         this.showImpact(
           this.gandhi.x,
@@ -10011,7 +10488,7 @@
         return false;
       }
 
-      if (this.darkGandhiPhaseHits >= 6) {
+      if (this.darkGandhiPhaseHits >= 10) {
         this.showImpact(
           this.gandhi.x,
           this.gandhi.y - 58,
@@ -10038,13 +10515,13 @@
       this.showImpact(
         this.gandhi.x,
         this.gandhi.y - 82,
-        `TREFFER ${this.darkGandhiPhaseHits}/6`
+        `TREFFER ${this.darkGandhiPhaseHits}/10`
       );
 
-      if (this.darkGandhiPhaseHits >= 6) {
+      if (this.darkGandhiPhaseHits >= 10) {
         const floorByPhase = {
-          1: 120,
-          2: 60,
+          1: 200,
+          2: 100,
           3: 0
         };
 
@@ -10058,7 +10535,7 @@
       // Trigger Karma early enough that Phase 2 is clearly visible.
       if (
         this.darkGandhiPhase === 2 &&
-        this.darkGandhiPhaseHits === 3
+        this.darkGandhiPhaseHits === 5
       ) {
         this.scheduleKarmicRetaliation();
       }
@@ -10135,7 +10612,7 @@
         salt.body.setSize(27, 22);
         salt.body.setAllowGravity(false);
         salt.body.setVelocityX(
-          direction * (94 + i * 10)
+          direction * (106 + i * 10)
         );
 
         salt.__hit = false;
@@ -10157,8 +10634,8 @@
               this.time.now + 1000;
 
             this.damageSimonFromDarkGandhi(
-              6,
-              "SALZ −6"
+              7,
+              "SALZ −7"
             );
 
             salt.destroy(true);
@@ -10196,8 +10673,8 @@
       });
 
       this.damageSimonFromDarkGandhi(
-        7,
-        "STOCK −7"
+        8,
+        "STOCK −8"
       );
     }
 
@@ -10237,7 +10714,7 @@
 
         this.physics.add.existing(orb);
         orb.body.setAllowGravity(false);
-        orb.body.setVelocityX(direction * 188);
+        orb.body.setVelocityX(direction * 205);
         orb.__hit = false;
 
         this.darkGandhiKarmaProjectiles.push(orb);
@@ -10255,8 +10732,8 @@
 
             orb.__hit = true;
             this.damageSimonFromDarkGandhi(
-              7,
-              "KARMA −7"
+              8,
+              "KARMA −8"
             );
             orb.destroy();
           },
@@ -10347,8 +10824,8 @@
               time + 1000;
 
             this.damageSimonFromDarkGandhi(
-              5,
-              "WIEDERKEHR −5"
+              6,
+              "WIEDERKEHR −6"
             );
           }
         }
@@ -10451,8 +10928,8 @@
           Math.abs(this.player.x - targetX) < 70
         ) {
           this.damageSimonFromDarkGandhi(
-            14,
-            "NUKE −14"
+            16,
+            "NUKE −16"
           );
         }
 
@@ -10514,7 +10991,7 @@
       }
 
       // Ahimsa now only reverses attacks briefly. It no longer removes boss
-      // HP automatically, so Phase 3 also requires exactly three Simon hits.
+      // HP automatically, so Phase 3 also requires all ten Simon hits.
     }
 
     cleanupDarkGandhiAttackObjects() {
@@ -10562,31 +11039,35 @@
 
       if (
         this.darkGandhiPhaseQueued &&
-        time >= this.darkGandhiPhaseMinUntil
+        time >= this.darkGandhiPhaseMinUntil &&
+        !this.darkGandhiTransitionActive
       ) {
         this.darkGandhiPhaseQueued = false;
 
         if (this.darkGandhiPhase === 1) {
-          this.setDarkGandhiPhase(2);
+          this.playDarkGandhiPhaseTransition(1, 2);
           return;
         }
 
         if (this.darkGandhiPhase === 2) {
-          this.setDarkGandhiPhase(3);
+          this.playDarkGandhiPhaseTransition(2, 3);
           return;
         }
 
-        this.defeatDarkGandhi();
+        this.playDarkGandhiPhaseTransition(3, null);
         return;
       }
 
-      if (time < this.darkGandhiPhaseTransitionUntil) {
+      if (
+        this.darkGandhiTransitionActive ||
+        time < this.darkGandhiPhaseTransitionUntil
+      ) {
         return;
       }
 
       const dx = this.player.x - this.gandhi.x;
       const absDx = Math.abs(dx);
-      const speed = [0, 53, 63, 73][this.darkGandhiPhase] || 53;
+      const speed = [0, 60, 70, 80][this.darkGandhiPhase] || 60;
 
       if (absDx > 78) {
         this.gandhi.x +=
@@ -10597,24 +11078,24 @@
         absDx < 90 &&
         time >= this.darkGandhiNextStaffAt
       ) {
-        this.darkGandhiNextStaffAt = time + 1900;
+        this.darkGandhiNextStaffAt = time + 1750;
         this.darkGandhiStaffAttack();
       }
 
       if (this.darkGandhiPhase === 1) {
         if (time >= this.darkGandhiNextSaltAt) {
-          this.darkGandhiNextSaltAt = time + 3100;
+          this.darkGandhiNextSaltAt = time + 2850;
           this.spawnSaltMarch();
         }
       } else if (this.darkGandhiPhase === 2) {
         if (time >= this.darkGandhiNextRebirthAt) {
-          this.darkGandhiNextRebirthAt = time + 5700;
+          this.darkGandhiNextRebirthAt = time + 5200;
           this.startWheelOfRebirth();
         }
         this.updateWheelOfRebirth(time);
       } else if (this.darkGandhiPhase === 3) {
         if (time >= this.darkGandhiNextNukeAt) {
-          this.darkGandhiNextNukeAt = time + 4600;
+          this.darkGandhiNextNukeAt = time + 4200;
           this.scheduleCivilizationNuke();
         }
 
@@ -10622,7 +11103,7 @@
           time >= this.darkGandhiNextAhimsaAt &&
           time >= this.darkGandhiAhimsaUntil
         ) {
-          this.darkGandhiNextAhimsaAt = time + 8200;
+          this.darkGandhiNextAhimsaAt = time + 7600;
           this.startAhimsaInversion();
         }
 
@@ -10677,6 +11158,7 @@
       this.darkGandhiPhaseBanner = null;
       this.darkGandhiPhaseAura?.destroy?.();
       this.darkGandhiPhaseAura = null;
+      this.cleanupDarkGandhiTransition?.();
 
       this.tweens.killTweensOf(this.gandhi);
 

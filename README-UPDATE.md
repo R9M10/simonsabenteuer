@@ -1,128 +1,87 @@
-# Simons Abenteuer – v28
+# Simons Abenteuer – Dark Gandhi / UI / Buchzitate v29
 
-## Ausgangsstand
-Direkt vor dem Build wurde GitHub `main` geprüft.
+## Ausgangsbasis
+Gebaut auf dem direkt vor der Änderung erneut geprüften aktuellen GitHub-main:
+- game.js: d741a3e320514d678febc88c9b15df1cc00809ae
+- index.html: 5681cb23f917ce67f0df730bd1633b1ad0e92046
+- runtime-stability-v28.js: a398916570d94b2e5c5cc31f21369e0f01790a6c
 
-- game.js: `2e76453912f165cd814bf342e25049137d0e2609`
-- index.html: `a4f9db0ab3bea9e7b0f1e196eb8ff58528c9c7ad`
-- script.js: `5e24172c209ab630b718ecb88c14eeea5ccf84de`
-- game-polish-v15.js bleibt unverändert
-- animation-fix.js bleibt unverändert
-- hive-expansion.js bleibt unverändert
-- hive-language-patch-v18.js bleibt unverändert
-- flight-intro.js bleibt unverändert
-- milchbuck-world-v20.js bleibt unverändert
+Die neuere `simon-ui-v30.js?v=30`-Integration bleibt erhalten.
 
-## 1. Dark Gandhi
-Dark Gandhi braucht jetzt **6 Treffer je Phase**.
+## Dark Gandhi
+- 300 HP insgesamt.
+- Jede der drei Phasen braucht exakt 10 erfolgreiche Treffer.
+- Simons Schlag und Wurfstock bleiben bei 10 Schaden.
+- 30 Treffer insgesamt.
+- Gandhi ist gegenüber v28 moderat schneller und etwas gefährlicher, ohne auf das frühere sehr harte Niveau zurückzugehen.
 
-- Phase 1: 6 Treffer
-- Phase 2: 6 Treffer
-- Phase 3: 6 Treffer
-- insgesamt: **18 Treffer**
-- Simons normaler Schlag bleibt bei **10 Schaden**
-- Boss-HP: 180 -> 120 -> 60 -> 0
+### Phasenwechsel
+Nach Phase 1 und 2 wird das Spiel für die Interaktion vollständig abgefangen.
+Die Arcade-Einblendung lautet beispielsweise:
 
-Er wurde gegenüber v27 moderat stärker und etwas schneller, aber nicht auf den alten zu schweren Stand zurückgesetzt:
+`PHASE SALZMARSCH BEENDET`
+`NEUE PHASE: KARMA`
 
-- Laufgeschwindigkeit: 53 / 63 / 73 je Phase
-- Salzmarsch weiterhin nur 2 Hügel, aber Geschwindigkeit jetzt 94 / 104
-- Salz: 6 Schaden
-- Stock: 7 Schaden
-- Karma: 7 Schaden und etwas schneller
-- Wiedergeburt: etwas schneller, 5 Schaden
-- Nuclear: 14 Schaden
-- Ahimsa: 2 Sekunden, 6 reflektierter Schaden
-- Angriffe kommen etwas häufiger als in v27
+bzw.
 
-Die klare Phasenanzeige und Mindestdauer bleiben erhalten.
+`PHASE KARMA BEENDET`
+`NEUE PHASE: NUCLEAR LEVEL: MAX`
 
-## 2. Keine Welt-Interaktionen hinter Dialogen/Menüs
-Neue zentrale Methode `canUseWorldInteraction()`.
+Jeder Übergang besitzt eine eigene Einflug-/Glitch-/Charge-Animation und gleichzeitig eine sichtbare Transformationsanimation an Dark Gandhi. Währenddessen sind Canvas, Hotbar und Touchaktionen nicht anklickbar. Nach der letzten Phase erscheint ebenfalls eine Abschluss-Einblendung, bevor Gandhi endgültig besiegt wird.
 
-Aktuelle Welt-Interaktionen prüfen jetzt zentral:
+## Wurfstöcke
+Der zusätzliche Touchbutton zeigt jetzt direkt `WURF`. Die alte separate Beschriftung oberhalb wurde entfernt.
 
-- HIVE-Eingang
-- Türsteher
-- Ticketautomaten
-- Tram
-- Der Inder
-- Orell Füssli
-- tote Türsteher / Loot
-- Milchmann-Leiche
-- Dark-Gandhi-Leiche
+## Für sich sein
+Die Cooldown-Zeit steht jetzt im F-Button selbst, z. B.:
 
-Interaktionen werden geblockt während Dialogen, Kämpfen, Menüs, Stores, Reading/Drinking, Void, Rewind, Tramfahrt usw.
+`F`
+`3:42`
 
-Zusätzlich erzeugt jeder native DOM-Button eine 700–750-ms-Sperre für Welt-Interaktionen. `runtime-stability-v28.js` deaktiviert nach einem DOM-Tap Phaser-Input zusätzlich für 240 ms. Dadurch kann z. B. ein Tap auf **NEIN** bei der Löwenauswahl nicht im selben iOS-Tap auf den HIVE-Eingang darunter durchfallen.
+Ist die Fähigkeit bereit, steht im Button `F / BEREIT`.
 
-## 3. Keine Welt-Interaktionen in der Luft
-`canUseWorldInteraction()` verlangt standardmäßig Bodenkontakt.
+## Doppelklick-/Durchklickschutz
+Zwei Ebenen wurden kombiniert:
+1. Öffnet ein Weltobjekt ein DOM-Menü, wird das neu erzeugte Menü 620 ms vor dem restlichen Touch desselben physischen Taps geschützt.
+2. DOM-Buttons besitzen einen globalen Cross-Button-Debounce. Ein Button kann also nicht mit demselben Tap ein Folgemenü öffnen und dort sofort `JA` auslösen.
+3. HIVE baut eigene DOM-Buttons. `runtime-stability-v29.js` versieht deshalb jedes neu erzeugte HIVE-Dialogfenster zusätzlich mit demselben Aktivierungsschutz.
 
-Während Simon springt/fällt, können damit insbesondere nicht geöffnet werden:
+Das betrifft insbesondere Orell Füssli, Der Inder, Ticket-/Tram-Menüs, Loot-Dialoge und die HIVE-Dialogketten.
 
-- Ticketautomat
-- Tram
-- HIVE
-- Der Inder
-- Orell Füssli
-- Loot-Leichen
-- Türsteher-Dialog
+## Buchzitate
+Nach einer erfolgreichen Leseanimation erscheint oben 10 Sekunden lang zufällig eines von fünf Zitaten.
 
-Das verhindert auch versehentliche Store-/HIVE-Klicks beim Setzen eines Wurmloch-Ziels.
+Unterstützt:
+- General Relativity / Einstein: 5 Zitate
+- Phänomenologie des Geistes / Hegel: 5 Zitate
+- Also sprach Zarathustra / Nietzsche: 5 Zitate
 
-## 4. Developer Mode komplett stabilisiert
-Neue Datei `runtime-stability-v28.js`.
+`The Playbook` bleibt wie gewünscht ohne Zitat.
 
-Developer-Ziele werden nicht mehr direkt in halbfertige Scene-Zustände geschoben. Stattdessen:
-
-1. Start über eine neutrale `dev-shell`-Scene.
-2. Warten, bis die aktuellen `game-polish-v15`-Assets wirklich geladen sind.
-3. Warten auf Simons aktuelle Box-Schlaganimation.
-4. Warten auf den aktuellen Milkman-v15-Patch.
-5. Erst danach wird der gewünschte Checkpoint aufgebaut.
-
-Das gilt für:
-
-- Löwenauswahl
-- Bahnhofstrasse / HB
-- Ende Milchmann
-
-`ENDE MILCHMANN` erzeugt den Milchmann jetzt mit dem aktuellen Milkman-v15-Sprite und der aktuellen KO-Animation statt der alten prozeduralen Rotationsdarstellung. Simons `simon-shoot`/X-Animation ist zu diesem Zeitpunkt ebenfalls bereits durch die aktuelle Boxanimation ersetzt.
-
-Der normale Loot-/30-Sekunden-Despawn-Pfad bleibt für den Developer-Milchmann erhalten.
-
-Developer-Checkpoints zeigen während der Vorbereitung kurz einen Ladehinweis und besitzen Watchdogs gegen hängende Zustände.
-
-## Tests
-Bestanden:
-
-- `node --check game.js`
-- `node --check runtime-stability-v28.js`
-- `node --check script.js`
-- Runtime: kein Weltklick in der Luft
-- Runtime: kein Weltklick bei Löwenmodal
-- Runtime: globale DOM-Fall-through-Sperre
-- Runtime: 6 Treffer in Phase 1
-- Runtime: 6 Treffer in Phase 2
-- Runtime: 6 Treffer in Phase 3
-- Runtime: 18 Treffer gesamt bis Dark Gandhi besiegt
-- Runtime: Milkman-v15-KO-Stil im Developer-Corpse
-- Runtime: alle drei Developer-Ziele laufen über `dev-shell`
-- Runtime: Developer Post-Milkman wartet auf aktuellen Milkman-v15
-- Runtime: DOM-Tap deaktiviert Phaser-Input kurz und aktiviert ihn danach wieder
-
-Kein physischer iPhone-/Safari-Test wurde ausgeführt.
+Liest Simon dasselbe Buch später erneut, wird wieder zufällig ausgewählt.
 
 ## Dateien hochladen
-
 - `game.js` ersetzen
 - `index.html` ersetzen
-- `runtime-stability-v28.js` neu hinzufügen
+- `runtime-stability-v29.js` neu hinzufügen
 
-`script.js` bleibt unverändert.
+`runtime-stability-v28.js` kann im Repository bleiben; die neue index.html lädt nur v29.
 
 ## Cache
+- `game.js?v=29`
+- `runtime-stability-v29.js?v=29`
 
-- `game.js?v=28`
-- `runtime-stability-v28.js?v=28`
+## Tests
+- `node --check game.js` – PASS
+- `node --check runtime-stability-v29.js` – PASS
+- 10 Treffer Phase 1 / HP 300→200 – PASS
+- 10 Treffer Phase 2 / HP 200→100 – PASS
+- 10 Treffer Phase 3 / HP 100→0 – PASS
+- 11. Treffer vor Phasenwechsel wird blockiert – PASS
+- Cinematic Transition wird nach Phasenende aufgerufen – PASS
+- je 5 Zitate für Einstein/Hegel/Nietzsche – PASS
+- Playbook hat 0 Zitate – PASS
+- Für-sich-sein-Timer beginnt mit `F` im Button – PASS
+- Weltinteraktion setzt DOM-Fall-through-Sperre – PASS
+- HIVE-Folgemenü blockiert Same-Tap-Aktivierung – PASS
+- aktuelle Friend-Skripte in index.html erhalten – PASS
