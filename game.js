@@ -115,6 +115,12 @@
       this.gandhiPassCompleted = false;
       this.gandhiSticksLooted = false;
 
+      // Schuhladen / Amsif story. Independent from Gandhi and persisted across
+      // tram journeys so the sequence cannot restart in the wrong order.
+      this.amsifEncounterStarted = false;
+      this.amsifIntroCompleted = false;
+      this.amsifStoryCompleted = false;
+
       this.booksRead = {
         generalRelativity: false,
         phaenomenologie: false,
@@ -302,6 +308,13 @@
       this.gandhiSticksLooted =
         Boolean(data.gandhiSticksLooted || this.inventory.gandhiSticks > 0);
 
+      this.amsifStoryCompleted =
+        Boolean(data.amsifStoryCompleted);
+      this.amsifIntroCompleted =
+        Boolean(data.amsifIntroCompleted || this.amsifStoryCompleted);
+      this.amsifEncounterStarted =
+        Boolean(data.amsifEncounterStarted || this.amsifIntroCompleted);
+
       this.booksRead = {
         generalRelativity: Boolean(data.booksRead?.generalRelativity),
         phaenomenologie: Boolean(data.booksRead?.phaenomenologie),
@@ -420,6 +433,7 @@
           .forEach((node) => node.remove());
         this.cleanupSprintIndicator();
         this.cleanupAbilityIndicator();
+        this.cleanupBookQuoteBanner?.();
         this.cleanupVoid();
       });
 
@@ -488,6 +502,9 @@
           gandhiPassEnteredZone: this.gandhiPassEnteredZone,
           gandhiPassCompleted: this.gandhiPassCompleted,
           gandhiSticksLooted: this.gandhiSticksLooted,
+          amsifEncounterStarted: this.amsifEncounterStarted,
+          amsifIntroCompleted: this.amsifIntroCompleted,
+          amsifStoryCompleted: this.amsifStoryCompleted,
           booksRead: { ...this.booksRead },
           abilitiesUnlocked: { ...this.abilitiesUnlocked },
           activeAbility: this.activeAbility,
@@ -515,6 +532,9 @@
           gandhiPassEnteredZone: false,
           gandhiPassCompleted: false,
           gandhiSticksLooted: false,
+          amsifEncounterStarted: false,
+          amsifIntroCompleted: false,
+          amsifStoryCompleted: false,
           booksRead: { ...this.booksRead },
           abilitiesUnlocked: { ...this.abilitiesUnlocked },
           activeAbility: this.activeAbility,
@@ -2192,6 +2212,14 @@
       return quotes[bookKey] ? [...quotes[bookKey]] : [];
     }
 
+    cleanupBookQuoteBanner() {
+      if (!this.bookQuoteBanner) return;
+
+      this.bookQuoteBanner.remove?.();
+      this.bookQuoteBanner.destroy?.(true);
+      this.bookQuoteBanner = null;
+    }
+
     showRandomBookQuote(bookKey) {
       // The Playbook intentionally has no quote banner.
       if (!bookKey || bookKey === "playbook") return;
@@ -2199,8 +2227,10 @@
       const quotes = this.getBookQuotes(bookKey);
       if (quotes.length !== 5) return;
 
-      this.bookQuoteBanner?.destroy?.(true);
-      this.bookQuoteBanner = null;
+      const root = this.getDOMUIRoot?.();
+      if (!root) return;
+
+      this.cleanupBookQuoteBanner();
 
       const token =
         (Number(this.bookQuoteToken) || 0) + 1;
@@ -2208,33 +2238,6 @@
 
       const quote =
         quotes[Phaser.Math.Between(0, quotes.length - 1)];
-
-      const container = this.add.container(
-        GAME_WIDTH / 2,
-        -68
-      )
-        .setScrollFactor(0)
-        .setDepth(1800);
-
-      const bg = this.add.graphics();
-      bg.fillStyle(0x090b12, 0.94);
-      bg.fillRoundedRect(-352, 0, 704, 72, 8);
-      bg.lineStyle(2, 0xe7d8ad, 0.72);
-      bg.strokeRoundedRect(-352, 0, 704, 72, 8);
-
-      const text = this.add.text(
-        0,
-        12,
-        `„${quote}“`,
-        {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "6px",
-          color: "#fff0c7",
-          align: "center",
-          lineSpacing: 4,
-          wordWrap: { width: 660 }
-        }
-      ).setOrigin(0.5, 0);
 
       const sourceLabel = {
         generalRelativity:
@@ -2245,52 +2248,76 @@
           "FRIEDRICH NIETZSCHE · ALSO SPRACH ZARATHUSTRA"
       }[bookKey];
 
-      const source = this.add.text(
-        0,
-        61,
-        sourceLabel || "",
-        {
-          fontFamily: '"Press Start 2P", monospace',
-          fontSize: "4px",
-          color: "#bda978"
-        }
-      ).setOrigin(0.5);
+      const banner = document.createElement("div");
+      banner.dataset.simonUi = "book-quote-banner";
 
-      container.add([bg, text, source]);
-      container.setAlpha(0);
-      this.bookQuoteBanner = container;
-
-      this.tweens.add({
-        targets: container,
-        y: 10,
-        alpha: 1,
-        duration: 340,
-        ease: "Back.easeOut"
+      Object.assign(banner.style, {
+        position: "absolute",
+        left: "50%",
+        top: "8px",
+        transform: "translate(-50%, -130%)",
+        width: "min(94%, 720px)",
+        minHeight: "94px",
+        boxSizing: "border-box",
+        zIndex: "400500",
+        padding: "12px 20px 10px",
+        border: "2px solid rgba(231,216,173,.82)",
+        borderRadius: "8px",
+        background: "rgba(9,11,18,.96)",
+        color: "#fff0c7",
+        fontFamily: '\"Press Start 2P\", monospace',
+        textAlign: "center",
+        pointerEvents: "none",
+        opacity: "0",
+        transition: "transform 340ms cubic-bezier(.2,.85,.25,1.25), opacity 260ms ease",
+        boxShadow: "0 5px 0 rgba(0,0,0,.35)"
       });
 
-      this.time.delayedCall(10000, () => {
+      const quoteText = document.createElement("div");
+      quoteText.textContent = `„${quote}“`;
+      Object.assign(quoteText.style, {
+        fontSize: "8px",
+        lineHeight: "1.65",
+        overflowWrap: "anywhere"
+      });
+
+      const source = document.createElement("div");
+      source.textContent = sourceLabel || "";
+      Object.assign(source.style, {
+        marginTop: "8px",
+        fontSize: "5px",
+        lineHeight: "1.4",
+        color: "#bda978"
+      });
+
+      banner.append(quoteText, source);
+      root.appendChild(banner);
+      this.bookQuoteBanner = banner;
+
+      requestAnimationFrame(() => {
+        if (this.bookQuoteBanner !== banner) return;
+        banner.style.transform = "translate(-50%, 0)";
+        banner.style.opacity = "1";
+      });
+
+      window.setTimeout(() => {
         if (
           token !== this.bookQuoteToken ||
-          this.bookQuoteBanner !== container ||
-          !container.active
+          this.bookQuoteBanner !== banner
         ) {
           return;
         }
 
-        this.tweens.add({
-          targets: container,
-          y: -68,
-          alpha: 0,
-          duration: 360,
-          ease: "Quad.easeIn",
-          onComplete: () => {
-            if (this.bookQuoteBanner === container) {
-              this.bookQuoteBanner = null;
-            }
-            container.destroy(true);
+        banner.style.transform = "translate(-50%, -130%)";
+        banner.style.opacity = "0";
+
+        window.setTimeout(() => {
+          if (this.bookQuoteBanner === banner) {
+            this.bookQuoteBanner = null;
           }
-        });
-      });
+          banner.remove?.();
+        }, 380);
+      }, 10000);
     }
 
     playBookReadingAnimation(itemKey) {
@@ -3387,6 +3414,10 @@
         this.bookstoreEntryModal ||
         this.bookstoreOverlay ||
         this.bookstoreCatalogModal ||
+        this.shoeStoreClosedModal ||
+        this.amsifDialogueActive ||
+        this.amsifMenuModal ||
+        this.amsifArrivalActive ||
         this.milkmanDialogueActive ||
         this.milkmanFightActive ||
         this.milkmanLootModal ||
@@ -3778,8 +3809,8 @@
 
       Object.assign(wrapper.style, {
         position: "absolute",
-        left: "12px",
-        top: "12px",
+        left: "calc(12px + env(safe-area-inset-left, 0px))",
+        bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
         zIndex: "100060",
         pointerEvents: "auto"
       });
@@ -5020,6 +5051,21 @@
         this.itemInfoModal ||
         this.drinkingItem ||
         this.readingBook ||
+        this.storeEntryModal ||
+        this.indianStoreOverlay ||
+        this.shopModal ||
+        this.bookstoreEntryModal ||
+        this.bookstoreOverlay ||
+        this.bookstoreCatalogModal ||
+        this.shoeStoreClosedModal ||
+        this.amsifDialogueActive ||
+        this.amsifMenuModal ||
+        this.amsifArrivalActive ||
+        this.milkmanDialogueActive ||
+        this.gandhiDialogueActive ||
+        this.gandhiChoiceModal ||
+        this.gandhiLootModal ||
+        this.gandhiNukeActive ||
         this.playerDying
       );
 
@@ -5239,6 +5285,9 @@
         gandhiPassEnteredZone: this.gandhiPassEnteredZone,
         gandhiPassCompleted: this.gandhiPassCompleted,
         gandhiSticksLooted: this.gandhiSticksLooted,
+        amsifEncounterStarted: this.amsifEncounterStarted,
+        amsifIntroCompleted: this.amsifIntroCompleted,
+        amsifStoryCompleted: this.amsifStoryCompleted,
         booksRead: { ...this.booksRead },
         abilitiesUnlocked: { ...this.abilitiesUnlocked },
         activeAbility: this.activeAbility,
@@ -6975,6 +7024,17 @@
       this.bookstoreShelfHitbox = null;
       this.bookstoreCatalogModal = null;
 
+      // Arcade shoe shop + Amsif story.
+      this.shoeStoreHitbox = null;
+      this.shoeStoreClosedModal = null;
+      this.amsif = null;
+      this.amsifDialogueBubble = null;
+      this.amsifDialogueActive = false;
+      this.amsifDialogueStep = 0;
+      this.amsifDialogueMode = null;
+      this.amsifMenuModal = null;
+      this.amsifArrivalActive = false;
+
       // Story encounter after leaving Orell Füssli for the first time.
       this.milkmanEncounterStarted = false;
       this.milkmanDialogueActive = false;
@@ -7075,6 +7135,16 @@
       this.nextMilkBottleAt = 0;
       this.milkBottleThrowCount = 0;
       this.nextMilkmanPunchAt = 0;
+
+      this.shoeStoreHitbox = null;
+      this.shoeStoreClosedModal = null;
+      this.amsif = null;
+      this.amsifDialogueBubble = null;
+      this.amsifDialogueActive = false;
+      this.amsifDialogueStep = 0;
+      this.amsifDialogueMode = null;
+      this.amsifMenuModal = null;
+      this.amsifArrivalActive = false;
 
       // BahnhofquaiScene is reused by Phaser. These arrival references/flags
       // must be fresh on EVERY trip, otherwise playArrivalAnimation() returns
@@ -7201,6 +7271,21 @@
       this.gandhiSticksLooted =
         Boolean(data.gandhiSticksLooted || this.gandhiSticksLooted || this.inventory.gandhiSticks > 0);
 
+      this.amsifStoryCompleted =
+        Boolean(data.amsifStoryCompleted || this.amsifStoryCompleted);
+      this.amsifIntroCompleted =
+        Boolean(
+          data.amsifIntroCompleted ||
+          this.amsifIntroCompleted ||
+          this.amsifStoryCompleted
+        );
+      this.amsifEncounterStarted =
+        Boolean(
+          data.amsifEncounterStarted ||
+          this.amsifEncounterStarted ||
+          this.amsifIntroCompleted
+        );
+
       this.booksRead = {
         generalRelativity: Boolean(data.booksRead?.generalRelativity),
         phaenomenologie: Boolean(data.booksRead?.phaenomenologie),
@@ -7304,6 +7389,7 @@
           .forEach((node) => node.remove());
         this.cleanupSprintIndicator();
         this.cleanupAbilityIndicator();
+        this.cleanupBookQuoteBanner?.();
         this.cleanupVoid();
 
         if (this.gandhiChoiceModal) {
@@ -7317,6 +7403,16 @@
           object?.destroy?.();
         });
         this.gandhiExplosionObjects = [];
+
+        this.clearAmsifDialogue?.();
+        if (this.shoeStoreClosedModal) {
+          this.destroyDOMModal(this.shoeStoreClosedModal);
+          this.shoeStoreClosedModal = null;
+        }
+        if (this.amsifMenuModal) {
+          this.destroyDOMModal(this.amsifMenuModal);
+          this.amsifMenuModal = null;
+        }
       });
 
       this.updateCoinHUD();
@@ -7324,6 +7420,7 @@
       this.updateInventoryUI();
       this.updateSprintIndicator(true);
       this.updateAbilityIndicator();
+      this.restoreAmsifIfNeeded();
 
       const visitToken = this.__bahnhofVisitToken;
 
@@ -7380,6 +7477,24 @@
       }
 
       this.__bahnhofPointerHandler = (pointer) => {
+        if (this.amsifDialogueActive) {
+          if (
+            this.itemsModal ||
+            this.ticketModal ||
+            this.storeEntryModal ||
+            this.bookstoreEntryModal ||
+            this.shoeStoreClosedModal ||
+            this.amsifMenuModal ||
+            this.indianStoreOverlay ||
+            this.bookstoreOverlay
+          ) {
+            return;
+          }
+
+          this.advanceAmsifDialogue();
+          return;
+        }
+
         if (this.gandhiDialogueActive) {
           if (
             this.itemsModal ||
@@ -7445,6 +7560,7 @@
       this.createBahnhofstrasseTicketMachine();
       this.createIndianStoreExterior();
       this.createOrellFuessliExterior();
+      this.createShoeStoreExterior();
 
       // Fahrbahn / Gleise / Gehfläche.
       const street = this.add.graphics().setDepth(0);
@@ -7881,6 +7997,677 @@
       });
     }
 
+    createShoeStoreExterior() {
+      // Immediately next to Orell Füssli. The story is deliberately independent
+      // from Milkman/Gandhi progression and therefore always exists.
+      const x = 2174;
+      const y = 143;
+      const w = 262;
+      const h = GROUND_TOP - y;
+
+      const store = this.add.graphics().setDepth(-2);
+
+      // Dark arcade facade.
+      store.fillStyle(0x171724, 1);
+      store.fillRect(x, y, w, h);
+      store.fillStyle(0x28203d, 1);
+      store.fillRect(x + 8, y + 8, w - 16, 42);
+
+      // Neon frame and windows.
+      store.lineStyle(5, 0x36e7ff, 0.92);
+      store.strokeRoundedRect(x + 15, y + 58, 90, 108, 8);
+      store.lineStyle(5, 0xff3fa4, 0.92);
+      store.strokeRoundedRect(x + 157, y + 58, 90, 108, 8);
+
+      store.fillStyle(0x101522, 1);
+      store.fillRoundedRect(x + 20, y + 63, 80, 98, 6);
+      store.fillRoundedRect(x + 162, y + 63, 80, 98, 6);
+
+      // Central locked door.
+      store.fillStyle(0x242736, 1);
+      store.fillRoundedRect(x + 111, y + 58, 40, 128, 6);
+      store.lineStyle(3, 0xf5d261, 0.85);
+      store.strokeRoundedRect(x + 111, y + 58, 40, 128, 6);
+      store.fillStyle(0xf5d261, 1);
+      store.fillCircle(x + 143, y + 126, 3);
+
+      // Pixel shoes in the windows.
+      const shoes = this.add.graphics().setDepth(-1);
+      const drawShoe = (sx, sy, color) => {
+        shoes.fillStyle(color, 1);
+        shoes.fillRoundedRect(sx, sy, 39, 12, 4);
+        shoes.fillRect(sx + 6, sy - 13, 18, 15);
+        shoes.fillStyle(0xf6f2dd, 0.95);
+        shoes.fillRect(sx + 4, sy + 9, 40, 4);
+      };
+      drawShoe(x + 38, y + 110, 0x39dffc);
+      drawShoe(x + 180, y + 110, 0xff4ca7);
+
+      // Arcade neon sign with a subtle pulse.
+      const glow = this.add.text(
+        x + w / 2,
+        y + 27,
+        "SCHUHLADEN",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "12px",
+          color: "#ff68b8",
+          stroke: "#2be9ff",
+          strokeThickness: 8
+        }
+      )
+        .setOrigin(0.5)
+        .setDepth(-1)
+        .setAlpha(0.65);
+
+      const sign = this.add.text(
+        x + w / 2,
+        y + 27,
+        "SCHUHLADEN",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "12px",
+          color: "#fff1a6",
+          stroke: "#8f1d74",
+          strokeThickness: 4
+        }
+      )
+        .setOrigin(0.5)
+        .setDepth(0);
+
+      this.tweens.add({
+        targets: [glow, sign],
+        alpha: { from: 0.72, to: 1 },
+        duration: 620,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
+      const clickableBottom = 278;
+      const clickableHeight = clickableBottom - y;
+
+      this.shoeStoreHitbox = this.add.zone(
+        x + w / 2,
+        y + clickableHeight / 2,
+        w - 18,
+        clickableHeight
+      )
+        .setDepth(40)
+        .setInteractive({ useHandCursor: true });
+
+      this.shoeStoreHitbox.on("pointerdown", (pointer) => {
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+
+        if (!this.canOpenStreetStore(pointer)) return;
+        this.openShoeStoreClosedModal();
+      });
+    }
+
+    openShoeStoreClosedModal() {
+      if (
+        this.shoeStoreClosedModal ||
+        !this.arrivalFinished ||
+        this.playerDying
+      ) {
+        return;
+      }
+
+      this.setUILocked(true);
+
+      const modal = this.createDOMModal({
+        key: "shoe-store-closed",
+        width: "min(88%, 440px)",
+        background: "#171724",
+        border: "#38e7ff",
+        shade: "rgba(5,6,12,.68)",
+        padding: "20px"
+      });
+
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.shoeStoreClosedModal = modal;
+
+      const title = this.createDOMText("SCHUHLADEN", {
+        fontSize: "13px",
+        color: "#ff78bd",
+        margin: "0 0 15px"
+      });
+
+      const body = this.createDOMText("Schuhladen geschlossen.", {
+        fontSize: "9px",
+        color: "#f7edcf",
+        margin: "0 0 18px"
+      });
+
+      const back = this.createDOMButton(
+        "ZURÜCK",
+        () => this.closeShoeStoreClosedModal(),
+        {
+          color: "#fff3c4",
+          background: "#30284a",
+          border: "#38e7ff",
+          minHeight: "42px",
+          fontSize: "8px"
+        }
+      );
+
+      modal.panel.append(title, body, back);
+      this.refreshUILock();
+    }
+
+    closeShoeStoreClosedModal() {
+      if (!this.shoeStoreClosedModal) return;
+
+      this.destroyDOMModal(this.shoeStoreClosedModal);
+      this.shoeStoreClosedModal = null;
+
+      if (!this.amsifEncounterStarted) {
+        // Mark it immediately so the same button/tap can never start Amsif twice.
+        this.amsifEncounterStarted = true;
+        this.amsifArrivalActive = true;
+        this.refreshUILock();
+
+        this.time.delayedCall(180, () => {
+          if (!this.sys?.isActive?.()) return;
+          this.startAmsifArrival();
+        });
+        return;
+      }
+
+      this.refreshUILock();
+      this.syncStreetStoreHitboxes();
+    }
+
+    createAmsif(x = 2305, groundY = GROUND_TOP - 8) {
+      const amsif = this.add.container(
+        x,
+        groundY - 72
+      ).setDepth(34);
+
+      const g = this.add.graphics();
+
+      // Shoes / legs.
+      g.fillStyle(0x22242a, 1);
+      g.fillRect(-18, 36, 12, 35);
+      g.fillRect(6, 36, 12, 35);
+      g.fillStyle(0x151518, 1);
+      g.fillRoundedRect(-23, 66, 20, 7, 3);
+      g.fillRoundedRect(3, 66, 20, 7, 3);
+
+      // Long arcade jacket.
+      g.fillStyle(0x174c4a, 1);
+      g.fillRoundedRect(-29, -9, 58, 55, 9);
+      g.fillStyle(0x24726a, 1);
+      g.fillTriangle(-26, 28, -4, 62, 2, 30);
+      g.fillTriangle(26, 28, 4, 62, -2, 30);
+      g.lineStyle(3, 0xe0a84b, 1);
+      g.lineBetween(0, -5, 0, 42);
+
+      // Arms / warm olive complexion.
+      g.fillStyle(0xa87352, 1);
+      g.fillRoundedRect(-37, -3, 11, 43, 5);
+      g.fillRoundedRect(26, -3, 11, 43, 5);
+      g.fillRoundedRect(-19, -54, 38, 37, 12);
+      g.fillCircle(-20, -37, 5);
+      g.fillCircle(20, -37, 5);
+
+      // Dark hair and beard.
+      g.fillStyle(0x231817, 1);
+      g.fillRoundedRect(-18, -56, 36, 12, 7);
+      g.fillTriangle(-14, -28, 0, -17, 14, -28);
+      g.fillCircle(-18, -42, 4);
+      g.fillCircle(18, -42, 4);
+
+      // Patterned red/gold scarf for a distinct, Middle-Eastern-inspired look.
+      g.fillStyle(0x8d2c35, 1);
+      g.fillTriangle(-25, -11, 24, -11, 10, 21);
+      g.lineStyle(2, 0xe2b65f, 0.95);
+      g.lineBetween(-18, -7, 12, 13);
+      g.lineBetween(-5, -9, 20, 6);
+
+      // Eyes / friendly neutral face.
+      g.fillStyle(0x171315, 1);
+      g.fillCircle(-7, -40, 2);
+      g.fillCircle(7, -40, 2);
+      g.lineStyle(2, 0x4a2423, 1);
+      g.lineBetween(-6, -29, 6, -29);
+
+      const name = this.add.text(
+        0,
+        -82,
+        "AMSIF",
+        {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: "7px",
+          color: "#ffe49a",
+          stroke: "#2a1815",
+          strokeThickness: 4,
+          backgroundColor: "rgba(26,20,29,.72)",
+          padding: { x: 5, y: 3 }
+        }
+      ).setOrigin(0.5);
+
+      amsif.add([g, name]);
+      amsif.setSize(92, 164);
+      amsif.setInteractive({ useHandCursor: true });
+
+      amsif.on("pointerdown", (pointer) => {
+        if (!this.canOpenAmsifMenu(pointer)) return;
+
+        pointer.event?.preventDefault?.();
+        pointer.event?.stopPropagation?.();
+        this.openAmsifMenu();
+      });
+
+      return amsif;
+    }
+
+    faceAmsifTowardSimon() {
+      if (!this.amsif?.active || !this.player?.active) return;
+
+      // The procedural character is visually symmetric enough for a simple flip.
+      this.amsif.scaleX = this.player.x < this.amsif.x ? -1 : 1;
+      this.amsif.scaleY = Math.abs(this.amsif.scaleY || 1);
+    }
+
+    restoreAmsifIfNeeded() {
+      if (!this.amsifEncounterStarted || this.amsif?.active) return;
+
+      this.amsif = this.createAmsif(2305, GROUND_TOP - 8);
+      this.faceAmsifTowardSimon();
+    }
+
+    startAmsifArrival() {
+      if (!this.amsifEncounterStarted) {
+        this.amsifEncounterStarted = true;
+      }
+
+      if (this.amsif?.active && !this.amsifArrivalActive) return;
+
+      this.amsifArrivalActive = true;
+      this.setUILocked(true);
+      this.player?.setVelocity?.(0, 0);
+
+      const targetX = 2305;
+      const targetY = GROUND_TOP - 80;
+      const viewRight = Number(this.cameras.main.worldView?.right) || (targetX + 420);
+      const startX = Phaser.Math.Clamp(
+        Math.max(targetX + 260, viewRight + 90),
+        targetX + 180,
+        WORLD_WIDTH - 72
+      );
+
+      if (!this.amsif?.active) {
+        this.amsif = this.createAmsif(startX, GROUND_TOP - 8);
+      }
+
+      this.amsif.setPosition(startX, targetY);
+      this.amsif.setAlpha(0.25);
+      if (this.amsif.input) this.amsif.input.enabled = false;
+
+      const target = this.amsif;
+
+      this.tweens.add({
+        targets: target,
+        x: targetX,
+        alpha: 1,
+        duration: 1180,
+        ease: "Sine.easeOut",
+        onComplete: () => this.finishAmsifArrival(target)
+      });
+
+      this.tweens.add({
+        targets: target,
+        y: targetY - 5,
+        angle: { from: -1.5, to: 1.5 },
+        duration: 150,
+        yoyo: true,
+        repeat: 6,
+        ease: "Sine.easeInOut"
+      });
+
+      // Recovery path for a dropped tween-complete callback on mobile Safari.
+      this.time.delayedCall(1650, () => {
+        if (
+          this.amsifArrivalActive &&
+          this.amsif === target &&
+          target?.active
+        ) {
+          this.finishAmsifArrival(target);
+        }
+      });
+    }
+
+    finishAmsifArrival(target = this.amsif) {
+      if (
+        !this.amsifArrivalActive ||
+        !target?.active ||
+        this.amsif !== target
+      ) {
+        return;
+      }
+
+      this.tweens.killTweensOf(target);
+      target.setPosition(2305, GROUND_TOP - 80);
+      target.setAngle(0);
+      target.setAlpha(1);
+
+      this.amsifArrivalActive = false;
+      this.faceAmsifTowardSimon();
+
+      this.time.delayedCall(160, () => {
+        if (!this.sys?.isActive?.()) return;
+        this.startAmsifIntroDialogue();
+      });
+    }
+
+    clearAmsifDialogue() {
+      this.amsifDialogueBubble?.destroy?.(true);
+      this.amsifDialogueBubble = null;
+    }
+
+    showAmsifDialogue(message, speaker = "amsif") {
+      this.clearAmsifDialogue();
+
+      const target =
+        speaker === "simon"
+          ? this.player
+          : this.amsif;
+
+      if (!target?.active) return;
+
+      this.amsifDialogueBubble = this.createSpeechBubble(
+        target.x,
+        target.y - (speaker === "simon" ? 128 : 124),
+        message,
+        0
+      ).setDepth(145);
+
+      this.faceAmsifTowardSimon();
+      if (speaker === "amsif" && this.player) {
+        this.player.setFlipX(this.amsif.x < this.player.x);
+      }
+    }
+
+    startAmsifIntroDialogue() {
+      if (
+        !this.amsif?.active ||
+        this.amsifIntroCompleted ||
+        this.amsifDialogueActive
+      ) {
+        this.refreshUILock();
+        return;
+      }
+
+      this.amsifDialogueMode = "intro";
+      this.amsifDialogueStep = 0;
+      this.amsifDialogueActive = true;
+      this.dialogueIgnoreUntil = this.time.now + 260;
+      this.setUILocked(true);
+      this.player.setVelocity(0, 0);
+      this.showAmsifDialogue("Dich kenn ich doch!");
+    }
+
+    startAmsifStoryDialogue() {
+      if (
+        !this.amsif?.active ||
+        this.amsifStoryCompleted ||
+        this.amsifDialogueActive
+      ) {
+        return;
+      }
+
+      this.closeAmsifMenu({ keepLocked: true });
+      this.amsifIntroCompleted = true;
+      this.amsifDialogueMode = "story";
+      this.amsifDialogueStep = 0;
+      this.amsifDialogueActive = true;
+      this.dialogueIgnoreUntil = this.time.now + 260;
+      this.setUILocked(true);
+      this.player.setVelocity(0, 0);
+
+      const first = this.getAmsifStorySteps()[0];
+      this.showAmsifDialogue(first.text, first.speaker);
+    }
+
+    getAmsifStorySteps() {
+      return [
+        { speaker: "amsif", text: "Nach dem Tag mit de falsche Schueh ..." },
+        { speaker: "amsif", text: "han ich mir gschwore en schuelade uf z mache." },
+        { speaker: "amsif", text: "Niemert söt meh falschi Schueh ha in Züri!" },
+        { speaker: "amsif", text: "Das isch min Lade..." },
+        { speaker: "amsif", text: "aber en bösewicht het min Ladeschlüssel klaut!" },
+        { speaker: "amsif", text: "Er het sich Général gnennt!" },
+        { speaker: "amsif", text: "Wenn du mir de Schlüssel zrug bringsch, wird ich dir die schönste Schuher aller Zite schenke!" },
+        { speaker: "simon", text: "Weisch du wo de Général jetzt isch?" },
+        { speaker: "amsif", text: "Nei, nume..." },
+        { speaker: "amsif", text: "dass er uf nere Wulche vom himmel cho isch" }
+      ];
+    }
+
+    advanceAmsifDialogue() {
+      if (
+        !this.amsifDialogueActive ||
+        this.time.now < this.dialogueIgnoreUntil
+      ) {
+        return false;
+      }
+
+      if (this.amsifDialogueMode === "intro") {
+        if (this.amsifDialogueStep === 0) {
+          this.amsifDialogueStep = 1;
+          this.dialogueIgnoreUntil = this.time.now + 250;
+          this.showAmsifDialogue(
+            "Mir hend mal Fuessball gspielt und ich han falschi Schueh kha!"
+          );
+          return true;
+        }
+
+        this.clearAmsifDialogue();
+        this.amsifDialogueActive = false;
+        this.amsifDialogueMode = null;
+        this.amsifIntroCompleted = true;
+        this.openAmsifMenu();
+        return true;
+      }
+
+      if (this.amsifDialogueMode === "story") {
+        const steps = this.getAmsifStorySteps();
+        const nextIndex = this.amsifDialogueStep + 1;
+
+        if (nextIndex < steps.length) {
+          this.amsifDialogueStep = nextIndex;
+          this.dialogueIgnoreUntil = this.time.now + 250;
+          const step = steps[nextIndex];
+          this.showAmsifDialogue(step.text, step.speaker);
+          return true;
+        }
+
+        this.clearAmsifDialogue();
+        this.amsifDialogueActive = false;
+        this.amsifDialogueMode = null;
+        this.amsifStoryCompleted = true;
+        this.refreshUILock();
+        this.syncStreetStoreHitboxes();
+        return true;
+      }
+
+      return false;
+    }
+
+    canOpenAmsifMenu(pointer = null) {
+      if (!this.amsif?.active || this.amsifArrivalActive) return false;
+      if (this.amsifDialogueActive || this.amsifMenuModal) return false;
+      return this.canUseWorldInteraction(pointer);
+    }
+
+    openAmsifMenu() {
+      if (!this.amsif?.active || this.amsifMenuModal) return;
+
+      // The intro dialogue ends on a Phaser pointerup. Protect the newly
+      // created DOM menu from consuming the click generated by that same tap.
+      window.__SIMON_DOM_ACTIVATION_BLOCK_UNTIL__ = Math.max(
+        Number(window.__SIMON_DOM_ACTIVATION_BLOCK_UNTIL__) || 0,
+        Date.now() + 620
+      );
+
+      this.setUILocked(true);
+      this.player?.setVelocity?.(0, 0);
+      this.faceAmsifTowardSimon();
+
+      const modal = this.createDOMModal({
+        key: "amsif-menu",
+        width: "min(92%, 520px)",
+        background: "#1c2730",
+        border: "#d4a653",
+        shade: "rgba(5,7,12,.68)",
+        padding: "18px"
+      });
+
+      if (!modal) {
+        this.setUILocked(false);
+        return;
+      }
+
+      this.amsifMenuModal = modal;
+
+      const title = this.createDOMText("AMSIF", {
+        fontSize: "13px",
+        color: "#ffe0a1",
+        margin: "0 0 13px"
+      });
+
+      const question = this.createDOMText("Was soll Simon machen?", {
+        fontSize: "8px",
+        color: "#e8e0d2",
+        margin: "0 0 16px"
+      });
+
+      const row = document.createElement("div");
+      Object.assign(row.style, {
+        display: "grid",
+        gridTemplateColumns: this.amsifStoryCompleted ? "1.45fr 1fr" : "1.45fr 1fr",
+        gap: "9px"
+      });
+
+      if (this.amsifStoryCompleted) {
+        const giveKey = this.createDOMButton(
+          "AMSIF DEN SCHLÜSSEL GEBEN",
+          () => {},
+          {
+            color: "#8b8b8b",
+            background: "#292c31",
+            border: "#555b63",
+            minHeight: "44px",
+            fontSize: "6px"
+          }
+        );
+        giveKey.disabled = true;
+        giveKey.setAttribute("aria-disabled", "true");
+        giveKey.style.opacity = "0.48";
+        giveKey.style.cursor = "default";
+
+        const back = this.createDOMButton(
+          "ZURÜCK",
+          () => this.closeAmsifMenu(),
+          {
+            color: "#f5e7c4",
+            background: "#38434b",
+            border: "#9c8357",
+            minHeight: "44px",
+            fontSize: "7px"
+          }
+        );
+
+        row.append(giveKey, back);
+      } else {
+        const story = this.createDOMButton(
+          "AMSIFS GESCHICHTE HÖREN",
+          () => this.startAmsifStoryDialogue(),
+          {
+            color: "#fff0c4",
+            background: "#5d3f27",
+            border: "#d4a653",
+            minHeight: "46px",
+            fontSize: "6px"
+          }
+        );
+
+        const continueButton = this.createDOMButton(
+          "WEITER",
+          () => this.closeAmsifMenu(),
+          {
+            color: "#e4edf0",
+            background: "#304b50",
+            border: "#7da9aa",
+            minHeight: "46px",
+            fontSize: "7px"
+          }
+        );
+
+        row.append(story, continueButton);
+      }
+
+      modal.panel.append(title, question, row);
+      this.refreshUILock();
+    }
+
+    closeAmsifMenu({ keepLocked = false } = {}) {
+      if (this.amsifMenuModal) {
+        this.destroyDOMModal(this.amsifMenuModal);
+        this.amsifMenuModal = null;
+      }
+
+      if (keepLocked) {
+        this.setUILocked(true);
+      } else {
+        this.refreshUILock();
+        this.syncStreetStoreHitboxes();
+      }
+    }
+
+    updateAmsifStory() {
+      if (!this.amsifEncounterStarted) return;
+
+      this.restoreAmsifIfNeeded();
+
+      if (!this.amsif?.active) return;
+
+      if (
+        !this.amsifArrivalActive &&
+        !this.amsifDialogueActive &&
+        !this.amsifMenuModal
+      ) {
+        this.faceAmsifTowardSimon();
+      }
+
+      // Recovery only: in normal play this intro starts from the arrival
+      // callback. If a scene reload interrupted that callback, resume it once
+      // the Bahnhof arrival is fully playable and no unrelated story is active.
+      if (
+        !this.amsifIntroCompleted &&
+        !this.amsifArrivalActive &&
+        !this.amsifDialogueActive &&
+        !this.amsifMenuModal &&
+        this.arrivalFinished &&
+        !this.playerDying &&
+        !this.milkmanDialogueActive &&
+        !this.milkmanFightActive &&
+        !this.gandhiDialogueActive &&
+        !this.gandhiChoiceModal &&
+        !this.gandhiNukeActive &&
+        !this.darkGandhiBossActive &&
+        !this.uiLocked
+      ) {
+        this.startAmsifIntroDialogue();
+      }
+    }
+
     canOpenStreetStore(pointer) {
       if (!this.canUseWorldInteraction(pointer)) return false;
 
@@ -7911,6 +8698,10 @@
         this.bookstoreEntryModal ||
         this.bookstoreOverlay ||
         this.bookstoreCatalogModal ||
+        this.shoeStoreClosedModal ||
+        this.amsifDialogueActive ||
+        this.amsifMenuModal ||
+        this.amsifArrivalActive ||
         this.itemsModal ||
         this.itemInfoModal ||
         this.shopModal ||
@@ -7945,13 +8736,30 @@
         !this.gandhiLootModal &&
         !this.gandhiNukeActive &&
         !this.darkGandhiBossActive &&
+        !this.shoeStoreClosedModal &&
+        !this.amsifDialogueActive &&
+        !this.amsifMenuModal &&
+        !this.amsifArrivalActive &&
         !this.playerDying
       );
 
-      [this.indianStoreHitbox, this.bookstoreHitbox].forEach((zone) => {
+      [
+        this.indianStoreHitbox,
+        this.bookstoreHitbox,
+        this.shoeStoreHitbox
+      ].forEach((zone) => {
         if (!zone?.input) return;
         zone.input.enabled = enabled;
       });
+
+      if (this.amsif?.input) {
+        this.amsif.input.enabled = Boolean(
+          enabled &&
+          !this.amsifArrivalActive &&
+          !this.amsifDialogueActive &&
+          !this.amsifMenuModal
+        );
+      }
     }
 
     getBookDefinitions() {
@@ -11214,6 +12022,14 @@
       this.gandhiDead = true;
       this.gandhiEncounterFinished = true;
 
+      if (!this.developerMode) {
+        this.coins += 300;
+      } else {
+        this.coins = 999999;
+      }
+      this.updateCoinHUD();
+      this.animateCoinGain(300);
+
       this.cleanupDarkGandhiAttackObjects();
       this.destroyDarkGandhiHealthBar();
       this.darkGandhiPhaseHUD?.destroy?.(true);
@@ -12493,7 +13309,11 @@
         this.gandhiChoiceModal ||
         this.gandhiLootModal ||
         this.gandhiNukeActive ||
-        this.darkGandhiBossActive
+        this.darkGandhiBossActive ||
+        this.amsifDialogueActive ||
+        this.amsifMenuModal ||
+        this.amsifArrivalActive ||
+        this.shoeStoreClosedModal
       ) {
         return;
       }
@@ -12508,7 +13328,11 @@
         this.gandhiChoiceModal ||
         this.gandhiLootModal ||
         this.gandhiNukeActive ||
-        this.darkGandhiBossActive
+        this.darkGandhiBossActive ||
+        this.amsifDialogueActive ||
+        this.amsifMenuModal ||
+        this.amsifArrivalActive ||
+        this.shoeStoreClosedModal
       ) {
         return;
       }
@@ -12541,6 +13365,7 @@
       this.updateGandhiNukeFailsafe(time);
       this.updateDarkGandhiBoss(time, delta);
       this.updateGandhiStory();
+      this.updateAmsifStory();
       this.syncStreetStoreHitboxes();
     }
 
@@ -12566,7 +13391,11 @@
         this.gandhiDialogueActive ||
         this.gandhiChoiceModal ||
         this.gandhiLootModal ||
-        this.gandhiNukeActive
+        this.gandhiNukeActive ||
+        this.amsifDialogueActive ||
+        this.amsifMenuModal ||
+        this.amsifArrivalActive ||
+        this.shoeStoreClosedModal
       ) {
         return;
       }
@@ -12599,6 +13428,9 @@
         gandhiPassEnteredZone: this.gandhiPassEnteredZone,
         gandhiPassCompleted: this.gandhiPassCompleted,
         gandhiSticksLooted: this.gandhiSticksLooted,
+        amsifEncounterStarted: this.amsifEncounterStarted,
+        amsifIntroCompleted: this.amsifIntroCompleted,
+        amsifStoryCompleted: this.amsifStoryCompleted,
         booksRead: { ...this.booksRead },
         abilitiesUnlocked: { ...this.abilitiesUnlocked },
         activeAbility: this.activeAbility,

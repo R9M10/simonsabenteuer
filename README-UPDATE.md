@@ -1,66 +1,104 @@
-# Simons Abenteuer – Combat / Für sich sein v30
+# Simons Abenteuer – Schuhladen / Amsif / Void / Gandhi Reward v31
 
-## Grundlage
-Direkt vor der Änderung erneut geprüft:
-- aktuelles `game.js`: `ab4cb652f4c830a1d75bfc1bc2186e10cf598cda`
-- aktuelle `index.html`: `28021a95af6a5c6f369d475c6d17e71dfa5a9ee0`
-- `runtime-stability-v29.js`: `a51239d9b6a8ed3888d148adbe5dadccef937736`
+## Ausgangsbasis
+Direkt vor der Änderung erneut aus GitHub geprüft:
+- `game.js`: `d6bf414e5ae34ee70be40dbd8d616e6aaa67e42e`
+- `index.html`: `320cd0f4e653ea68463dad3f64b714ffbf50c173`
 
-Die neue `simon-ui-v32.js?v=32`-Erweiterung aus dem Repository bleibt erhalten.
+Die aktuelle `simon-ui-v34.js?v=34`-Erweiterung der parallelen Repository-Arbeit bleibt erhalten.
 
-## 1. Kampfschläge
-Ein Treffer ist jetzt an einen echten Box-Animationszyklus gekoppelt.
+## 1. Für-sich-sein-Void
+Der `← ZURÜCK`-Button sitzt jetzt unten links und berücksichtigt iPhone-Safe-Areas.
 
-- Die aktuelle `simon-shoot`-Animation wird durch `game-polish-v15.js` als 5-Frame-Boxanimation dargestellt.
-- Ein Schlagzyklus dauert ca. 380 ms.
-- Der Trefferpunkt liegt einmalig bei ca. 235 ms.
-- Weitere X-Taps während desselben Zyklus werden konsumiert, starten die Animation nicht neu und erzeugen keinen zusätzlichen Schaden.
+## 2. Buchzitate
+Die Zitatbox ist jetzt ein eigener DOM-Layer mit `z-index: 400500`.
+Damit liegt sie vor:
+- dem aktiven Fähigkeitssymbol,
+- Phaser-HUD,
+- Canvas-Effekten.
 
-Dark Gandhi:
-- 4 erfolgreiche Treffer pro Phase
-- 3 Phasen
-- 12 erfolgreiche Treffer insgesamt
-- normaler Schlag weiterhin 10 Schaden
-- HP 120 → 80 → 40 → 0
+Sie bleibt 10 Sekunden sichtbar. Die bestehende v34-Quote-Erweiterung kann den neuen DOM-Banner gefahrlos ignorieren, weil sie nur Phaser-Banner mit `active/list` nachbearbeitet.
 
-Wurfstöcke bleiben von ihrem eigenen 3-Sekunden-Cooldown abhängig.
+## 3. Dark Gandhi Reward
+Beim endgültigen Sieg über Dark Gandhi werden automatisch **300 Coins** gutgeschrieben.
+Im Developer Mode bleibt die Coin-Anzeige unendlich; die +300-Animation wird trotzdem angezeigt.
 
-## 2. Gegner pausieren nicht bei Item-Aktionen
-Während Simon trinkt, raucht oder ein Buch liest, darf seine Aktion ihn selbst blockieren – der Gegner läuft aber weiter.
+## 4. Neuer Schuhladen
+Direkt rechts neben Orell Füssli steht jetzt dauerhaft ein arcadeartiger Schuhladen:
+- dunkle Fassade,
+- cyan-/magenta Neonrahmen,
+- pulsierende Leuchtreklame,
+- Pixel-Schuhe in den Fenstern.
 
-- Dark Gandhi bewegt sich weiter und setzt Angriffe fort.
-- Der Löwe greift weiter an.
-- Der Milchmann war bereits unabhängig von `uiLocked` und wirft weiterhin Flaschen; dieser Ablauf bleibt erhalten.
-- Dialog-/Modal-/Transit-Locks pausieren Kämpfe weiterhin dort, wo sie wirklich einen harten UI-Zustand darstellen.
+Er ist immer vorhanden – völlig unabhängig davon, ob Gandhi bereits erschienen oder besiegt wurde.
 
-## 3. Für sich sein
-Die Void wurde optisch und funktional überarbeitet:
+Für ihn gelten dieselben Weltinteraktionsregeln wie für Der Inder/Orell:
+- nur am Boden anklickbar,
+- kein Wurmloch-Fall-through,
+- nicht während Kämpfen/Dialogen/Modals,
+- Fassaden-Hitbox endet oberhalb der Touch-Steuerung.
 
-- keine Ellipsen/Orbitlinien mehr
-- stattdessen 64 deterministische Sterne, inklusive heller Kreuzsterne
-- HP-Leiste bleibt sichtbar
-- Coins bleiben sichtbar
-- ITEMS bleibt sichtbar und anklickbar
-- Hotbar bleibt sichtbar und anklickbar
-- Gegenstände/Bücher/Waffen können weiterhin aus- und abgerüstet werden
-- Hotbar-Aktionen wie Trinken/Rauchen/Lesen funktionieren weiterhin in der Void
-- HUD-Tiefen werden beim Verlassen der Void sauber wiederhergestellt
+Beim Anklicken erscheint:
+`Schuhladen geschlossen.`
+mit `ZURÜCK`.
+
+## 5. Amsif
+Beim ersten `ZURÜCK` aus dem geschlossenen Schuhladen kommt Amsif von rechts auf die Map und bleibt anschließend vor dem Laden stehen.
+
+Aussehen:
+- männliche, Middle-Eastern-inspirierte Arcade-Figur,
+- dunkles Haar/Bart,
+- grün-türkise Jacke,
+- rot-gold gemusterter Schal,
+- Name `AMSIF` permanent über dem Kopf.
+
+### Erster Dialog
+- `Dich kenn ich doch!`
+- `Mir hend mal Fuessball gspielt und ich han falschi Schueh kha!`
+
+Danach:
+- `AMSIFS GESCHICHTE HÖREN`
+- `WEITER`
+
+Bei `WEITER` läuft das Spiel normal weiter. Amsif bleibt stehen und anklickbar; sein Menü bietet weiterhin Geschichte/Weiter.
+
+### Geschichte
+Die komplette vorgegebene Sequenz wurde unverändert eingebaut, inklusive Simons Frage nach dem Général.
+
+Nach Abschluss endet die Sequenz ohne weiteres Popup.
+Klickt man Amsif danach erneut an, erscheinen:
+- `AMSIF DEN SCHLÜSSEL GEBEN` – sichtbar, aber deaktiviert
+- `ZURÜCK`
+
+Es wird noch kein Schlüssel erfunden oder vergeben.
+
+## Sequenz-/Stabilitätsschutz
+- Amsif startet pro Spielstand nur einmal.
+- `EncounterStarted`, `IntroCompleted` und `StoryCompleted` werden durch Tramfahrten mitgenommen.
+- Storyzustände sind monoton: `StoryCompleted` impliziert automatisch `IntroCompleted` und `EncounterStarted`.
+- Ein abgebrochener Scene-/Tween-Callback besitzt einen Recovery-Pfad.
+- Während Amsif ankommt oder spricht sind Stores, Tram und Items entsprechend gesperrt.
+- Amsif wird bei späteren Bahnhofstrasse-Besuchen automatisch wieder vor dem Schuhladen aufgebaut.
+- Der Dialog-zu-Menü-Übergang hat zusätzlich 620 ms Same-Tap-Schutz, damit der letzte Dialogtap nicht sofort eine Menüoption auslöst.
+- Gandhi-Story und Amsif-Story besitzen keine gegenseitige Fortschrittsbedingung.
 
 ## Dateien ersetzen
 - `game.js`
 - `index.html`
 
 ## Cache
-- `game.js?v=30`
+- `game.js?v=31`
 
 ## Tests
 - `node --check game.js` – PASS
-- 4 Treffer Phase 1 → 80 HP – PASS
-- 4 Treffer Phase 2 → 40 HP – PASS
-- 4 Treffer Phase 3 → 0 HP – PASS
-- fünf Taps innerhalb einer Boxanimation → genau ein gestarteter Schlag / ein Damage-Callback – PASS
-- Dark Gandhi läuft bei aktivem Trinkvorgang weiter – PASS
-- Löwe läuft bei aktivem Trinkvorgang weiter – PASS
-- Void enthält keine `strokeEllipse`-Geometrie – PASS
-- HUD/ITEMS werden in der Void über den Overlay-Blocker gehoben – PASS
-- aktuelle `simon-ui-v32.js`-Einbindung bleibt erhalten – PASS
+- Void-Zurückbutton unten links / Safe Area – PASS
+- Zitat-DOM-Layer > 300000 – PASS
+- 10-Sekunden-Zitat-Timer – PASS
+- Dark Gandhi +300 Coins – PASS
+- Schuhladen startet Amsif ohne Gandhi-Abhängigkeit – PASS
+- wiederholtes Schuhladen-Zurück startet Amsif nicht doppelt – PASS
+- beide Introzeilen in korrekter Reihenfolge – PASS
+- komplette Amsif-Geschichte = 10 Schritte – PASS
+- Simons Général-Frage ist Sprecher `simon` – PASS
+- Story endet sauber in `amsifStoryCompleted` – PASS
+- aktuelle `simon-ui-v34.js`-Einbindung bleibt erhalten – PASS
