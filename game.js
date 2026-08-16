@@ -968,7 +968,7 @@
 
       this.ticketInteractionMarker = this.createPulsingInteractionMarker(
         740,
-        202,
+        250,
         176
       );
 
@@ -5923,7 +5923,7 @@
         guard.setInteractive({ useHandCursor: true });
         guard.setDepth(18);
         this.attachInteractionMarkerToTarget(guard, {
-          offsetY: -54,
+          offsetY: -14,
           depth: 176
         });
 
@@ -8205,7 +8205,7 @@
 
       this.ticketInteractionMarker = this.createPulsingInteractionMarker(
         x + 24,
-        y - 15,
+        y + 45,
         176
       ).setVisible(false);
 
@@ -12499,7 +12499,7 @@
         .setInteractive({ useHandCursor: true });
 
       this.attachInteractionMarkerToTarget(this.gandhi, {
-        offsetY: -58,
+        offsetY: -18,
         depth: 176
       });
 
@@ -12548,7 +12548,7 @@
         .setInteractive({ useHandCursor: true });
 
       this.attachInteractionMarkerToTarget(this.gandhi, {
-        offsetY: -58,
+        offsetY: -18,
         depth: 176
       });
 
@@ -13506,7 +13506,7 @@
 
       this.milkman.setInteractive({ useHandCursor: true });
       this.attachInteractionMarkerToTarget(this.milkman, {
-        offsetY: -60,
+        offsetY: -18,
         depth: 176
       });
 
@@ -14098,17 +14098,16 @@
               this.time.delayedCall(720, () => {
                 if (!this.sys.isActive()) return;
 
-                // Venice is intentionally not implemented yet. Keep the screen
-                // black and expose a clean hand-off point for the next sequence.
                 this.veniceDepartureComplete = true;
-                window.__SIMON_PENDING_DESTINATION__ = "venice";
-                window.__SIMON_PENDING_TRAVEL_STATE__ = {
+
+                const veniceTravelState = {
+                  arrivalFrom: "bahnhofstrasse",
                   coins: this.developerMode ? 999999 : this.coins,
                   hp: this.hp,
                   developerMode: this.developerMode,
-                  hasCityTicket: this.hasCityTicket,
+                  hasCityTicket: false,
                   hasLongDistanceTicket: false,
-                  longDistanceTicketsUnlocked: this.longDistanceTicketsUnlocked,
+                  longDistanceTicketsUnlocked: true,
                   inventory: { ...this.inventory },
                   booksOwned: { ...this.booksOwned },
                   booksRead: { ...this.booksRead },
@@ -14125,6 +14124,9 @@
                   amsifIntroCompleted: this.amsifIntroCompleted,
                   amsifStoryCompleted: this.amsifStoryCompleted
                 };
+
+                this.cameras.main.resetFX();
+                this.scene.start("VeniceScene", veniceTravelState);
               });
             });
           };
@@ -14348,6 +14350,8 @@
       });
     }
   }
+
+  window.__SIMON_SCENE_CLASSES__ = { MilchbuckScene, BahnhofquaiScene };
 
   window.startSimonGame = function startSimonGame(options = {}) {
     pendingStartOptions = {

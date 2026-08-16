@@ -35,7 +35,7 @@
     }
 
     if (scene.__sv38LockerMarker?.active) {
-      scene.__sv38LockerMarker.setPosition(zone.x, zone.y - 78);
+      scene.__sv38LockerMarker.setPosition(zone.x, zone.y - 8);
       scene.__sv38LockerMarker.setVisible(true);
       return;
     }
@@ -44,7 +44,7 @@
 
     scene.__sv38LockerMarker = scene.createPulsingInteractionMarker(
       zone.x,
-      zone.y - 78,
+      zone.y - 8,
       176
     );
   }
