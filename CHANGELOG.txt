@@ -1,0 +1,11 @@
+MILCHBUCK V19 – CHANGELOG
+=========================
+
+- Nur MilchbuckScene; BahnhofquaiScene/Bahnhofstrasse wird nicht angefasst.
+- Feste Render-Slots für BG, MID, Ground, Props, Gameplay, FG, Interaction, UI.
+- Bestehende Objekte werden registriert, aber NICHT visuell neu sortiert.
+- Registry wird auch nach Rückfahrt mit der Tram erneut aufgebaut.
+- Neue Vollbild-Layer müssen exakt 3000 x 390 px sein.
+- Keine automatische Streckung / setDisplaySize für Vollbild-Artwork.
+- Hilfsfunktionen zum späteren Einsetzen und Ein-/Ausblenden einzelner Layer.
+- Kein Eingriff in game.js, Physik, Collision, Trigger oder Bahnhofstrasse.

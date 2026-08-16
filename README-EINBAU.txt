@@ -1,13 +1,12 @@
-SIMONS ABENTEUER – LAYER-SYSTEM V18
-===================================
+SIMONS ABENTEUER – MILCHBUCK LAYER-SYSTEM V19
+=============================================
 
-ZWECK
------
-Dies ist bewusst ein sehr kleiner, sicherer erster Umbau.
-Er bereitet ein einheitliches Render-System für Milchbuck und Bahnhofstraße vor,
-ohne die aktuelle Welt automatisch neu zu sortieren.
+ZIEL
+----
+Dieser Patch betrifft NUR MilchbuckScene.
+Bahnhofstrasse / BahnhofquaiScene wird nicht verändert.
 
-Feste Zielstruktur:
+Der Patch führt die saubere Struktur ein, die wir für die neuen Grafiken brauchen:
 
   background   = -30
   midground    = -10
@@ -20,65 +19,84 @@ Feste Zielstruktur:
   interaction  = 150
   ui           = 300
 
-WELTGRÖSSE
-----------
-Milchbuck / Bahnhofstraße:
+WELTGRÖSSE MILCHBUCK
+--------------------
   3000 x 390 px
   Bodenoberkante: y = 338
 
-Ganz wichtig:
-Vollbild-Grafiken für background / midground / ground / foreground müssen
-EXAKT 3000 x 390 px groß sein.
+WICHTIGER SICHERHEITSPUNKT
+--------------------------
+Beim bloßen Einsetzen dieses Patches werden die bestehenden Milchbuck-Objekte
+NICHT auf neue Depth-Werte verschoben.
 
-Der neue Code streckt falsch exportierte Bilder NICHT automatisch.
-Wenn z.B. ein Hintergrund versehentlich 2998 x 390 px groß ist, wird er später
-abgelehnt statt die komplette Welt zu verzerren.
+Die aktuelle Optik, Positionen, Kollisionen, Hitboxen, Tram, Ticketautomat,
+HIVE und Simon bleiben dadurch zunächst wie vorher.
+
+Der Code registriert die bestehenden Objekte nur in klar benannten Gruppen.
+Neue Bilder können wir danach einzeln und kontrolliert in diese Gruppen setzen.
 
 EINBAU
 ------
-1. scene-layers-v18.js in den Hauptordner des Spiels kopieren.
-   Dort, wo auch game.js und index.html liegen.
+1. milchbuck-layers-v19.js in den Hauptordner des Spiels legen.
+   Also direkt neben game.js und index.html.
 
-2. INDEX-AENDERUNG.txt öffnen.
+2. In index.html ganz unten bei den Scripts EINE Zeile ergänzen:
 
-3. In index.html genau die dort beschriebene eine Script-Zeile ergänzen.
+   <script src="milchbuck-layers-v19.js?v=19"></script>
 
-4. Speichern / auf GitHub hochladen.
+   Die Zeile soll NACH flight-intro.js und VOR script.js stehen.
 
-5. Seite neu laden.
+3. Sonst nichts ersetzen.
+   Besonders game.js NICHT durch eine ältere Datei ersetzen.
 
-WAS SICH DANACH SICHTBAR ÄNDERN SOLLTE
+4. Hochladen / speichern und Seite hart neu laden.
+
+WENN scene-layers-v18.js IM REPO LIEGT
 --------------------------------------
-Nichts.
+Das ist kein Problem, solange es NICHT in index.html eingebunden ist.
+V19 ist absichtlich nur für Milchbuck und ersetzt für unsere weitere Arbeit
+den allgemeinen V18-Ansatz.
 
-Das ist Absicht.
-Die aktuelle Grafik, Hitboxen, Kollisionen, Tram, Ticketautomat, Simon usw.
-bleiben zunächst an ihren bisherigen Positionen und Depths.
+KURZER TEST
+-----------
+Nach dem Start von Milchbuck sollte sich optisch nichts verändert haben.
 
-Damit haben wir zuerst die neue Infrastruktur im Spiel, bevor wir alte Shapes
-schrittweise durch PNGs ersetzen.
+Optional Browser-Konsole:
 
-WAS DER CODE JETZT BEREITSTELLT
-------------------------------
-In MilchbuckScene und BahnhofquaiScene stehen danach u.a. zur Verfügung:
+  MilchbuckLayers.audit()
 
-  scene.renderDepths
-  scene.renderWorld
-  scene.addSceneLayerImage(...)
-  scene.addScenePropImage(...)
-  scene.registerRenderObject(...)
+Das zeigt nur, wie viele aktuelle Objekte den einzelnen Gruppen zugeordnet sind.
+Es verändert nichts.
 
-Für die nächsten Schritte können wir dann z.B. einen echten 3000x390-Hintergrund
-laden und mit addSceneLayerImage sauber auf background setzen.
+Weitere hilfreiche Abfragen:
+
+  MilchbuckLayers.DEPTHS
+  MilchbuckLayers.WORLD
+  MilchbuckLayers.getScene().milchbuckRenderLayers
+
+WAS WIR DANACH MACHEN
+---------------------
+Danach ersetzen wir Milchbuck schrittweise:
+
+1. background
+2. midground
+3. ground
+4. einzelne props wie Tram / Ticketautomat / Discokugel
+5. foreground
+
+Immer nur eine visuelle Ebene pro Update.
+So ist sofort sichtbar, falls irgendwo Position oder Größe nicht stimmt.
+
+NEUE VOLLBILD-LAYER
+-------------------
+background / midground / ground / foreground müssen exakt 3000 x 390 px sein.
+Der Code streckt falsche Bildgrößen absichtlich NICHT automatisch.
 
 ROLLBACK
 --------
-Falls du den Patch wieder entfernen möchtest:
+Einfach diese Zeile wieder aus index.html entfernen:
 
-1. Die eine Zeile
-   <script src="scene-layers-v18.js?v=18"></script>
-   wieder aus index.html löschen.
+  <script src="milchbuck-layers-v19.js?v=19"></script>
 
-2. scene-layers-v18.js löschen.
-
-Damit ist der Zustand exakt wie vorher, weil game.js nicht verändert wurde.
+und optional milchbuck-layers-v19.js löschen.
+Da game.js nicht verändert wird, ist der Patch damit vollständig entfernt.
