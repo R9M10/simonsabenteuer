@@ -1,0 +1,21 @@
+GEPRÜFT
+=======
+
+- JavaScript-Syntax mit Node geprüft.
+- Keine Änderungen an game.js.
+- Keine Änderungen an Physik, Kollisionsflächen, Triggern oder Weltmaßen.
+- Keine automatische Neuverteilung bestehender Phaser-Objekte.
+- Keine automatische Skalierung neuer Vollbild-Layer.
+- Zielmaß für Vollbild-Layer fest auf 3000 x 390 px gesetzt.
+
+OPTIONALE KONSOLE-PRÜFUNG
+-------------------------
+Wenn das Spiel läuft, kannst du in der Browser-Konsole eingeben:
+
+  SimonSceneLayers.DEPTHS
+
+oder:
+
+  SimonSceneLayers.audit("MilchbuckScene")
+
+Die Audit-Funktion liest nur den aktuellen Zustand und verändert nichts.

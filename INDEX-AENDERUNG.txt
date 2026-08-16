@@ -1,0 +1,19 @@
+In deiner aktuellen index.html ganz unten bei den Scripts genau EINE Zeile ergänzen.
+
+Aktuell steht dort sinngemäß:
+
+  <script src="hive-language-patch-v17.js?v=17"></script>
+  <script src="flight-intro.js?v=15"></script>
+  <script src="script.js?v=11"></script>
+
+Ändere nur diesen Abschnitt zu:
+
+  <script src="hive-language-patch-v17.js?v=17"></script>
+  <script src="flight-intro.js?v=15"></script>
+  <script src="scene-layers-v18.js?v=18"></script>
+  <script src="script.js?v=11"></script>
+
+WICHTIG:
+- scene-layers-v18.js kommt in den HAUPTORDNER, direkt neben game.js und index.html.
+- Sonst nichts in index.html ändern.
+- game.js NICHT ersetzen oder bearbeiten.
