@@ -77,6 +77,7 @@
       this.playerHitUntil = 0;
 
       this.ticketHitbox = null;
+      this.ticketInteractionMarker = null;
 
       this.tram = null;
       this.tramHitbox = null;
@@ -117,6 +118,7 @@
       this.gandhiPassEnteredZone = false;
       this.gandhiPassCompleted = false;
       this.gandhiSticksLooted = false;
+      this.enriqueSpoken = false;
 
       // Schuhladen / Amsif story. Independent from Gandhi and persisted across
       // tram journeys so the sequence cannot restart in the wrong order.
@@ -260,6 +262,7 @@
       this.tramBoardingEnabled = false;
       this.__tramSwitching = false;
       this.ticketHitbox = null;
+      this.ticketInteractionMarker = null;
       this.tramHitbox = null;
       this.tramBoardingMarker = null;
       this.tram = null;
@@ -312,6 +315,7 @@
         Boolean(data.gandhiPassCompleted);
       this.gandhiSticksLooted =
         Boolean(data.gandhiSticksLooted || this.inventory.gandhiSticks > 0);
+      this.enriqueSpoken = Boolean(data.enriqueSpoken);
 
       this.amsifStoryCompleted =
         Boolean(data.amsifStoryCompleted);
@@ -509,6 +513,7 @@
           gandhiPassEnteredZone: this.gandhiPassEnteredZone,
           gandhiPassCompleted: this.gandhiPassCompleted,
           gandhiSticksLooted: this.gandhiSticksLooted,
+          enriqueSpoken: this.enriqueSpoken,
           amsifEncounterStarted: this.amsifEncounterStarted,
           amsifIntroCompleted: this.amsifIntroCompleted,
           amsifStoryCompleted: this.amsifStoryCompleted,
@@ -541,6 +546,7 @@
           gandhiPassEnteredZone: false,
           gandhiPassCompleted: false,
           gandhiSticksLooted: false,
+          enriqueSpoken: false,
           amsifEncounterStarted: false,
           amsifIntroCompleted: false,
           amsifStoryCompleted: false,
@@ -959,6 +965,12 @@
       this.ticketHitbox = this.add.zone(740, 254, 66, 78)
         .setDepth(150)
         .setInteractive({ useHandCursor: true });
+
+      this.ticketInteractionMarker = this.createPulsingInteractionMarker(
+        740,
+        202,
+        176
+      );
 
       this.ticketHitbox.on("pointerdown", (pointer) => {
         if (!this.canUseWorldInteraction(pointer)) return;
@@ -4006,7 +4018,7 @@
 
       const direction = this.facing < 0 ? -1 : 1;
       const mouth = this.getPlayerMouthAnchor(direction);
-      const cigaretteY = mouth.y + 7;
+      const cigaretteY = mouth.y + 13;
 
       const cigarette = this.add.container(
         mouth.x,
@@ -5188,6 +5200,7 @@
 
       this.ticketHitbox.input.enabled = true;
       this.ticketHitbox.setDepth(150);
+      this.ticketInteractionMarker?.setVisible(true);
     }
 
     enableTramBoarding() {
@@ -5428,6 +5441,7 @@
         gandhiPassEnteredZone: this.gandhiPassEnteredZone,
         gandhiPassCompleted: this.gandhiPassCompleted,
         gandhiSticksLooted: this.gandhiSticksLooted,
+        enriqueSpoken: this.enriqueSpoken,
         amsifEncounterStarted: this.amsifEncounterStarted,
         amsifIntroCompleted: this.amsifIntroCompleted,
         amsifStoryCompleted: this.amsifStoryCompleted,
@@ -5828,6 +5842,53 @@
       this.ensureTramBoardingInteractive();
     }
 
+    createPulsingInteractionMarker(x, y, depth = 178) {
+      const marker = this.add.circle(x, y, 6, 0xffffff, 1)
+        .setStrokeStyle(2, 0xe8f6ff, 0.95)
+        .setDepth(depth);
+
+      marker.__simonInteractionMarker = true;
+
+      this.tweens.add({
+        targets: marker,
+        alpha: { from: 0.2, to: 1 },
+        scale: { from: 0.82, to: 1.18 },
+        duration: 520,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+
+      return marker;
+    }
+
+    removeInteractionMarkerFromTarget(target) {
+      const marker = target?.__simonInteractionMarkerObject;
+      if (!marker) return;
+
+      this.tweens.killTweensOf(marker);
+      marker.destroy?.();
+      target.__simonInteractionMarkerObject = null;
+    }
+
+    attachInteractionMarkerToTarget(
+      target,
+      { offsetX = 0, offsetY = -58, depth = 178 } = {}
+    ) {
+      if (!target?.active) return null;
+
+      this.removeInteractionMarkerFromTarget(target);
+
+      const marker = this.createPulsingInteractionMarker(
+        target.x + offsetX,
+        target.y + offsetY,
+        depth
+      );
+
+      target.__simonInteractionMarkerObject = marker;
+      return marker;
+    }
+
     scheduleLootedCharacterDespawn(target, delayMs = 5000, onDone = null) {
       const targets = Array.isArray(target)
         ? target.filter(Boolean)
@@ -5835,6 +5896,7 @@
 
       targets.forEach((object) => {
         object?.disableInteractive?.();
+        this.removeInteractionMarkerFromTarget(object);
       });
 
       if (targets.length === 0) return;
@@ -5860,6 +5922,10 @@
         guard.setSize(118, 82);
         guard.setInteractive({ useHandCursor: true });
         guard.setDepth(18);
+        this.attachInteractionMarkerToTarget(guard, {
+          offsetY: -54,
+          depth: 176
+        });
 
         guard.on("pointerdown", (pointer) => {
           if (!this.canUseWorldInteraction(pointer)) return;
@@ -7608,6 +7674,7 @@
         Boolean(data.gandhiPassCompleted || this.gandhiPassCompleted);
       this.gandhiSticksLooted =
         Boolean(data.gandhiSticksLooted || this.gandhiSticksLooted || this.inventory.gandhiSticks > 0);
+      this.enriqueSpoken = Boolean(data.enriqueSpoken || this.enriqueSpoken);
 
       this.amsifStoryCompleted =
         Boolean(data.amsifStoryCompleted || this.amsifStoryCompleted);
@@ -8135,6 +8202,12 @@
       this.ticketHitbox = this.add.zone(x + 24, y + 44, 68, 104)
         .setDepth(150)
         .setInteractive({ useHandCursor: true });
+
+      this.ticketInteractionMarker = this.createPulsingInteractionMarker(
+        x + 24,
+        y - 15,
+        176
+      ).setVisible(false);
 
       // Erst nach der Aussteigeanimation aktivieren.
       this.ticketHitbox.input.enabled = false;
@@ -10179,9 +10252,26 @@
       this.cameras.main.setDeadzone(240, 80);
     }
 
+    markEnriqueConversationComplete() {
+      if (this.enriqueSpoken) return false;
+
+      this.enriqueSpoken = true;
+
+      // A pass completed before Enrique does not count. Start a fresh pass only
+      // after the conversation, and only once Simon is back outside Zofingia.
+      this.gandhiPassOriginSide = null;
+      this.gandhiPassEnteredZone = false;
+      this.gandhiPassCompleted = false;
+      this.gandhiTriggerArmed = false;
+      return true;
+    }
+
     updateGandhiStory() {
       if (
         !this.gandhiStoryEligible ||
+        !this.enriqueSpoken ||
+        this.__sv37ZofingiaOpen ||
+        this.__sv36ZofingiaOpen ||
         this.gandhiEncounterFinished ||
         this.gandhiEncounterStarted ||
         this.playerDying ||
@@ -10302,6 +10392,7 @@
       if (
         this.gandhiEncounterStarted ||
         this.gandhiEncounterFinished ||
+        !this.enriqueSpoken ||
         !this.gandhiPassCompleted ||
         this.playerDying
       ) {
@@ -12407,6 +12498,11 @@
         .setSize(125, 78)
         .setInteractive({ useHandCursor: true });
 
+      this.attachInteractionMarkerToTarget(this.gandhi, {
+        offsetY: -58,
+        depth: 176
+      });
+
       this.gandhi.removeAllListeners?.("pointerdown");
       this.gandhi.on("pointerdown", (pointer) => {
         if (!this.canUseWorldInteraction(pointer)) return;
@@ -12450,6 +12546,11 @@
         .setDepth(24)
         .setSize(125, 78)
         .setInteractive({ useHandCursor: true });
+
+      this.attachInteractionMarkerToTarget(this.gandhi, {
+        offsetY: -58,
+        depth: 176
+      });
 
       this.gandhi.removeAllListeners?.("pointerdown");
       this.gandhi.on("pointerdown", (pointer) => {
@@ -13404,6 +13505,10 @@
       }
 
       this.milkman.setInteractive({ useHandCursor: true });
+      this.attachInteractionMarkerToTarget(this.milkman, {
+        offsetY: -60,
+        depth: 176
+      });
 
       this.milkman.on("pointerdown", (pointer) => {
         if (!this.canUseWorldInteraction(pointer)) return;
@@ -13860,6 +13965,7 @@
         gandhiPassEnteredZone: this.gandhiPassEnteredZone,
         gandhiPassCompleted: this.gandhiPassCompleted,
         gandhiSticksLooted: this.gandhiSticksLooted,
+        enriqueSpoken: this.enriqueSpoken,
         amsifEncounterStarted: this.amsifEncounterStarted,
         amsifIntroCompleted: this.amsifIntroCompleted,
         amsifStoryCompleted: this.amsifStoryCompleted,

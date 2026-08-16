@@ -1,94 +1,76 @@
-# Simons Abenteuer – Fähigkeiten / Zofingia / Langstrecke v33
+# Simons Abenteuer – Interaktionspunkte / Enrique-Gate v34
 
-## Aktueller Repository-Stand vor der Änderung
-- `game.js`: `6d32558647e4824b29b1e6e43b9b07b6a158ec25`
-- `index.html`: `a03c18ae8accd05278da70df45c9e843922cec22`
+## Basis: direkt vor der Änderung erneut geprüft
+- aktuelles GitHub `game.js`: `c43e8177faa6904021b849992d6b8caa57acf236`
+- aktuelle GitHub `index.html`: `fe39fe83cf8f93513168881efae12150383aa71e`
+- aktuelles Zusatz-UI: `simon-ui-v37.js?v=37`
+- aktuelle Opening Scene: `opening-scene-v18.css?v=18`
 
-Im Repository lagen bereits die neueren Drop-in-Dateien `simon-ui-v36.js`,
-`hive-language-patch-v19.js` und `opening-scene-v17.css`. Die neue index.html
-aktiviert diese jetzt entsprechend der vorhandenen v36-Dokumentation.
+Die Änderungen aus v37 bleiben erhalten.
 
-## 1. Fähigkeiten im Spiel
-- Fähigkeitskarten im Menü behalten das neue kohärente Design.
-- Der eigentliche Ingame-Fähigkeitsbutton ist wieder **rund** und kleiner als J/X.
-- Er verwendet den bereits bewährten `makeTouchButton`-Inputpfad und ist daher direkt anklickbar.
-- Ewige Wiederkehr: `ZEIT / −3s`.
-- Für sich sein: `VOID / BEREIT` bzw. `VOID / m:ss`.
-- Wurmloch bleibt wie bisher eine kontextuelle Luft-Fähigkeit und benötigt keinen separaten Button.
+## 1. Weiße Interaktionspunkte
+Der gleiche weiße, pulsierende 6px-Punkt wie bei der Tram wird jetzt verwendet für:
+- Ticketautomat am Milchbuck
+- Ticketautomat Bahnhofstrasse/HB
+- Schließfach/Locker am Milchbuck
+- Schließfach/Locker Bahnhofstrasse/HB
+- jeden besiegten Türsteher, solange er noch plünderbar ist
+- Dark Gandhi, solange sein Körper noch plünderbar ist
+- wiederhergestellten Dark-Gandhi-Körper nach einer Tramfahrt
+- Milchmann, solange er noch plünderbar ist
 
-## 2. Zigarette
-Die Zigarette liegt weitere 7 px tiefer als zuvor und bleibt links/rechts korrekt gespiegelt.
+Sobald eine Leiche geplündert wurde und ihr 5-Sekunden-Despawn beginnt, wird der weiße Punkt sofort entfernt.
 
-## 3. Bewegung während Gesprächen
-Bei den Overworld-Sprechblasendialogen kann Simon weiterhin nach links/rechts laufen.
-Springen, Schlagen, Läden und andere Interaktionen bleiben während des Dialogs gesperrt.
-Touch-Links/Rechts bleibt dabei sichtbar.
+`createPulsingInteractionMarker()` ist ein gemeinsamer Helfer, sodass künftige plünderbare Figuren denselben Stil verwenden können.
 
-## 4. Amsif
-- `Bösewicht` ist im Dialog großgeschrieben.
-- Die vorherigen Korrekturen bleiben erhalten: `Schueh`, `Himmel`, statisches Namensschild und Position neben dem Schuhladen.
+## 2. Neue Gandhi-Bedingung
+Dark-Gandhi/Gandhi-Story verlangt jetzt zusätzlich ein echtes Gespräch mit Enrique.
 
-## 5. Zitate
-- keine große schwarze Box mehr
-- nur Text + Textschatten im obersten DOM-Layer
-- Dauer: 7 Sekunden
-- Playbook bleibt ohne Zitat
+Es zählt erst als Gespräch, wenn Simon bei Enrique mindestens eine der eigentlichen Gesprächsoptionen auswählt:
+- `WER BISCH DU?`
+- `FLIRT LERNE`
+- `NACH MOBUTO FRAGE`
 
-## 6. Langstreckenticket / Zofingia
-Die bestehende Zofingia-Implementierung aus `simon-ui-v36.js` wird jetzt aktiviert.
-Sobald Simon das Zofingia-Clubhaus zum ersten Mal betritt:
+Nur Enriques Menü zu öffnen und `ZURÜCK` zu drücken zählt nicht.
 
-`LANGSTRECKENTICKETS FREIGESCHALTET!`
+Beim ersten echten Gespräch wird ein eventuell bereits vor Enrique absolvierter Gang am Indischen Laden verworfen. Danach muss Simon Zofingia verlassen und **erneut** vollständig am Indischen Laden vorbeilaufen. Erst dann kann Gandhi erscheinen.
 
-erscheint oben für 7 Sekunden.
+Reihenfolge damit:
+1. Milchmann besiegen
+2. mit Enrique sprechen
+3. Zofingia verlassen
+4. danach Der Inder vollständig durchqueren
+5. Gandhi darf erscheinen
 
-Danach zeigt ausschließlich der Ticketautomat an Bahnhofstrasse/HB zusätzlich:
-- `LANGSTRECKENTICKET · 1 FAHRT`
-- Preis `150.-`
+Während Zofingia geöffnet ist, wird der unsichtbare Overworld-Simon ausdrücklich nicht für die Pass-Erkennung benutzt.
 
-Vor dem Zofingia-Besuch ist diese Kaufoption nicht sichtbar.
+`enriqueSpoken` wird bei Tramfahrten mitgeführt, damit die Story nicht durch einen Szenenwechsel zurückgesetzt wird.
 
-Mit gekauftem Langstreckenticket bietet die Tram an Bahnhofstrasse zusätzlich:
-- `VENEDIG`
+## 3. Zigarette
+Die Zigarette sitzt nochmals 6 Pixel tiefer als in v33:
+- vorher `mouth.y + 7`
+- jetzt `mouth.y + 13`
 
-Bei Venedig:
-- Langstreckenticket wird verbraucht
-- Simon steigt ein
-- Tram fährt nach links
-- Bildschirm blendet schwarz aus
-- `window.__SIMON_PENDING_DESTINATION__ = "venice"`
-- der komplette relevante Spielstand liegt in `window.__SIMON_PENDING_TRAVEL_STATE__`
+Blickrichtung, Filter-/Glutseite und Rauchursprung bleiben unverändert korrekt.
 
-Damit kann die nächste Venedig-Sequenz direkt an diesen Übergabepunkt angeschlossen werden.
+## Dateien hochladen
+- `game.js` ersetzen
+- `index.html` ersetzen
+- `progression-markers-v38.js` neu hinzufügen
 
-## 7. Developer Mode
-`ENDE MILCHMANN` zerstört die Bahnhofstrasse-Tram nicht mehr.
-Zusätzlich repariert `ensureDeveloperTramReady()` die echte Tram an Developer-Checkpoints,
-sobald die Bahnhofstrasse spielbar ist. Dadurch kann man aus Dev Mode normal weiterreisen,
-Zofingia betreten, Langstrecke freischalten und Venedig testen.
-
-## Weiterhin erhalten
-- 5-Sekunden-Despawn nach Plünderung
-- Amsif neben dem Schuhladen
-- aktuelles Dark-Gandhi-System
-- aktuelle v36 Zofingia/HIVE-Spielbarkeit
-
-## Dateien ersetzen
-- `game.js`
-- `index.html`
-
-Die von der neuen index.html referenzierten Dateien `simon-ui-v36.js`,
-`hive-language-patch-v19.js` und `opening-scene-v17.css` liegen bereits im aktuellen Repository.
+## Cache
+- `game.js?v=34`
+- `progression-markers-v38.js?v=38`
 
 ## Tests
 - `node --check game.js` – PASS
-- Runde Ability-Buttons: Callback für ZEIT – PASS
-- Runde Ability-Buttons: Callback für VOID – PASS
-- Gesprächsbewegung links/rechts – PASS
-- Zofingia-Unlock genau einmal / 7 s – PASS
-- Langstreckenticket kostet 150 – PASS
-- Long-ticket-only Tram zeigt Venedig – PASS
-- Venedig-Abfahrt fährt nach links / Fade-to-black / State-Handoff – PASS
-- Developer-Tram wird erzeugt/geparkt/interaktiv – PASS
-- 5-Sekunden-Despawn – PASS
-- Zitat-/Unlock-Notice ohne Box – PASS
+- `node --check progression-markers-v38.js` – PASS
+- weißer Marker: 6px / weiß / 520ms Puls wie Tram – PASS
+- Marker-Cleanup beim Loot – PASS
+- Gandhi vor Enrique trotz altem Pass blockiert – PASS
+- Enrique-Gespräch setzt Fortschritt und verwirft alten Pass – PASS
+- Zofingia kann Pass nicht im Hintergrund triggern – PASS
+- erst echter post-Enrique-Durchgang an Der Inder startet Gandhi – PASS
+- Enrique `ZURÜCK` zählt nicht als Gespräch – PASS
+- Locker-Marker Milchbuck/Bahnhof werden über v37-Locker erzeugt – PASS
+- aktuelles v37 / Opening v18 / HIVE v19 in index erhalten – PASS
