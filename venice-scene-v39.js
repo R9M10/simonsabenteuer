@@ -74,8 +74,33 @@
       this.cameras.main.setAlpha(1);
       this.cameras.main.setBackgroundColor("#86c0d9");
 
-      this.createVeniceWorld();
-      this.createGround();
+      // Build Venice stage-by-stage. A later wrapper is allowed to add UI or
+      // inventory hooks, but one failing non-critical stage must never abort the
+      // entire Scene and leave only the camera's light-blue background.
+      const worldStages = [
+        ["sky", () => this.createVeniceSky()],
+        ["far-city", () => this.createVeniceFarCity()],
+        ["mid-city", () => this.createVeniceMidCity()],
+        ["station", () => this.createVeniceStationQuarter()],
+        ["promenade", () => this.createVenicePromenade()],
+        ["ticket-machine", () => this.createVeniceTicketMachine()],
+        ["locker", () => this.createVeniceLocker()],
+        ["arrival-tram", () => this.createArrivalTram()]
+      ];
+
+      worldStages.forEach(([label, build]) => {
+        try {
+          build();
+        } catch (error) {
+          console.error(`[VENICE] ${label} konnte nicht erstellt werden:`, error);
+        }
+      });
+
+      try {
+        this.createGround();
+      } catch (error) {
+        console.error("[VENICE] Boden konnte nicht erstellt werden:", error);
+      }
 
       if (!this.textures.exists("simon")) {
         this.add.text(
@@ -89,20 +114,44 @@
           }
         )
           .setOrigin(0.5)
-          .setScrollFactor(0);
+          .setScrollFactor(0)
+          .setDepth(4000);
         return;
       }
 
-      this.createAnimations();
-      this.createPlayer();
-      if (this.stationBoundary) {
-        this.physics.add.collider(this.player, this.stationBoundary);
-      }
+      try {
+        this.createAnimations();
+        this.createPlayer();
 
-      this.createKeyboardControls();
-      this.createTouchControls();
-      this.createHUD();
-      this.installWormholeInput();
+        if (this.stationBoundary) {
+          this.physics.add.collider(this.player, this.stationBoundary);
+        }
+
+        this.createKeyboardControls();
+        this.createTouchControls();
+        this.createHUD();
+        this.installWormholeInput();
+      } catch (error) {
+        console.error("[VENICE] Spieler/HUD-Initialisierung fehlgeschlagen:", error);
+
+        this.add.text(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT / 2,
+          "VENEDIG GELADEN\nSPIELER-SETUP FEHLER",
+          {
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "9px",
+            color: "#fff0bd",
+            backgroundColor: "rgba(20,28,36,.88)",
+            padding: { x: 12, y: 10 },
+            align: "center"
+          }
+        )
+          .setOrigin(0.5)
+          .setScrollFactor(0)
+          .setDepth(4000);
+        return;
+      }
 
       this.events.once("shutdown", () => {
         this.cleanupHotbarDOM?.();
@@ -1247,6 +1296,8 @@
       this.ensureLockerInteractive();
     }
   }
+
+  window.__SIMON_VENICE_SCENE_CLASS__ = VeniceScene;
 
   function installOnGame(game) {
     if (!game?.scene) return;

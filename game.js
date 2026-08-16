@@ -3224,9 +3224,7 @@
 
       this.coins = this.developerMode
         ? 999999
-        : (Number.isFinite(Number(snapshot.coins))
-            ? Number(snapshot.coins)
-            : 0);
+        : Math.max(0, Number(snapshot.coins) || 0);
 
       this.inventory.gatorade =
         Math.max(0, Number(snapshot.inventory?.gatorade) || 0);
@@ -5881,6 +5879,15 @@
 
       this.removeInteractionMarkerFromTarget(target);
 
+      // Loot always wins over a shop/interior/door hitbox underneath the body.
+      // Phaser input is top-only in this game, so putting the lootable body
+      // above world interaction zones guarantees that the first tap opens the
+      // loot action instead of accidentally entering the store behind it.
+      const currentDepth = Number(target.depth) || 0;
+      target.setDepth?.(Math.max(currentDepth, 245));
+      target.__simonLootPriority = true;
+      this.input?.setTopOnly?.(true);
+
       const marker = this.createPulsingInteractionMarker(
         target.x + offsetX,
         target.y + offsetY,
@@ -6216,7 +6223,7 @@
 
       if (this.bouncerDialogueStep < 5) {
         this.bouncerDialogueStep += 1;
-        this.dialogueIgnoreUntil = this.time.now + 190;
+        this.dialogueIgnoreUntil = this.time.now + 250;
         this.showBouncerDialogueStep();
         return;
       }
@@ -12865,14 +12872,14 @@
       if (this.milkmanDialogueStep === 0) {
         this.milkmanDialogueStep = 1;
         this.showMilkmanDialogue("Din Fründ het mer mini Milch klaut!");
-        this.dialogueIgnoreUntil = this.time.now + 240;
+        this.dialogueIgnoreUntil = this.time.now + 250;
         return true;
       }
 
       if (this.milkmanDialogueStep === 1) {
         this.milkmanDialogueStep = 2;
         this.showMilkmanDialogue("Jetzt wirsch mini rache spüre!");
-        this.dialogueIgnoreUntil = this.time.now + 240;
+        this.dialogueIgnoreUntil = this.time.now + 250;
         return true;
       }
 
