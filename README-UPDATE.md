@@ -1,99 +1,85 @@
-# Simons Abenteuer – Dark Gandhi Runtime-Fix v25
+# Simons Abenteuer – Gandhi-Phasen / Wurfstöcke / Stabilität v26
 
-Basis: aktueller GitHub-Stand direkt vor dem Fix.
+Ausgangsstand wurde direkt vor dem Build gegen GitHub geprüft:
 
-- game.js: 463a877e52434b925bbcd0cdc6b80d1756cc7ccc
-- index.html: 526a376d42cd57d1012c7314ec5157932658d553
-- hive-language-patch-v16.js: 455502e2ebda6d584d259e97ecf8b14abaf4dcac
-- hive-expansion.js bleibt v14.2 unverändert
-- game-polish-v15.js bleibt v15 unverändert
+- game.js: `f8f3af8f53fe33c60a6787e2bbf9848080bd5418`
+- index.html: `fcca57279a6b57cfb5abe1b1eecadd9db2338038`
+- HIVE v14.2 und game-polish-v15 bleiben unangetastet
+- hive-language-patch-v17 bleibt unangetastet
 
-## Kritischer Gandhi-Fix
+## Wichtig
+Vom aktuellen Repository aus nur ersetzen:
+- `game.js`
+- `index.html`
 
-Der Freeze direkt beim Bombeneinschlag hatte eine konkrete Runtime-Ursache:
-`Gandhi` ist ein `Phaser.GameObjects.Container`, aber v24 rief nach dem Einschlag
-`this.gandhi.setTint(...)` auf. `Container` besitzt nicht die Sprite-Tint-API.
-Dadurch wurde beim Einschlag eine Exception ausgelöst, während `uiLocked=true`
-blieb – visuell genau der gemeldete Freeze.
+## Gandhi-Trigger
+Gandhi erscheint erst, wenn der Milchmann besiegt ist und Simon danach Der Inder
+wirklich komplett von einer Seite zur anderen passiert hat. Ein Teleport direkt
+über den Laden zählt nicht, weil die Laden-Zone tatsächlich betreten werden muss.
 
-v25 verwendet in der gesamten Gandhi-/Dark-Gandhi-Kette keine Tint-Methode auf
-Containern mehr. Außerdem gibt es zwei unabhängige Revival-Pfade:
+Gandhi kommt nicht mehr aus Der Inder. Er schwebt von rechts oben aus dem Himmel
+in die aktuelle Kamera und landet vor Simon. Ein Failsafe beendet die Ankunft,
+falls ein Tween-Callback auf Mobile verloren geht.
 
-1. normaler Scene-Timer nach der Explosion,
-2. Update-Watchdog nach 2,8 s, falls ein Callback verloren geht.
+## Dark Gandhi – klar getrennte drei Phasen
+Simon verursacht mit jedem normalen Treffer weiterhin exakt 10 HP Schaden.
 
-Beim Start des Bosskampfs werden Player-Body, Controls und Kamera explizit in
-einen spielbaren Zustand zurückgesetzt.
+- Phase 1 / 3 – SALZMARSCH (300–201 HP): Stock + Salz.
+- Phase 2 / 3 – KARMA (200–101 HP): Karmische Vergeltung + Rad der Wiedergeburt.
+- Phase 3 / 3 – NUCLEAR LEVEL: MAX (100–0 HP): Nuklear-Zielkreise + Ahimsa Inversion.
 
-## Dark Gandhi
+Die Phasen können nicht übersprungen werden. Bei jedem Wechsel gibt es eine große,
+fixierte Bildschirm-Einblendung, eine dauerhaft sichtbare Boss-Phasenanzeige und
+eine neue Aura-Farbe. Attacken der vorherigen Phase werden beim Übergang entfernt.
 
-Nach der Nuke:
-- Explosion
-- Gandhi liegt kurz reglos
-- direkte Wiederauferstehung als Dark Gandhi
-- schwarze Kleidung, rote Augen
-- 300 HP
+## Loot / Despawn
+Nach dem Beklauen verschwinden besiegte Körper nach 30 Sekunden:
+- Türsteher nach dem Trinkgeld-Diebstahl,
+- Milchmann nach dem Beklauen,
+- Dark Gandhi nach dem Diebstahl seiner Wurfstöcke.
 
-Phasen:
-1. **Salzmarsch** – Stock + Salzprojektile/Slow
-2. **Karma** – jeder dritte Treffer erzeugt karmische Vergeltung + Rad der Wiedergeburt
-3. **NUCLEAR LEVEL: MAX** – Zielkreis/Nuke + Ahimsa Inversion
+## Gandhis Wurfstöcke
+Nach dem endgültigen Sieg über Dark Gandhi ist sein Körper anklickbar:
+`Gandhis Wurfstöcke klauen?`
 
-Auch die endgültige Niederlage benutzt jetzt keine ungültige Container-Tint-API.
+Bei JA erscheint `Gandhis Wurfstöcke` unter ITEMS. Die Waffe kann in die Hotbar
+gelegt werden. Ist ihr Slot ausgewählt, erscheint über J/X ein W-Button mit
+`WURF`.
 
-## Tram-/Scene-Stabilität
+- Flugrichtung: Simons Blickrichtung
+- Schaden: 10 HP
+- Cooldown: 3 Sekunden
 
-Zusätzlich zu den v24-Guards gibt es jetzt einen Bahnhofstrasse-Ankunfts-Watchdog.
-Wenn die normale Aussteige-Tweenkette nach 3,2 s aus irgendeinem Grund nicht
-abschließt, wird Simon automatisch sichtbar, Body/Controls werden aktiviert und
-die Kamera folgt ihm wieder. Damit bleibt das Spiel auch bei wiederholten
-Milchbuck↔Bahnhofstrasse-Fahrten bedienbar.
+Falls gleichzeitig eine Fähigkeit mit eigenem W/F-Button aktiv ist, wandert deren
+Button nach links; beide bleiben bedienbar.
 
-## Sprache / HIVE
+## Zarathustra-Freeze
+Die Leseanimation wurde neu abgesichert. Die alten Buch-/Seiten-Tweens liefen
+länger als der Cleanup und konnten auf Mobile zerstörte Ziele weiter animieren.
+Jetzt enden alle Tween-Zyklen vor dem Cleanup, werden zusätzlich explizit beendet
+und das Entsperren läuft in einem `finally`-Recovery-Pfad.
 
-Allgemeine Menüs/Systemtexte bleiben Hochdeutsch. Vorgegebene Schweizerdeutsche
-Dialoge bleiben unverändert. Frau an der Bar exakt:
+Außerdem zeichnet `Ewige Wiederkehr` seine 3-Sekunden-Historie erst auf, wenn die
+Fähigkeit tatsächlich ausgerüstet ist – nicht bereits beim ersten Lesen von
+`Also sprach Zarathustra`. Das reduziert unnötige Update-Last direkt nach dem
+Freischalten deutlich.
 
-- `FRAU AN DER BAR`
-- `Was soll Simon machen?`
-- `ANSPRECHEN`
-- Simon: `Hey Süessi, willsch tanze?`
-- Frau: `Nöd mit dir.`
+## Cache
+`game.js?v=26`
 
-Der neue `hive-language-patch-v17.js` ersetzt nur den Runtime-Patch;
-`hive-expansion.js` der Freundin wird nicht verändert.
+## Zusätzliche Stabilisierung vor Ausgabe
 
-## Hochladen
-
-- game.js ersetzen
-- index.html ersetzen
-- hive-language-patch-v17.js hinzufügen
-
-Die alte `hive-language-patch-v16.js` kann im Repo bleiben; sie wird von der
-neuen index.html nicht mehr geladen.
-
-## Verifikation
-
-Der gemeldete v24-Fehler wurde mit einem Runtime-Harness reproduziert. Ein
-Gandhi-Objekt wurde dabei absichtlich wie ein echter Phaser-Container ohne
-`setTint()` modelliert. v24 bricht exakt beim Bombeneinschlag ab mit:
-
-`TypeError: this.gandhi.setTint is not a function`
-
-v25 wurde mit demselben Harness geprüft:
-
-- kompletter Weg `NUKE GANDHI -> Explosion -> scheinbar tot -> Dark Gandhi -> Bossstart`: PASS
-- Dark-Gandhi-Phase 1 / Salzmarsch + Stock: PASS
-- Phase 2 / Karma + Rad der Wiedergeburt: PASS
-- Phase 3 / Nuke + Ahimsa Inversion: PASS
-- endgültige Niederlage ohne Container-Tint: PASS
-- Nuke-Watchdog bei simuliert verlorenem Callback: PASS
-- wiederholtes Bahnhofstrasse-`init()` setzt Arrival-/Transitstate korrekt zurück: PASS
-- Arrival-Watchdog stellt Simon/Body/Controls wieder her: PASS
-- HIVE-Menütext + exakter Schweizerdeutscher Frau-Dialog + Re-entry-Reset: PASS
-- `node --check game.js`: PASS
-- `node --check hive-language-patch-v17.js`: PASS
-
-Das sind gezielte JavaScript-Runtime-/State-Machine-Tests; sie ersetzen keinen
-physischen iPhone-Safari-Test, prüfen aber genau den vorherigen Crashpfad und
-die neu hinzugefügten Boss-/Scene-Zustände.
+- Phase-Übergänge sind 1,25 Sekunden lang unverwundbar. Dadurch kann auch ein
+  bereits fliegender Wurfstock keine Phase überspringen.
+- Die jeweilige Signaturattacke wird unmittelbar nach dem Phasenbanner
+  ausgelöst: Salzmarsch in Phase 1, Rad der Wiedergeburt in Phase 2 und
+  Nuclear-Angriff in Phase 3. Ahimsa folgt früh genug, dass Phase 3 nicht
+  durch schnelles X-Spam übersprungen werden kann.
+- Das permanente Boss-HUD zeigt jetzt zusätzlich die HP-Bereiche jeder Phase.
+- Doppelte Neuerzeugung der Ability-/Weapon-Touchbuttons bei UI-Locks wurde
+  entfernt; das reduziert DOM/Phaser-Objekt-Churn auf iOS.
+- Der direkte Tram-Startpfad blockiert nun ebenfalls während des
+  Gandhi-Lootfensters.
+- Falls Dark Gandhi besiegt wurde, Simon aber vor dem Plündern wegfährt, wird
+  sein plünderbarer Körper bei der nächsten Bahnhofstrasse-Ankunft
+  wiederhergestellt.
