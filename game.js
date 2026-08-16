@@ -37,9 +37,17 @@
       this.facing = 1;
       this.shootingUntil = 0;
 
+      // Combat punch cycle. One physical boxing animation can deal damage only
+      // once; extra taps while that animation is running are ignored.
+      this.combatPunchCycleUntil = 0;
+      this.combatPunchToken = 0;
+      this.combatPunchTarget = null;
+
       this.coins = 0;
       this.hasCityTicket = false;
       this.coinText = null;
+      this.hudContainer = null;
+      this.voidHudDepthState = null;
 
       this.uiLocked = false;
       this.__worldInteractionBlockedUntil = 0;
@@ -195,6 +203,8 @@
       this.hotbarBackground = null;
       this.hotbarDOM = null;
       this.hotbarActionUI = null;
+      this.hudContainer = null;
+      this.voidHudDepthState = null;
       this.ticketModal = null;
       this.tramDestinationModal = null;
       this.itemInfoModal = null;
@@ -228,6 +238,9 @@
       this.touchRight = false;
       this.touchJumpRequested = false;
       this.touchShootRequested = false;
+      this.combatPunchCycleUntil = 0;
+      this.combatPunchToken = 0;
+      this.combatPunchTarget = null;
       this.bouncerDialogueActive = false;
       this.fightActive = false;
       this.lionExitActive = false;
@@ -1225,6 +1238,7 @@
       const hud = this.add.container(0, 0)
         .setScrollFactor(0)
         .setDepth(300);
+      this.hudContainer = hud;
 
       // HP ganz oben links.
       const heart = this.add.graphics();
@@ -3651,8 +3665,22 @@
       this.setControlsVisible(false);
       this.cleanupAbilityTouchControl();
 
+      this.voidHudDepthState = {
+        hud: Number(this.hudContainer?.depth) || 300,
+        items: Number(this.itemsButton?.depth) || 305
+      };
+
+      this.hudContainer?.setDepth(4350);
+      this.updateHpBar();
+      this.updateCoinHUD();
+
       if (this.itemsButton) {
-        this.itemsButton.setDepth(4300);
+        this.itemsButton.setDepth(4360);
+      }
+
+      if (this.hotbarDOM) {
+        this.hotbarDOM.style.pointerEvents = "auto";
+        this.hotbarDOM.style.opacity = "1";
       }
 
       const overlay = this.add.container(0, 0)
@@ -3663,24 +3691,26 @@
       bg.fillStyle(0x020307, 0.985);
       bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-      // Sparse timeless void.
-      const points = [
-        [76,56],[154,126],[244,70],[338,143],[435,73],[517,164],
-        [626,76],[731,131],[792,54],[107,247],[205,308],[313,253],
-        [423,315],[541,268],[655,326],[755,246]
-      ];
+      // Pure star field: no orbit/ellipse geometry. The positions are
+      // deterministic so re-entering the Void keeps the same calm background.
+      for (let i = 0; i < 64; i += 1) {
+        const x = 24 + ((i * 137 + 41) % (GAME_WIDTH - 48));
+        const y = 20 + ((i * 83 + 29) % (GAME_HEIGHT - 40));
+        const bright = i % 7 === 0;
+        const medium = i % 3 === 0;
 
-      points.forEach(([x, y], index) => {
         bg.fillStyle(
-          index % 3 === 0 ? 0xb7c9e7 : 0x67758d,
-          index % 2 === 0 ? 0.55 : 0.32
+          bright ? 0xf0f6ff : (medium ? 0xaabbd4 : 0x66758f),
+          bright ? 0.9 : (medium ? 0.62 : 0.38)
         );
-        bg.fillCircle(x, y, index % 4 === 0 ? 2 : 1);
-      });
+        bg.fillCircle(x, y, bright ? 2 : 1);
 
-      bg.lineStyle(2, 0x4a5870, 0.22);
-      bg.strokeEllipse(GAME_WIDTH / 2, 205, 510, 210);
-      bg.strokeEllipse(GAME_WIDTH / 2, 205, 330, 132);
+        if (bright) {
+          bg.lineStyle(1, 0xd9e7ff, 0.52);
+          bg.lineBetween(x - 4, y, x + 4, y);
+          bg.lineBetween(x, y - 4, x, y + 4);
+        }
+      }
 
       const title = this.add.text(
         GAME_WIDTH / 2,
@@ -3810,9 +3840,17 @@
 
       this.inVoid = false;
 
+      this.hudContainer?.setDepth(
+        Number(this.voidHudDepthState?.hud) || 300
+      );
+
       if (this.itemsButton) {
-        this.itemsButton.setDepth(305);
+        this.itemsButton.setDepth(
+          Number(this.voidHudDepthState?.items) || 305
+        );
       }
+
+      this.voidHudDepthState = null;
 
       this.player.setDepth(
         Number.isFinite(this.voidPlayerState?.depth)
@@ -3861,6 +3899,16 @@
 
       this.voidOverlay?.destroy?.(true);
       this.voidOverlay = null;
+
+      this.hudContainer?.setDepth(
+        Number(this.voidHudDepthState?.hud) || 300
+      );
+      if (this.itemsButton) {
+        this.itemsButton.setDepth(
+          Number(this.voidHudDepthState?.items) || 305
+        );
+      }
+      this.voidHudDepthState = null;
 
       this.inVoid = false;
       this.voidBottleStates = [];
@@ -6532,7 +6580,13 @@
 
     updateLionCombat(time, delta) {
       if (!this.lionCombatActive || !this.fightLion || this.playerDying) return;
-      if (this.uiLocked) return;
+
+      const hardUiLock =
+        this.uiLocked &&
+        !this.drinkingItem &&
+        !this.readingBook;
+
+      if (hardUiLock) return;
 
       const lion = this.fightLion;
       const dx = this.player.x - lion.x;
@@ -6960,8 +7014,8 @@
 
       // Dark Gandhi boss.
       this.darkGandhiBossActive = false;
-      this.darkGandhiMaxHp = 300;
-      this.darkGandhiHp = 300;
+      this.darkGandhiMaxHp = 120;
+      this.darkGandhiHp = 120;
       this.darkGandhiPhase = 0;
       this.darkGandhiHealthBar = null;
       this.darkGandhiHealthFill = null;
@@ -7045,6 +7099,8 @@
       this.voidOverlay = null;
       this.voidBlocker = null;
       this.voidBackUI = null;
+      this.hudContainer = null;
+      this.voidHudDepthState = null;
       this.abilityControlObjects = [];
       this.abilityCooldownText = null;
       this.weaponControlObjects = [];
@@ -7195,6 +7251,9 @@
       this.touchRight = false;
       this.touchJumpRequested = false;
       this.touchShootRequested = false;
+      this.combatPunchCycleUntil = 0;
+      this.combatPunchToken = 0;
+      this.combatPunchTarget = null;
 
       const domRoot = document.getElementById("phaser-game");
       domRoot?.querySelectorAll("[data-simon-ui]").forEach((node) => node.remove());
@@ -9783,19 +9842,19 @@
         1: {
           title: "PHASE 1 / 3",
           name: "SALZMARSCH",
-          detail: "10 TREFFER · STOCK + SALZ",
+          detail: "4 TREFFER · STOCK + SALZ",
           accent: 0xf3e8c6
         },
         2: {
           title: "PHASE 2 / 3",
           name: "KARMA",
-          detail: "10 TREFFER · KARMA + WIEDERGEBURT",
+          detail: "4 TREFFER · KARMA + WIEDERGEBURT",
           accent: 0xb66dff
         },
         3: {
           title: "PHASE 3 / 3",
           name: "NUCLEAR LEVEL: MAX",
-          detail: "10 TREFFER · NUKES + AHIMSA",
+          detail: "4 TREFFER · NUKES + AHIMSA",
           accent: 0xff4b4b
         }
       }[phase];
@@ -10265,7 +10324,7 @@
       // transition is visually and mechanically unmistakable.
       this.cleanupDarkGandhiAttackObjects();
       this.darkGandhiPhaseTransitionUntil = now + 1150;
-      this.darkGandhiPhaseMinUntil = now + 6200;
+      this.darkGandhiPhaseMinUntil = now + 4200;
       this.darkGandhiPhaseHits = 0;
       this.darkGandhiPhaseQueued = false;
       this.darkGandhiAhimsaUntil = 0;
@@ -10488,7 +10547,7 @@
         return false;
       }
 
-      if (this.darkGandhiPhaseHits >= 10) {
+      if (this.darkGandhiPhaseHits >= 4) {
         this.showImpact(
           this.gandhi.x,
           this.gandhi.y - 58,
@@ -10515,13 +10574,13 @@
       this.showImpact(
         this.gandhi.x,
         this.gandhi.y - 82,
-        `TREFFER ${this.darkGandhiPhaseHits}/10`
+        `TREFFER ${this.darkGandhiPhaseHits}/4`
       );
 
-      if (this.darkGandhiPhaseHits >= 10) {
+      if (this.darkGandhiPhaseHits >= 4) {
         const floorByPhase = {
-          1: 200,
-          2: 100,
+          1: 80,
+          2: 40,
           3: 0
         };
 
@@ -10535,7 +10594,7 @@
       // Trigger Karma early enough that Phase 2 is clearly visible.
       if (
         this.darkGandhiPhase === 2 &&
-        this.darkGandhiPhaseHits === 5
+        this.darkGandhiPhaseHits === 2
       ) {
         this.scheduleKarmicRetaliation();
       }
@@ -10991,7 +11050,7 @@
       }
 
       // Ahimsa now only reverses attacks briefly. It no longer removes boss
-      // HP automatically, so Phase 3 also requires all ten Simon hits.
+      // HP automatically, so Phase 3 also requires all four successful hits.
     }
 
     cleanupDarkGandhiAttackObjects() {
@@ -11014,11 +11073,16 @@
     }
 
     updateDarkGandhiBoss(time, delta) {
+      const hardUiLock =
+        this.uiLocked &&
+        !this.drinkingItem &&
+        !this.readingBook;
+
       if (
         !this.darkGandhiBossActive ||
         !this.gandhi?.active ||
         this.playerDying ||
-        this.uiLocked ||
+        hardUiLock ||
         this.inVoid ||
         this.rewindActive
       ) {
@@ -11982,6 +12046,71 @@
       });
     }
 
+    startCombatPunchCycle(time, targetKind) {
+      if (
+        this.playerDying ||
+        this.uiLocked ||
+        time < (Number(this.combatPunchCycleUntil) || 0)
+      ) {
+        return false;
+      }
+
+      const validTarget =
+        targetKind === "darkGandhi"
+          ? Boolean(this.darkGandhiBossActive && this.gandhi?.active)
+          : (
+              targetKind === "milkman"
+                ? Boolean(
+                    this.milkmanFightActive &&
+                    this.milkman?.active &&
+                    !this.milkmanDefeated
+                  )
+                : false
+            );
+
+      if (!validTarget) return false;
+
+      const token = (Number(this.combatPunchToken) || 0) + 1;
+      this.combatPunchToken = token;
+      this.combatPunchTarget = targetKind;
+
+      // game-polish-v15 replaces simon-shoot by the five-frame boxing animation
+      // (about 0.36 s). While it is playing, further taps are consumed but do
+      // not restart the animation and cannot create extra damage events.
+      const cycleMs = 380;
+      const impactMs = 235;
+      this.combatPunchCycleUntil = time + cycleMs;
+      this.shootingUntil = Math.max(this.shootingUntil, time + cycleMs);
+
+      this.player.setVelocityX(0);
+      this.player.play("simon-shoot", true);
+
+      this.time.delayedCall(impactMs, () => {
+        if (
+          token !== this.combatPunchToken ||
+          this.playerDying ||
+          !this.sys?.isActive?.()
+        ) {
+          return;
+        }
+
+        const impactTime = this.time.now;
+
+        if (targetKind === "darkGandhi") {
+          this.performDarkGandhiHit(impactTime);
+        } else if (targetKind === "milkman") {
+          this.performMilkmanPunch(impactTime);
+        }
+      });
+
+      this.time.delayedCall(cycleMs + 20, () => {
+        if (token !== this.combatPunchToken) return;
+        this.combatPunchTarget = null;
+      });
+
+      return true;
+    }
+
     performMilkmanPunch(time) {
       if (
         !this.milkmanFightActive ||
@@ -11992,7 +12121,7 @@
         return;
       }
 
-      this.nextMilkmanPunchAt = time + 420;
+      this.nextMilkmanPunchAt = time + 80;
 
       const dx = this.milkman.x - this.player.x;
       const facingCorrect =
@@ -12388,29 +12517,23 @@
     }
 
     update(time, delta) {
-      // Read X before the base update consumes the touch request.
+      // Read X before the base update consumes the touch request. In combat we
+      // own the whole boxing cycle here so repeated taps cannot restart one
+      // animation and count as several hits.
       const keyboardPunch =
         this.input.keyboard &&
         Phaser.Input.Keyboard.JustDown(this.keyShoot);
-      const touchPunch =
-        this.touchShootRequested;
-      const punchPressed =
-        keyboardPunch || touchPunch;
+      const touchPunch = this.touchShootRequested;
+      const punchPressed = keyboardPunch || touchPunch;
+      const combatTarget =
+        this.darkGandhiBossActive
+          ? "darkGandhi"
+          : (this.milkmanFightActive ? "milkman" : null);
 
-      if (
-        this.darkGandhiBossActive &&
-        !this.uiLocked &&
-        !this.playerDying &&
-        punchPressed
-      ) {
-        this.performDarkGandhiHit(time);
-      } else if (
-        this.milkmanFightActive &&
-        !this.uiLocked &&
-        !this.playerDying &&
-        punchPressed
-      ) {
-        this.performMilkmanPunch(time);
+      if (combatTarget && punchPressed) {
+        // Consume the touch press even if a punch animation is still running.
+        this.touchShootRequested = false;
+        this.startCombatPunchCycle(time, combatTarget);
       }
 
       super.update(time, delta);

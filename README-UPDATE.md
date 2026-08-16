@@ -1,87 +1,66 @@
-# Simons Abenteuer – Dark Gandhi / UI / Buchzitate v29
+# Simons Abenteuer – Combat / Für sich sein v30
 
-## Ausgangsbasis
-Gebaut auf dem direkt vor der Änderung erneut geprüften aktuellen GitHub-main:
-- game.js: d741a3e320514d678febc88c9b15df1cc00809ae
-- index.html: 5681cb23f917ce67f0df730bd1633b1ad0e92046
-- runtime-stability-v28.js: a398916570d94b2e5c5cc31f21369e0f01790a6c
+## Grundlage
+Direkt vor der Änderung erneut geprüft:
+- aktuelles `game.js`: `ab4cb652f4c830a1d75bfc1bc2186e10cf598cda`
+- aktuelle `index.html`: `28021a95af6a5c6f369d475c6d17e71dfa5a9ee0`
+- `runtime-stability-v29.js`: `a51239d9b6a8ed3888d148adbe5dadccef937736`
 
-Die neuere `simon-ui-v30.js?v=30`-Integration bleibt erhalten.
+Die neue `simon-ui-v32.js?v=32`-Erweiterung aus dem Repository bleibt erhalten.
 
-## Dark Gandhi
-- 300 HP insgesamt.
-- Jede der drei Phasen braucht exakt 10 erfolgreiche Treffer.
-- Simons Schlag und Wurfstock bleiben bei 10 Schaden.
-- 30 Treffer insgesamt.
-- Gandhi ist gegenüber v28 moderat schneller und etwas gefährlicher, ohne auf das frühere sehr harte Niveau zurückzugehen.
+## 1. Kampfschläge
+Ein Treffer ist jetzt an einen echten Box-Animationszyklus gekoppelt.
 
-### Phasenwechsel
-Nach Phase 1 und 2 wird das Spiel für die Interaktion vollständig abgefangen.
-Die Arcade-Einblendung lautet beispielsweise:
+- Die aktuelle `simon-shoot`-Animation wird durch `game-polish-v15.js` als 5-Frame-Boxanimation dargestellt.
+- Ein Schlagzyklus dauert ca. 380 ms.
+- Der Trefferpunkt liegt einmalig bei ca. 235 ms.
+- Weitere X-Taps während desselben Zyklus werden konsumiert, starten die Animation nicht neu und erzeugen keinen zusätzlichen Schaden.
 
-`PHASE SALZMARSCH BEENDET`
-`NEUE PHASE: KARMA`
+Dark Gandhi:
+- 4 erfolgreiche Treffer pro Phase
+- 3 Phasen
+- 12 erfolgreiche Treffer insgesamt
+- normaler Schlag weiterhin 10 Schaden
+- HP 120 → 80 → 40 → 0
 
-bzw.
+Wurfstöcke bleiben von ihrem eigenen 3-Sekunden-Cooldown abhängig.
 
-`PHASE KARMA BEENDET`
-`NEUE PHASE: NUCLEAR LEVEL: MAX`
+## 2. Gegner pausieren nicht bei Item-Aktionen
+Während Simon trinkt, raucht oder ein Buch liest, darf seine Aktion ihn selbst blockieren – der Gegner läuft aber weiter.
 
-Jeder Übergang besitzt eine eigene Einflug-/Glitch-/Charge-Animation und gleichzeitig eine sichtbare Transformationsanimation an Dark Gandhi. Währenddessen sind Canvas, Hotbar und Touchaktionen nicht anklickbar. Nach der letzten Phase erscheint ebenfalls eine Abschluss-Einblendung, bevor Gandhi endgültig besiegt wird.
+- Dark Gandhi bewegt sich weiter und setzt Angriffe fort.
+- Der Löwe greift weiter an.
+- Der Milchmann war bereits unabhängig von `uiLocked` und wirft weiterhin Flaschen; dieser Ablauf bleibt erhalten.
+- Dialog-/Modal-/Transit-Locks pausieren Kämpfe weiterhin dort, wo sie wirklich einen harten UI-Zustand darstellen.
 
-## Wurfstöcke
-Der zusätzliche Touchbutton zeigt jetzt direkt `WURF`. Die alte separate Beschriftung oberhalb wurde entfernt.
+## 3. Für sich sein
+Die Void wurde optisch und funktional überarbeitet:
 
-## Für sich sein
-Die Cooldown-Zeit steht jetzt im F-Button selbst, z. B.:
+- keine Ellipsen/Orbitlinien mehr
+- stattdessen 64 deterministische Sterne, inklusive heller Kreuzsterne
+- HP-Leiste bleibt sichtbar
+- Coins bleiben sichtbar
+- ITEMS bleibt sichtbar und anklickbar
+- Hotbar bleibt sichtbar und anklickbar
+- Gegenstände/Bücher/Waffen können weiterhin aus- und abgerüstet werden
+- Hotbar-Aktionen wie Trinken/Rauchen/Lesen funktionieren weiterhin in der Void
+- HUD-Tiefen werden beim Verlassen der Void sauber wiederhergestellt
 
-`F`
-`3:42`
-
-Ist die Fähigkeit bereit, steht im Button `F / BEREIT`.
-
-## Doppelklick-/Durchklickschutz
-Zwei Ebenen wurden kombiniert:
-1. Öffnet ein Weltobjekt ein DOM-Menü, wird das neu erzeugte Menü 620 ms vor dem restlichen Touch desselben physischen Taps geschützt.
-2. DOM-Buttons besitzen einen globalen Cross-Button-Debounce. Ein Button kann also nicht mit demselben Tap ein Folgemenü öffnen und dort sofort `JA` auslösen.
-3. HIVE baut eigene DOM-Buttons. `runtime-stability-v29.js` versieht deshalb jedes neu erzeugte HIVE-Dialogfenster zusätzlich mit demselben Aktivierungsschutz.
-
-Das betrifft insbesondere Orell Füssli, Der Inder, Ticket-/Tram-Menüs, Loot-Dialoge und die HIVE-Dialogketten.
-
-## Buchzitate
-Nach einer erfolgreichen Leseanimation erscheint oben 10 Sekunden lang zufällig eines von fünf Zitaten.
-
-Unterstützt:
-- General Relativity / Einstein: 5 Zitate
-- Phänomenologie des Geistes / Hegel: 5 Zitate
-- Also sprach Zarathustra / Nietzsche: 5 Zitate
-
-`The Playbook` bleibt wie gewünscht ohne Zitat.
-
-Liest Simon dasselbe Buch später erneut, wird wieder zufällig ausgewählt.
-
-## Dateien hochladen
-- `game.js` ersetzen
-- `index.html` ersetzen
-- `runtime-stability-v29.js` neu hinzufügen
-
-`runtime-stability-v28.js` kann im Repository bleiben; die neue index.html lädt nur v29.
+## Dateien ersetzen
+- `game.js`
+- `index.html`
 
 ## Cache
-- `game.js?v=29`
-- `runtime-stability-v29.js?v=29`
+- `game.js?v=30`
 
 ## Tests
 - `node --check game.js` – PASS
-- `node --check runtime-stability-v29.js` – PASS
-- 10 Treffer Phase 1 / HP 300→200 – PASS
-- 10 Treffer Phase 2 / HP 200→100 – PASS
-- 10 Treffer Phase 3 / HP 100→0 – PASS
-- 11. Treffer vor Phasenwechsel wird blockiert – PASS
-- Cinematic Transition wird nach Phasenende aufgerufen – PASS
-- je 5 Zitate für Einstein/Hegel/Nietzsche – PASS
-- Playbook hat 0 Zitate – PASS
-- Für-sich-sein-Timer beginnt mit `F` im Button – PASS
-- Weltinteraktion setzt DOM-Fall-through-Sperre – PASS
-- HIVE-Folgemenü blockiert Same-Tap-Aktivierung – PASS
-- aktuelle Friend-Skripte in index.html erhalten – PASS
+- 4 Treffer Phase 1 → 80 HP – PASS
+- 4 Treffer Phase 2 → 40 HP – PASS
+- 4 Treffer Phase 3 → 0 HP – PASS
+- fünf Taps innerhalb einer Boxanimation → genau ein gestarteter Schlag / ein Damage-Callback – PASS
+- Dark Gandhi läuft bei aktivem Trinkvorgang weiter – PASS
+- Löwe läuft bei aktivem Trinkvorgang weiter – PASS
+- Void enthält keine `strokeEllipse`-Geometrie – PASS
+- HUD/ITEMS werden in der Void über den Overlay-Blocker gehoben – PASS
+- aktuelle `simon-ui-v32.js`-Einbindung bleibt erhalten – PASS
