@@ -13,6 +13,60 @@
 
   const FINISH_POSITION = 7;
   const TRACK_CARD_COUNT = 6;
+  const THOMAS_BANK_LIMIT = 1000;
+  const THOMAS_BANK_COOLDOWN_MS = 10 * 60 * 1000;
+
+  function getThomasBankrollState() {
+    if (!window.__SIMON_THOMAS_BANKROLL_V45__) {
+      window.__SIMON_THOMAS_BANKROLL_V45__ = {
+        grossWonBySimon: 0,
+        unavailableUntil: 0
+      };
+    }
+
+    const state = window.__SIMON_THOMAS_BANKROLL_V45__;
+    state.grossWonBySimon = Math.max(
+      0,
+      Number(state.grossWonBySimon) || 0
+    );
+    state.unavailableUntil = Math.max(
+      0,
+      Number(state.unavailableUntil) || 0
+    );
+
+    if (
+      state.unavailableUntil > 0 &&
+      Date.now() >= state.unavailableUntil
+    ) {
+      state.grossWonBySimon = 0;
+      state.unavailableUntil = 0;
+    }
+
+    return state;
+  }
+
+  function getThomasCooldownRemainingMs() {
+    const state = getThomasBankrollState();
+    return Math.max(0, state.unavailableUntil - Date.now());
+  }
+
+  function recordSimonThomasWinnings(amount) {
+    const state = getThomasBankrollState();
+    const payout = Math.max(0, Number(amount) || 0);
+    if (payout <= 0) return false;
+
+    state.grossWonBySimon += payout;
+
+    if (
+      state.grossWonBySimon > THOMAS_BANK_LIMIT &&
+      state.unavailableUntil <= Date.now()
+    ) {
+      state.unavailableUntil = Date.now() + THOMAS_BANK_COOLDOWN_MS;
+      return true;
+    }
+
+    return false;
+  }
 
   function getGame() {
     return (
@@ -208,8 +262,84 @@
     scene.__thomasNameV44 = name;
   }
 
+  function formatThomasCooldown(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function openThomasBrokeModal(scene) {
+    if (scene.__thomasInviteModal || scene.__horseRaceModal) return;
+
+    scene.player?.setVelocity?.(0, 0);
+    scene.setUILocked?.(true);
+
+    const modal = scene.createDOMModal({
+      key: "thomas-broke-v45",
+      width: "min(90%, 510px)",
+      background: "#efe4ca",
+      border: "#5c4531",
+      shade: "rgba(6, 7, 10, .72)",
+      padding: "16px 18px"
+    });
+
+    if (!modal) {
+      restoreVeniceStreet(scene);
+      return;
+    }
+
+    scene.__thomasInviteModal = modal;
+    modal.overlay.style.zIndex = "455000";
+
+    const title = arcadeText(scene, "THOMAS", {
+      fontSize: "12px",
+      color: "#4b3022",
+      margin: "0 0 14px"
+    });
+
+    const line = arcadeText(
+      scene,
+      "Thomas hat kein Geld mehr, versuche es später noch einmal.",
+      {
+        fontSize: "7px",
+        color: "#302821",
+        margin: "0 0 10px",
+        lineHeight: "1.7"
+      }
+    );
+
+    const remaining = arcadeText(
+      scene,
+      `WIEDER SPIELBEREIT IN ${formatThomasCooldown(getThomasCooldownRemainingMs())}`,
+      {
+        fontSize: "5.5px",
+        color: "#795d43",
+        margin: "0 0 14px"
+      }
+    );
+
+    const back = scene.createDOMButton("ZURÜCK", () => {
+      restoreVeniceStreet(scene);
+    }, {
+      color: "#fff0d8",
+      background: "#5c4531",
+      border: "#a98768",
+      minHeight: "42px",
+      fontSize: "8px"
+    });
+
+    modal.panel.append(title, line, remaining, back);
+  }
+
   function openThomasInvite(scene) {
     if (scene.__thomasInviteModal || scene.__horseRaceModal) return;
+
+    if (getThomasCooldownRemainingMs() > 0) {
+      openThomasBrokeModal(scene);
+      return;
+    }
+
     scene.player?.setVelocity?.(0, 0);
     scene.setUILocked?.(true);
 
@@ -314,7 +444,7 @@
     const title = raceTitle(scene);
     const rules = arcadeText(
       scene,
-      "VIER PFERDE · SECHS STRECKENKARTEN\n\nDeine Farbe gewinnt: +2× dein Einsatz.\nThomas gewinnt: −sein Einsatz (100–400).\nEine andere Farbe gewinnt: −50 Coins.",
+      "VIER PFERDE · SECHS STRECKENKARTEN\n\nDeine Farbe gewinnt: +2× dein Einsatz.\nThomas gewinnt: −sein Einsatz (100–400).\nEine andere Farbe gewinnt: −25% deines Einsatzes, mindestens 50.",
       {
         fontSize: "6px",
         color: "#d5d8df",
@@ -878,9 +1008,15 @@
       };
     }
 
+    const neutralLoss = Math.max(
+      50,
+      Math.ceil(Math.max(0, Number(state.wager) || 0) * 0.25)
+    );
+
     return {
-      delta: -50,
-      resultText: "ANDERES PFERD GEWINNT · −50 COINS"
+      delta: -neutralLoss,
+      resultText:
+        `ANDERES PFERD GEWINNT · −${neutralLoss} COINS (25% EINSATZ · MIN. 50)`
     };
   }
 
@@ -889,6 +1025,10 @@
     if (!state) return;
     const winner = suit(winnerKey);
     const { delta, resultText } = calculateOutcome(state, winnerKey);
+
+    const thomasBecameBroke =
+      winnerKey === state.playerSuit &&
+      recordSimonThomasWinnings(delta);
 
     if (!scene.developerMode) {
       const current = Number(scene.coins);
@@ -944,7 +1084,23 @@
     });
     back.style.margin = "0 auto";
 
-    modal.panel.append(title, winnerCard, winnerText, result, balance, back);
+    modal.panel.append(title, winnerCard, winnerText, result, balance);
+
+    if (thomasBecameBroke) {
+      const broke = arcadeText(
+        scene,
+        "Thomas hat kein Geld mehr, versuche es später noch einmal.",
+        {
+          fontSize: "6px",
+          color: "#ffd28b",
+          margin: "0 0 12px",
+          lineHeight: "1.65"
+        }
+      );
+      modal.panel.appendChild(broke);
+    }
+
+    modal.panel.appendChild(back);
   }
 
   function patchVenice(scene) {
@@ -1006,6 +1162,11 @@
     createRaceState,
     calculateOutcome,
     checkWinner,
-    revealNextTrackCard
+    revealNextTrackCard,
+    getThomasBankrollState,
+    getThomasCooldownRemainingMs,
+    recordSimonThomasWinnings,
+    THOMAS_BANK_LIMIT,
+    THOMAS_BANK_COOLDOWN_MS
   });
 })();

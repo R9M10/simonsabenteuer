@@ -5873,7 +5873,7 @@
 
     attachInteractionMarkerToTarget(
       target,
-      { offsetX = 0, offsetY = -58, depth = 178 } = {}
+      { offsetX = 0, offsetY = 12, depth = 178 } = {}
     ) {
       if (!target?.active) return null;
 
@@ -5932,7 +5932,7 @@
         guard.setInteractive({ useHandCursor: true });
         guard.setDepth(18);
         this.attachInteractionMarkerToTarget(guard, {
-          offsetY: 0,
+          offsetY: 12,
           depth: 176
         });
 
@@ -12508,7 +12508,7 @@
         .setInteractive({ useHandCursor: true });
 
       this.attachInteractionMarkerToTarget(this.gandhi, {
-        offsetY: 0,
+        offsetY: 12,
         depth: 176
       });
 
@@ -12557,7 +12557,7 @@
         .setInteractive({ useHandCursor: true });
 
       this.attachInteractionMarkerToTarget(this.gandhi, {
-        offsetY: 0,
+        offsetY: 12,
         depth: 176
       });
 
@@ -13515,7 +13515,7 @@
 
       this.milkman.setInteractive({ useHandCursor: true });
       this.attachInteractionMarkerToTarget(this.milkman, {
-        offsetY: 0,
+        offsetY: 12,
         depth: 176
       });
 

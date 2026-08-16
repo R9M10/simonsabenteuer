@@ -29,32 +29,91 @@
   // v46's indoor hotbar is the one designed to remain interactive while the
   // overworld scene is paused. Therefore KEEP v46's indoor hotbar and hide only
   // the canonical overworld hotbar while an indoor hotbar is present.
+  function installNoIndoorHotbarStyle() {
+    if (document.getElementById("simon-no-indoor-hotbar-v48")) return;
+
+    const style = document.createElement("style");
+    style.id = "simon-no-indoor-hotbar-v48";
+    style.textContent = `
+      #phaser-game [data-simon-ui="indoor-hotbar-v46"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    `;
+    document.head?.appendChild?.(style);
+  }
+
+  function isInteriorActive() {
+    const game = getGame();
+    if (!game?.scene) return false;
+
+    const hive = getScene(game, "HiveInteriorScene");
+    if (hive?.sys?.isActive?.()) return true;
+
+    const station = getScene(game, "BahnhofquaiScene");
+    if (
+      station?.sys?.isActive?.() &&
+      (station.__sv37ZofingiaOpen || station.__sv36ZofingiaOpen)
+    ) {
+      return true;
+    }
+
+    const palazzo = getScene(game, "PalazzoMediciScene");
+    if (palazzo?.sys?.isActive?.()) return true;
+
+    // Convention for every new interior from now on.
+    try {
+      return Boolean(
+        game.scene
+          .getScenes?.(true)
+          ?.some?.((scene) => scene?.__simonInteriorScene)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function rememberAndHide(node) {
+    if (!node) return;
+
+    if (!node.dataset.v48PreviousDisplay) {
+      node.dataset.v48PreviousDisplay = node.style.display || "__EMPTY__";
+    }
+
+    node.style.display = "none";
+    node.style.pointerEvents = "none";
+    node.setAttribute?.("aria-hidden", "true");
+  }
+
+  function restoreHiddenNode(node) {
+    if (!node?.dataset?.v48PreviousDisplay) return;
+
+    const previous = node.dataset.v48PreviousDisplay;
+    node.style.display = previous === "__EMPTY__" ? "" : previous;
+    node.style.pointerEvents = "";
+    node.removeAttribute?.("aria-hidden");
+    delete node.dataset.v48PreviousDisplay;
+  }
+
   function syncIndoorHotbarDedup() {
+    installNoIndoorHotbarStyle();
+
     const root = document.getElementById("phaser-game");
     if (!root) return;
 
-    const indoor = root.querySelector(
-      '[data-simon-ui="indoor-hotbar-v46"]'
-    );
+    const interiorActive = isInteriorActive();
 
-    root
-      .querySelectorAll('[data-simon-ui="hotbar"]')
-      .forEach((bar) => {
-        if (indoor) {
-          if (!bar.dataset.v47PreviousDisplay) {
-            bar.dataset.v47PreviousDisplay = bar.style.display || "__EMPTY__";
-          }
-          bar.style.display = "none";
-          bar.style.pointerEvents = "none";
-          bar.setAttribute("aria-hidden", "true");
-        } else if (bar.dataset.v47PreviousDisplay) {
-          const previous = bar.dataset.v47PreviousDisplay;
-          bar.style.display = previous === "__EMPTY__" ? "" : previous;
-          bar.style.pointerEvents = "";
-          bar.removeAttribute("aria-hidden");
-          delete bar.dataset.v47PreviousDisplay;
-        }
-      });
+    const bars = [
+      ...root.querySelectorAll('[data-simon-ui="hotbar"]'),
+      ...root.querySelectorAll('[data-simon-ui="hotbar-action"]'),
+      ...root.querySelectorAll('[data-simon-ui="indoor-hotbar-v46"]')
+    ];
+
+    bars.forEach((bar) => {
+      if (interiorActive) rememberAndHide(bar);
+      else restoreHiddenNode(bar);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -261,6 +320,6 @@
   window.requestAnimationFrame(loop);
 
   console.info(
-    "Stability v47 aktiv: Indoor-Hotbar dedupliziert, Dialoge >=250ms, Loot-Priorität, Venice-Recovery."
+    "Stability v47 aktiv: Hotbar in Innenräumen entfernt, Dialoge >=250ms, Loot-Priorität, Venice-Recovery."
   );
 })();
