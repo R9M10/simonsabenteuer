@@ -1,100 +1,99 @@
-# Simons Abenteuer – Dark Gandhi + Sprach-/Stabilitätsupdate v24
+# Simons Abenteuer – Dark Gandhi Runtime-Fix v25
 
-Direkt vor der Änderung wurde der aktuelle GitHub-Stand geprüft:
+Basis: aktueller GitHub-Stand direkt vor dem Fix.
 
-- `game.js`: `cfc6f2f2fff260eb8607d8edfe939eb3ff3ed651`
-- `index.html`: `a7c6a6510da4edc4cff1fce5d541c7e37120c863`
-- `hive-expansion.js`: `b9f89ac568cb0954cb0e72a7a897ddf95c25f98f` (v14.2)
-- `game-polish-v15.js`: `e51362977085d3167e40d3e93612546ebbb8bf1e`
+- game.js: 463a877e52434b925bbcd0cdc6b80d1756cc7ccc
+- index.html: 526a376d42cd57d1012c7314ec5157932658d553
+- hive-language-patch-v16.js: 455502e2ebda6d584d259e97ecf8b14abaf4dcac
+- hive-expansion.js bleibt v14.2 unverändert
+- game-polish-v15.js bleibt v15 unverändert
 
-Die Dateien deiner Freundin werden **nicht überschrieben**. Für die gewünschte
-HIVE-Sprache gibt es deshalb die kleine zusätzliche Datei
-`hive-language-patch-v16.js`.
+## Kritischer Gandhi-Fix
 
-## Hochdeutsch
+Der Freeze direkt beim Bombeneinschlag hatte eine konkrete Runtime-Ursache:
+`Gandhi` ist ein `Phaser.GameObjects.Container`, aber v24 rief nach dem Einschlag
+`this.gandhi.setTint(...)` auf. `Container` besitzt nicht die Sprite-Tint-API.
+Dadurch wurde beim Einschlag eine Exception ausgelöst, während `uiLocked=true`
+blieb – visuell genau der gemeldete Freeze.
 
-Allgemeine Menüs und Systemtexte sind jetzt Hochdeutsch.
+v25 verwendet in der gesamten Gandhi-/Dark-Gandhi-Kette keine Tint-Methode auf
+Containern mehr. Außerdem gibt es zwei unabhängige Revival-Pfade:
 
-Bewusst unverändert bleiben Dialoge, die ausdrücklich vorgegeben wurden,
-darunter:
-- der Startdialog,
-- Türsteher-/Löwen-Dialoge,
-- Milchmann-Dialoge,
-- Schweizerdeutscher Dialog mit der Frau an der Bar.
+1. normaler Scene-Timer nach der Explosion,
+2. Update-Watchdog nach 2,8 s, falls ein Callback verloren geht.
 
-Frau an der Bar:
-- Titel: `FRAU AN DER BAR`
-- Text: `Was soll Simon machen?`
-- Button: `ANSPRECHEN`
+Beim Start des Bosskampfs werden Player-Body, Controls und Kamera explizit in
+einen spielbaren Zustand zurückgesetzt.
+
+## Dark Gandhi
+
+Nach der Nuke:
+- Explosion
+- Gandhi liegt kurz reglos
+- direkte Wiederauferstehung als Dark Gandhi
+- schwarze Kleidung, rote Augen
+- 300 HP
+
+Phasen:
+1. **Salzmarsch** – Stock + Salzprojektile/Slow
+2. **Karma** – jeder dritte Treffer erzeugt karmische Vergeltung + Rad der Wiedergeburt
+3. **NUCLEAR LEVEL: MAX** – Zielkreis/Nuke + Ahimsa Inversion
+
+Auch die endgültige Niederlage benutzt jetzt keine ungültige Container-Tint-API.
+
+## Tram-/Scene-Stabilität
+
+Zusätzlich zu den v24-Guards gibt es jetzt einen Bahnhofstrasse-Ankunfts-Watchdog.
+Wenn die normale Aussteige-Tweenkette nach 3,2 s aus irgendeinem Grund nicht
+abschließt, wird Simon automatisch sichtbar, Body/Controls werden aktiviert und
+die Kamera folgt ihm wieder. Damit bleibt das Spiel auch bei wiederholten
+Milchbuck↔Bahnhofstrasse-Fahrten bedienbar.
+
+## Sprache / HIVE
+
+Allgemeine Menüs/Systemtexte bleiben Hochdeutsch. Vorgegebene Schweizerdeutsche
+Dialoge bleiben unverändert. Frau an der Bar exakt:
+
+- `FRAU AN DER BAR`
+- `Was soll Simon machen?`
+- `ANSPRECHEN`
 - Simon: `Hey Süessi, willsch tanze?`
+- Frau: `Nöd mit dir.`
 
-## Stabilität beim Hin- und Herfahren
+Der neue `hive-language-patch-v17.js` ersetzt nur den Runtime-Patch;
+`hive-expansion.js` der Freundin wird nicht verändert.
 
-Mehrfachfahrten wurden zusätzlich gehärtet:
-- neuer Visit-Token für jede Bahnhofstrasse-Ankunft,
-- nur noch genau ein eigener Pointer-Handler pro Scene-Lauf,
-- alte Handler werden beim Shutdown entfernt,
-- Physik wird bei jedem Scene-Start explizit fortgesetzt,
-- Camera-FX werden vor jeder Ankunft zurückgesetzt,
-- Tramwechsel haben einen `__tramSwitching`-Guard,
-- beide Richtungen wechseln die Scene deterministisch per Timer statt auf
-  wiederverwendete Camera-Fade-Events zu vertrauen,
-- Simon/Body/Controls werden nach jeder Bahnhofstrasse-Ankunft explizit
-  normalisiert.
+## Hochladen
 
-## Gandhi -> Dark Gandhi
+- game.js ersetzen
+- index.html ersetzen
+- hive-language-patch-v17.js hinzufügen
 
-Der bekannte Gandhi-Storypunkt wird wieder auf dem aktuellen v22-Stand
-aufgebaut. Nach dem Milchmann startet er beim nächsten echten Vorbeilaufen
-am Inder.
+Die alte `hive-language-patch-v16.js` kann im Repo bleiben; sie wird von der
+neuen index.html nicht mehr geladen.
 
-Nach `NUKE GANDHI`:
-1. Bombe fällt.
-2. Explosion / Schockwelle / Rauch.
-3. Gandhi liegt kurz scheinbar tot am Boden.
-4. Er steht als **Dark Gandhi** wieder auf:
-   - schwarze Kleidung,
-   - rote Augen,
-   - dunkler Stab.
-5. Bosskampf beginnt mit **300 HP** und exakter Healthbar über ihm.
+## Verifikation
 
-### Phase 1 – Salzmarsch (300–201 HP)
-- Dark Gandhi verfolgt Simon.
-- Nahbereich: Stockschlag, 10 Schaden.
-- `SALZMARSCH`: drei Salzhaufen rasen über den Boden.
-- Salzkontakt: 8 Schaden + 1,8 Sekunden deutliche Verlangsamung.
+Der gemeldete v24-Fehler wurde mit einem Runtime-Harness reproduziert. Ein
+Gandhi-Objekt wurde dabei absichtlich wie ein echter Phaser-Container ohne
+`setTint()` modelliert. v24 bricht exakt beim Bombeneinschlag ab mit:
 
-### Phase 2 – Karma (200–101 HP)
-Zusätzlich zu Phase 1:
-- **Karmische Vergeltung**: Jeder dritte erfolgreiche Treffer Simons erzeugt
-  nach kurzer Verzögerung ein Karma-Projektil zurück auf Simon (12 Schaden).
-- **Rad der Wiedergeburt**: Drei dunkle Gandhi-Schatten kreisen um den Boss.
-  Berührt Simon einen Schatten, nimmt er 8 Schaden.
+`TypeError: this.gandhi.setTint is not a function`
 
-### Phase 3 – NUCLEAR LEVEL: MAX (100–0 HP)
-Zusätzlich:
-- regelmäßig roter `NUCLEAR`-Zielkreis an Simons Position,
-- nach kurzer Vorwarnung Explosion, 25 Schaden im Radius,
-- **AHIMSA INVERSION**:
-  - für 3 Sekunden schadet ein Schlag gegen Gandhi stattdessen Simon,
-  - während Simon nicht angreift, verliert Dark Gandhi selbst kontinuierlich HP.
+v25 wurde mit demselben Harness geprüft:
 
-Bei 0 HP fällt Dark Gandhi endgültig um und der Storypunkt ist abgeschlossen.
+- kompletter Weg `NUKE GANDHI -> Explosion -> scheinbar tot -> Dark Gandhi -> Bossstart`: PASS
+- Dark-Gandhi-Phase 1 / Salzmarsch + Stock: PASS
+- Phase 2 / Karma + Rad der Wiedergeburt: PASS
+- Phase 3 / Nuke + Ahimsa Inversion: PASS
+- endgültige Niederlage ohne Container-Tint: PASS
+- Nuke-Watchdog bei simuliert verlorenem Callback: PASS
+- wiederholtes Bahnhofstrasse-`init()` setzt Arrival-/Transitstate korrekt zurück: PASS
+- Arrival-Watchdog stellt Simon/Body/Controls wieder her: PASS
+- HIVE-Menütext + exakter Schweizerdeutscher Frau-Dialog + Re-entry-Reset: PASS
+- `node --check game.js`: PASS
+- `node --check hive-language-patch-v17.js`: PASS
 
-## Dateien hochladen
-
-Ersetze / ergänze:
-- `game.js`
-- `index.html`
-- `hive-language-patch-v16.js`
-
-Nicht ersetzen:
-- `hive-expansion.js`
-- `game-polish-v15.js`
-- `flight-intro.js`
-- `animation-fix.js`
-
-## Cache
-
-- `game.js?v=24`
-- `hive-language-patch-v16.js?v=16`
+Das sind gezielte JavaScript-Runtime-/State-Machine-Tests; sie ersetzen keinen
+physischen iPhone-Safari-Test, prüfen aber genau den vorherigen Crashpfad und
+die neu hinzugefügten Boss-/Scene-Zustände.

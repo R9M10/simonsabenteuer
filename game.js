@@ -6008,6 +6008,9 @@
       this.gandhiEncounterStarted = false;
       this.gandhiBomb = null;
       this.gandhiExplosionObjects = [];
+      this.gandhiNukeStartedAt = 0;
+      this.gandhiNukePhase = "idle";
+      this.gandhiRevivalScheduled = false;
 
       // Dark Gandhi boss.
       this.darkGandhiBossActive = false;
@@ -6075,6 +6078,9 @@
       this.gandhiEncounterStarted = false;
       this.gandhiBomb = null;
       this.gandhiExplosionObjects = [];
+      this.gandhiNukeStartedAt = 0;
+      this.gandhiNukePhase = "idle";
+      this.gandhiRevivalScheduled = false;
 
       this.darkGandhiBossActive = false;
       this.darkGandhiHp = this.darkGandhiMaxHp;
@@ -6275,6 +6281,21 @@
           return;
         }
         this.playArrivalAnimation();
+      });
+
+      // Hard recovery path for repeated scene reuse. Normal arrival finishes in
+      // ~2 s; if it has not finished after 3.2 s, restore a playable platform
+      // state instead of leaving Simon hidden inside the tram.
+      this.time.delayedCall(3200, () => {
+        if (
+          visitToken !== this.__bahnhofVisitToken ||
+          !this.sys.isActive() ||
+          this.arrivalFinished
+        ) {
+          return;
+        }
+
+        this.forceFinishBahnhofArrival();
       });
 
       if (this.__bahnhofPointerHandler) {
@@ -8263,6 +8284,9 @@
       this.closeGandhiChoice();
 
       this.gandhiNukeActive = true;
+      this.gandhiNukeStartedAt = this.time.now;
+      this.gandhiNukePhase = "falling";
+      this.gandhiRevivalScheduled = false;
       this.setUILocked(true);
       this.syncStreetStoreHitboxes();
 
@@ -8292,7 +8316,18 @@
     }
 
     runGandhiNukeExplosion() {
-      if (!this.gandhi || !this.sys.isActive()) return;
+      if (!this.sys.isActive()) return;
+
+      // Critical robustness rule: the normal Gandhi is a Phaser Container.
+      // Containers do NOT provide Sprite.setTint(). The previous build called
+      // setTint() here and threw exactly when the bomb landed, leaving the game
+      // locked forever. This sequence uses only Container-supported transforms.
+      if (!this.gandhi?.active) {
+        this.forceDarkGandhiRevival();
+        return;
+      }
+
+      this.gandhiNukePhase = "exploded";
 
       const x = this.gandhi.x;
       const y = GROUND_TOP - 48;
@@ -8338,7 +8373,7 @@
         alpha: 0,
         duration: 620,
         ease: "Quad.easeOut",
-        onComplete: () => flash.destroy()
+        onComplete: () => flash?.destroy?.()
       });
 
       this.tweens.add({
@@ -8347,7 +8382,7 @@
         alpha: 0,
         duration: 720,
         ease: "Quad.easeOut",
-        onComplete: () => fire.destroy()
+        onComplete: () => fire?.destroy?.()
       });
 
       this.tweens.add({
@@ -8356,7 +8391,7 @@
         alpha: 0,
         duration: 760,
         ease: "Quad.easeOut",
-        onComplete: () => shock.destroy()
+        onComplete: () => shock?.destroy?.()
       });
 
       [
@@ -8385,21 +8420,19 @@
           alpha: 0,
           duration: 1250 + index * 90,
           ease: "Sine.easeOut",
-          onComplete: () => puff.destroy()
+          onComplete: () => puff?.destroy?.()
         });
       });
 
-      // Gandhi lies dead for a short moment. Do NOT end the story or unlock
-      // world interactions here; he is about to revive as the boss.
+      // Gandhi lies apparently dead. Container-safe only: alpha / angle /
+      // position / depth are supported by Phaser.Container.
       this.tweens.killTweensOf(this.gandhi);
-
       this.gandhi
-        .setTint(0x37322d)
-        .setAlpha(0.78)
+        .setAlpha(0.72)
         .setAngle(88)
         .setY(GROUND_TOP - 16)
-        .setDepth(24)
-        .disableInteractive?.();
+        .setDepth(24);
+      this.gandhi.disableInteractive?.();
 
       const scorch = this.add.ellipse(
         x,
@@ -8412,16 +8445,128 @@
 
       this.gandhiExplosionObjects.push(scorch);
 
-      this.time.delayedCall(1150, () => {
-        if (
-          !this.sys.isActive() ||
-          !this.gandhi?.active
-        ) {
-          return;
-        }
-
-        this.reviveAsDarkGandhi();
+      // Independent Scene timer rather than a tween onComplete chain. The
+      // update-loop watchdog below is a second recovery path if this callback
+      // is ever missed after scene reuse.
+      this.gandhiRevivalScheduled = true;
+      this.time.delayedCall(1050, () => {
+        if (!this.sys.isActive()) return;
+        this.forceDarkGandhiRevival();
       });
+    }
+
+    forceDarkGandhiRevival() {
+      if (
+        this.darkGandhiBossActive ||
+        this.darkGandhiDefeated ||
+        !this.sys.isActive()
+      ) {
+        return;
+      }
+
+      this.gandhiNukePhase = "reviving";
+      this.gandhiRevivalScheduled = false;
+
+      const x = Number.isFinite(this.gandhi?.x)
+        ? this.gandhi.x
+        : Phaser.Math.Clamp(this.player?.x || 1521, 120, WORLD_WIDTH - 120);
+
+      if (this.gandhi?.active) {
+        this.tweens.killTweensOf(this.gandhi);
+        this.gandhi.destroy(true);
+      }
+
+      this.gandhi = this.createDarkGandhi(
+        x,
+        GROUND_TOP - 8
+      );
+
+      this.gandhi
+        .setAlpha(0)
+        .setScale(0.78)
+        .setY(GROUND_TOP - 70);
+
+      const reviveAura = this.add.circle(
+        x,
+        GROUND_TOP - 72,
+        30,
+        0x25050d,
+        0
+      )
+        .setStrokeStyle(6, 0xe6223a, 0.9)
+        .setDepth(46);
+
+      const eyeFlashLeft = this.add.circle(
+        x - 8,
+        GROUND_TOP - 113,
+        3,
+        0xff2037,
+        1
+      ).setDepth(57);
+
+      const eyeFlashRight = this.add.circle(
+        x + 8,
+        GROUND_TOP - 113,
+        3,
+        0xff2037,
+        1
+      ).setDepth(57);
+
+      this.tweens.add({
+        targets: reviveAura,
+        scale: 4,
+        alpha: { from: 0.95, to: 0 },
+        duration: 720,
+        ease: "Quad.easeOut",
+        onComplete: () => reviveAura?.destroy?.()
+      });
+
+      this.tweens.add({
+        targets: [eyeFlashLeft, eyeFlashRight],
+        scale: { from: 1, to: 2.4 },
+        alpha: { from: 1, to: 0 },
+        duration: 620,
+        ease: "Sine.easeOut",
+        onComplete: () => {
+          eyeFlashLeft?.destroy?.();
+          eyeFlashRight?.destroy?.();
+        }
+      });
+
+      this.tweens.add({
+        targets: this.gandhi,
+        alpha: 1,
+        scale: 1,
+        y: GROUND_TOP - 75,
+        duration: 480,
+        ease: "Back.easeOut"
+      });
+
+      // Start the boss from a Scene timer, not from the tween callback.
+      this.time.delayedCall(500, () => {
+        if (!this.sys.isActive()) return;
+        this.startDarkGandhiBoss();
+      });
+    }
+
+    updateGandhiNukeFailsafe(time) {
+      if (
+        !this.gandhiNukeActive ||
+        this.darkGandhiBossActive ||
+        this.darkGandhiDefeated
+      ) {
+        return;
+      }
+
+      const startedAt = Number(this.gandhiNukeStartedAt) || time;
+      const elapsed = time - startedAt;
+
+      // Falling bomb should hit in < 1 s, corpse + revival in another ~1.5 s.
+      // If any tween/callback was lost during a scene/input edge case, recover
+      // automatically instead of leaving Simon locked.
+      if (elapsed > 2800) {
+        this.forceDarkGandhiRevival();
+      }
     }
 
     createDarkGandhi(x, groundY) {
@@ -8487,65 +8632,7 @@
     }
 
     reviveAsDarkGandhi() {
-      if (
-        !this.gandhi?.active ||
-        this.darkGandhiBossActive ||
-        this.darkGandhiDefeated
-      ) {
-        return;
-      }
-
-      const x = this.gandhi.x;
-
-      this.tweens.add({
-        targets: this.gandhi,
-        alpha: 0,
-        duration: 220,
-        onComplete: () => {
-          this.gandhi?.destroy?.(true);
-          this.gandhi = this.createDarkGandhi(
-            x,
-            GROUND_TOP - 8
-          );
-
-          this.gandhi.setAlpha(0);
-          this.gandhi.setScale(0.85);
-
-          const reviveAura = this.add.circle(
-            x,
-            GROUND_TOP - 72,
-            30,
-            0x25050d,
-            0
-          )
-            .setStrokeStyle(6, 0xe6223a, 0.9)
-            .setDepth(46);
-
-          this.tweens.add({
-            targets: reviveAura,
-            scale: 4,
-            alpha: { from: 0.95, to: 0 },
-            duration: 720,
-            ease: "Quad.easeOut",
-            onComplete: () => reviveAura.destroy()
-          });
-
-          this.tweens.add({
-            targets: this.gandhi,
-            alpha: 1,
-            scale: 1,
-            y: GROUND_TOP - 75,
-            duration: 520,
-            ease: "Back.easeOut",
-            onComplete: () => {
-              if (!this.gandhi?.active) return;
-
-              this.gandhiNukeActive = false;
-              this.startDarkGandhiBoss();
-            }
-          });
-        }
-      });
+      this.forceDarkGandhiRevival();
     }
 
     startDarkGandhiBoss() {
@@ -8557,6 +8644,9 @@
       }
 
       this.darkGandhiBossActive = true;
+      this.gandhiNukeActive = false;
+      this.gandhiNukePhase = "boss";
+      this.gandhiRevivalScheduled = false;
       this.gandhiDead = false;
       this.darkGandhiHp = this.darkGandhiMaxHp;
       this.darkGandhiPhase = 1;
@@ -8574,8 +8664,24 @@
       this.createDarkGandhiHealthBar();
       this.updateDarkGandhiHealthBar();
 
+      // The Nuke cinematic used a UI lock. Explicitly normalize every player
+      // component before the fight so a missed old state can never freeze it.
+      this.player?.setVisible(true);
+      this.player?.setActive(true);
+      this.player?.clearTint?.();
+      this.player?.setAlpha(1);
+
+      if (this.player?.body) {
+        this.player.body.enable = true;
+        this.player.body.moves = true;
+      }
+
       this.setUILocked(false);
       this.setControlsVisible(true);
+      this.cameras.main.resetFX();
+      this.cameras.main.setAlpha(1);
+      this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
+      this.cameras.main.setDeadzone(240, 80);
       this.syncStreetStoreHitboxes();
 
       this.showImpact(
@@ -9416,13 +9522,13 @@
 
       this.tweens.killTweensOf(this.gandhi);
 
+      // Dark Gandhi is a Container: use only Container-supported transforms.
       this.gandhi
-        .setTint(0x2b2026)
         .setAngle(88)
         .setY(GROUND_TOP - 16)
-        .setAlpha(0.82)
-        .setDepth(24)
-        .disableInteractive?.();
+        .setAlpha(0.62)
+        .setDepth(24);
+      this.gandhi.disableInteractive?.();
 
       this.showImpact(
         this.gandhi.x,
@@ -10363,6 +10469,7 @@
 
       super.update(time, delta);
       this.updateMilkmanFight(time, delta);
+      this.updateGandhiNukeFailsafe(time);
       this.updateDarkGandhiBoss(time, delta);
       this.updateGandhiStory();
     }
@@ -10546,6 +10653,62 @@
       this.tram = tram;
     }
 
+    forceFinishBahnhofArrival() {
+      if (
+        this.arrivalFinished ||
+        !this.sys.isActive() ||
+        !this.player?.active
+      ) {
+        return;
+      }
+
+      // Kill only the objects involved in the arrival sequence; unrelated
+      // world tweens (trees, signs, etc.) keep running.
+      if (this.arrivalTram?.active) {
+        this.tweens.killTweensOf(this.arrivalTram);
+        this.arrivalTram.setX(470);
+      }
+
+      if (this.arrivalDoor?.active) {
+        this.tweens.killTweensOf(this.arrivalDoor);
+        this.arrivalDoor.setScale(0.08, 1);
+        this.arrivalDoor.setAlpha(0.35);
+      }
+
+      this.tweens.killTweensOf(this.player);
+
+      const exitX =
+        (this.arrivalTram?.x || 470) + 156 + 118;
+
+      this.player.setPosition(exitX, 250);
+      this.player.setVelocity(0, 0);
+      this.player.setVisible(true);
+      this.player.setActive(true);
+      this.player.clearTint?.();
+      this.player.setAlpha(1);
+      this.player.setAngle(0);
+
+      if (this.player.body) {
+        this.player.body.enable = true;
+        this.player.body.moves = true;
+      }
+
+      this.player.play("simon-idle", true);
+      this.arrivalFinished = true;
+      this.__tramSwitching = false;
+      this.tramTransitActive = false;
+
+      this.cameras.main.resetFX();
+      this.cameras.main.setAlpha(1);
+      this.setUILocked(false);
+      this.setControlsVisible(true);
+      this.ensureTicketMachineInteractive();
+      this.ensureTramBoardingInteractive();
+      this.syncStreetStoreHitboxes();
+      this.cameras.main.startFollow(this.player, true, 0.11, 0.11);
+      this.cameras.main.setDeadzone(240, 80);
+    }
+
     playArrivalAnimation() {
       if (
         this.arrivalFinished ||
@@ -10566,6 +10729,13 @@
         duration: 820,
         ease: "Sine.easeOut",
         onComplete: () => {
+          if (!this.sys.isActive()) return;
+
+          if (!this.arrivalDoor?.active) {
+            this.forceFinishBahnhofArrival();
+            return;
+          }
+
           // Tür fährt auf.
           this.tweens.add({
             targets: this.arrivalDoor,
