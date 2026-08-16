@@ -1,65 +1,100 @@
-# Simons Abenteuer – Gandhi Story v23
+# Simons Abenteuer – Dark Gandhi + Sprach-/Stabilitätsupdate v24
 
-Ausgangsstand direkt vor dem Build:
+Direkt vor der Änderung wurde der aktuelle GitHub-Stand geprüft:
 
-- game.js: `cfc6f2f2fff260eb8607d8edfe939eb3ff3ed651`
-- index.html: `a7c6a6510da4edc4cff1fce5d541c7e37120c863`
-- HIVE bleibt v14.2
-- game-polish-v15.js bleibt v15
-- flight-intro bleibt v15
+- `game.js`: `cfc6f2f2fff260eb8607d8edfe939eb3ff3ed651`
+- `index.html`: `a7c6a6510da4edc4cff1fce5d541c7e37120c863`
+- `hive-expansion.js`: `b9f89ac568cb0954cb0e72a7a897ddf95c25f98f` (v14.2)
+- `game-polish-v15.js`: `e51362977085d3167e40d3e93612546ebbb8bf1e`
 
-## Story-Auslöser
+Die Dateien deiner Freundin werden **nicht überschrieben**. Für die gewünschte
+HIVE-Sprache gibt es deshalb die kleine zusätzliche Datei
+`hive-language-patch-v16.js`.
 
-Nachdem der Milchmann besiegt wurde, ist der Gandhi-Storypunkt freigeschaltet.
+## Hochdeutsch
 
-Er startet nicht sofort. Simon muss zunächst außerhalb des Bereichs von
-`Der Inder` sein und danach erneut am Laden vorbeilaufen.
+Allgemeine Menüs und Systemtexte sind jetzt Hochdeutsch.
 
-## Gandhi
+Bewusst unverändert bleiben Dialoge, die ausdrücklich vorgegeben wurden,
+darunter:
+- der Startdialog,
+- Türsteher-/Löwen-Dialoge,
+- Milchmann-Dialoge,
+- Schweizerdeutscher Dialog mit der Frau an der Bar.
 
-Gandhi kommt aus der Tür von `Der Inder`, läuft auf Simon zu und begrüßt ihn.
+Frau an der Bar:
+- Titel: `FRAU AN DER BAR`
+- Text: `Was soll Simon machen?`
+- Button: `ANSPRECHEN`
+- Simon: `Hey Süessi, willsch tanze?`
 
-Dialog per Bildschirmtap:
+## Stabilität beim Hin- und Herfahren
 
-1. `Namaste, Simon.`
-2. `Friede fangt nöd bi de andere a. Er fangt bi dir a.`
-3. `Wer Gewalt mit Gewalt beantwortet, macht d'Welt nur dunkler.`
+Mehrfachfahrten wurden zusätzlich gehärtet:
+- neuer Visit-Token für jede Bahnhofstrasse-Ankunft,
+- nur noch genau ein eigener Pointer-Handler pro Scene-Lauf,
+- alte Handler werden beim Shutdown entfernt,
+- Physik wird bei jedem Scene-Start explizit fortgesetzt,
+- Camera-FX werden vor jeder Ankunft zurückgesetzt,
+- Tramwechsel haben einen `__tramSwitching`-Guard,
+- beide Richtungen wechseln die Scene deterministisch per Timer statt auf
+  wiederverwendete Camera-Fade-Events zu vertrauen,
+- Simon/Body/Controls werden nach jeder Bahnhofstrasse-Ankunft explizit
+  normalisiert.
 
-Die Sätze sind für das Spiel neu formuliert und keine Gandhi-Zitate.
+## Gandhi -> Dark Gandhi
 
-Danach:
+Der bekannte Gandhi-Storypunkt wird wieder auf dem aktuellen v22-Stand
+aufgebaut. Nach dem Milchmann startet er beim nächsten echten Vorbeilaufen
+am Inder.
 
-- `NUKE GANDHI`
-- `WEITERGEHEN`
+Nach `NUKE GANDHI`:
+1. Bombe fällt.
+2. Explosion / Schockwelle / Rauch.
+3. Gandhi liegt kurz scheinbar tot am Boden.
+4. Er steht als **Dark Gandhi** wieder auf:
+   - schwarze Kleidung,
+   - rote Augen,
+   - dunkler Stab.
+5. Bosskampf beginnt mit **300 HP** und exakter Healthbar über ihm.
 
-## Nuke Gandhi
+### Phase 1 – Salzmarsch (300–201 HP)
+- Dark Gandhi verfolgt Simon.
+- Nahbereich: Stockschlag, 10 Schaden.
+- `SALZMARSCH`: drei Salzhaufen rasen über den Boden.
+- Salzkontakt: 8 Schaden + 1,8 Sekunden deutliche Verlangsamung.
 
-Bei `NUKE GANDHI`:
+### Phase 2 – Karma (200–101 HP)
+Zusätzlich zu Phase 1:
+- **Karmische Vergeltung**: Jeder dritte erfolgreiche Treffer Simons erzeugt
+  nach kurzer Verzögerung ein Karma-Projektil zurück auf Simon (12 Schaden).
+- **Rad der Wiedergeburt**: Drei dunkle Gandhi-Schatten kreisen um den Boss.
+  Berührt Simon einen Schatten, nimmt er 8 Schaden.
 
-- eine stilisierte Atombombe fällt von oben direkt auf Gandhi,
-- weißer Flash + Kamerashake,
-- Feuer-/Schockwelle,
-- stilisierte Rauch-/Pilzwolke,
-- Gandhi stirbt und bleibt als dunkle umgefallene Figur zurück,
-- kein Gore.
+### Phase 3 – NUCLEAR LEVEL: MAX (100–0 HP)
+Zusätzlich:
+- regelmäßig roter `NUCLEAR`-Zielkreis an Simons Position,
+- nach kurzer Vorwarnung Explosion, 25 Schaden im Radius,
+- **AHIMSA INVERSION**:
+  - für 3 Sekunden schadet ein Schlag gegen Gandhi stattdessen Simon,
+  - während Simon nicht angreift, verliert Dark Gandhi selbst kontinuierlich HP.
 
-Danach wird Simon wieder freigegeben.
+Bei 0 HP fällt Dark Gandhi endgültig um und der Storypunkt ist abgeschlossen.
 
-Bei `WEITERGEHEN` geht Gandhi zurück in den Laden.
+## Dateien hochladen
 
-## Persistenz
+Ersetze / ergänze:
+- `game.js`
+- `index.html`
+- `hive-language-patch-v16.js`
 
-Die Storyflags werden über Tramfahrten mitgenommen:
-
-- Gandhi-Story freigeschaltet
-- Encounter abgeschlossen
-- Gandhi tot
-
-## Interaktionsschutz
-
-Während Gandhi-Dialog, Auswahl und Nuklearanimation sind Der Inder,
-Orell Füssli und die Tram blockiert.
+Nicht ersetzen:
+- `hive-expansion.js`
+- `game-polish-v15.js`
+- `flight-intro.js`
+- `animation-fix.js`
 
 ## Cache
 
-`game.js?v=23`
+- `game.js?v=24`
+- `hive-language-patch-v16.js?v=16`
