@@ -18,7 +18,7 @@ Aktuelle Ladefolge bleibt erhalten:
 - NEU: esthi-story-v50.js?v=50
 
 EINBAU
-1. ZIP entpacken.
+1. ZIP entpacken
 2. index.html in den Repo-Hauptordner ziehen und ersetzen.
 3. esthi-story-v50.js neu hinzufügen.
 4. Hard Reload / Cache leeren.
