@@ -14,6 +14,65 @@ const sceneTapArea = document.getElementById("scene-tap-area");
 const speechText = document.getElementById("speech-text");
 
 const DEVELOPER_GATE_ENABLED = true;
+const SCENE_ART_FOUNDATION_SRC = "scene-art-v61.js?v=61";
+
+let sceneArtFoundationPromise = null;
+
+function ensureSceneArtFoundation() {
+  if (window.__SIMON_SCENE_ART_V61__) {
+    return Promise.resolve(true);
+  }
+
+  if (sceneArtFoundationPromise) {
+    return sceneArtFoundationPromise;
+  }
+
+  sceneArtFoundationPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector(
+      'script[data-scene-art-foundation="v61"]'
+    );
+
+    if (existing) {
+      existing.addEventListener(
+        "load",
+        () => resolve(Boolean(window.__SIMON_SCENE_ART_V61__)),
+        { once: true }
+      );
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("scene-art-v61.js konnte nicht geladen werden.")),
+        { once: true }
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = SCENE_ART_FOUNDATION_SRC;
+    script.dataset.sceneArtFoundation = "v61";
+    script.async = true;
+
+    script.addEventListener(
+      "load",
+      () => resolve(Boolean(window.__SIMON_SCENE_ART_V61__)),
+      { once: true }
+    );
+    script.addEventListener(
+      "error",
+      () => reject(new Error("scene-art-v61.js konnte nicht geladen werden.")),
+      { once: true }
+    );
+
+    document.head.appendChild(script);
+  });
+
+  return sceneArtFoundationPromise;
+}
+
+// Start loading the visual foundation immediately. Gameplay launch below still
+// waits for this promise, so even an instant tap cannot boot the old art path.
+ensureSceneArtFoundation().catch((error) => {
+  console.error("[Scene Art v61]", error);
+});
 
 const dialogue = [
   "Dini Schueh sind nice!",
@@ -69,12 +128,30 @@ function startScene() {
 function launchGame(options = {}, { fromDialogue = false } = {}) {
   if (transitionLocked) return;
   transitionLocked = true; sceneStarted = false;
+
   const actuallyLaunch = () => {
     hideAllFlowScreens(); showScreen(gameScreen);
-    if (typeof window.startSimonGame === "function") {
-      window.startSimonGame({ ...options, developerMode: developerModeOn });
-    } else console.error("startSimonGame wurde nicht gefunden.");
+
+    ensureSceneArtFoundation()
+      .then((loaded) => {
+        if (!loaded || !window.__SIMON_SCENE_ART_V61__) {
+          throw new Error("Scene Art v61 wurde geladen, aber nicht initialisiert.");
+        }
+
+        if (typeof window.startSimonGame === "function") {
+          window.startSimonGame({ ...options, developerMode: developerModeOn });
+        } else {
+          throw new Error("startSimonGame wurde nicht gefunden.");
+        }
+      })
+      .catch((error) => {
+        console.error("[Scene Art v61] Spielstart abgebrochen:", error);
+        transitionLocked = false;
+        hideAllFlowScreens();
+        showScreen(startScreen);
+      });
   };
+
   if (fromDialogue) {
     sceneScreen.classList.add("scene-fade-out");
     window.setTimeout(() => { sceneScreen.classList.remove("scene-fade-out"); actuallyLaunch(); }, 450);
