@@ -210,14 +210,6 @@
       return;
     }
 
-    if (scene?.load?.isLoading?.()) {
-      scene.time?.delayedCall?.(
-        30,
-        () => ensureAssets(scene, assetNames, onReady)
-      );
-      return;
-    }
-
     missing.forEach((asset) => queueAsset(scene, asset));
 
     const complete = () => {
