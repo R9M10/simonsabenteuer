@@ -22,7 +22,7 @@ const SCENE_ART_FOUNDATIONS = Object.freeze([
   }),
   Object.freeze({
     version: "v62",
-    src: "scene-art-v62.js?v=62",
+    src: "scene-art-v62.js?v=62.1",
     flag: "__SIMON_SCENE_ART_V62__"
   })
 ]);
