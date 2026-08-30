@@ -4,7 +4,7 @@
   if (window.__SIMON_SCENE_ART_V62__) return;
   window.__SIMON_SCENE_ART_V62__ = true;
 
-  const VERSION = "62.1";
+  const VERSION = 62;
   const WORLD_WIDTH = 3000;
   const GAME_HEIGHT = 390;
   const GROUND_TOP = 338;
@@ -30,86 +30,84 @@
     bouncerX: 1235
   });
 
-  // GitHub iPad/web uploads flatten the ZIP into the repository root.
-  // v62.1 therefore intentionally loads the production PNGs from root.
-  const ASSET_ROOT = "";
+  const ASSET_ROOT = "assets/v62/";
 
   const ASSETS = Object.freeze({
     sky: Object.freeze({
       key: "art-zurich-sky-v62",
-      url: `${ASSET_ROOT}art-zurich-sky-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-sky-v62.png?v=62`,
       width: 1280,
       height: 338
     }),
     far: Object.freeze({
       key: "art-zurich-far-v62",
-      url: `${ASSET_ROOT}art-zurich-far-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-far-v62.png?v=62`,
       width: 1536,
       height: 338
     }),
     mid: Object.freeze({
       key: "art-milchbuck-mid-v62",
-      url: `${ASSET_ROOT}art-milchbuck-mid-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-milchbuck-mid-v62.png?v=62`,
       width: 2048,
       height: 338
     }),
     tramGround: Object.freeze({
       key: "art-zurich-tram-ground-v62",
-      url: `${ASSET_ROOT}art-zurich-tram-ground-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-tram-ground-v62.png?v=62`,
       width: 512,
       height: 92
     }),
     transitionGround: Object.freeze({
       key: "art-zurich-ground-transition-v62",
-      url: `${ASSET_ROOT}art-zurich-ground-transition-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-ground-transition-v62.png?v=62`,
       width: 512,
       height: 92
     }),
     cityGround: Object.freeze({
       key: "art-zurich-city-ground-v62",
-      url: `${ASSET_ROOT}art-zurich-city-ground-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-city-ground-v62.png?v=62`,
       width: 512,
       height: 92
     }),
     stop: Object.freeze({
       key: "art-milchbuck-stop-v62",
-      url: `${ASSET_ROOT}art-milchbuck-stop-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-milchbuck-stop-v62.png?v=62`,
       width: 900,
       height: 300
     }),
     tram: Object.freeze({
       key: "art-vbz-tram-v62",
-      url: `${ASSET_ROOT}art-vbz-tram-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-vbz-tram-v62.png?v=62`,
       width: 240,
       height: 130
     }),
     ticketMachine: Object.freeze({
       key: "art-ticket-machine-v62",
-      url: `${ASSET_ROOT}art-ticket-machine-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-ticket-machine-v62.png?v=62`,
       width: 64,
       height: 110
     }),
     hive: Object.freeze({
       key: "art-hive-exterior-v62",
-      url: `${ASSET_ROOT}art-hive-exterior-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-hive-exterior-v62.png?v=62`,
       width: 300,
       height: 240
     }),
     mast: Object.freeze({
       key: "art-zurich-overhead-mast-v62",
-      url: `${ASSET_ROOT}art-zurich-overhead-mast-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-overhead-mast-v62.png?v=62`,
       width: 45,
       height: 220
     }),
     railing: Object.freeze({
       key: "art-zurich-railing-v62",
-      url: `${ASSET_ROOT}art-zurich-railing-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-railing-v62.png?v=62`,
       width: 256,
       height: 68
     }),
     bin: Object.freeze({
       key: "art-zurich-bin-v62",
-      url: `${ASSET_ROOT}art-zurich-bin-v62.png?v=62.1`,
+      url: `${ASSET_ROOT}art-zurich-bin-v62.png?v=62`,
       width: 36,
       height: 58
     })
@@ -130,7 +128,7 @@
 
     Object.values(ASSETS).forEach((asset) => {
       if (!scene.textures?.exists?.(asset.key)) {
-        errors.push(`${asset.key}: fehlt (${asset.url})`);
+        errors.push(`${asset.key}: fehlt`);
         return;
       }
 
@@ -147,7 +145,12 @@
       }
     });
 
-    return errors;
+    if (errors.length) {
+      console.error(`[Scene Art v${VERSION}] Asset-Vertrag verletzt:\n${errors.join("\n")}`);
+      return false;
+    }
+
+    return true;
   }
 
   function useNearest(scene) {
@@ -327,19 +330,17 @@
     addImage(scene, "mast", 2660, 318, "propsBack");
   }
 
-  function showAssetFailure(scene, errors = []) {
+  function showAssetFailure(scene) {
     scene.add.rectangle(410, 195, 820, 390, 0x161921, 1)
       .setScrollFactor(0)
       .setDepth(500);
 
-    const detail = errors.slice(0, 4).join("\n");
-    scene.add.text(410, 195, `MILCHBUCK V62.1\nASSET-FEHLER\n\n${detail || "Unbekannter Asset-Fehler"}`, {
+    scene.add.text(410, 195, "MILCHBUCK V62\nASSET-FEHLER\n\nKonsole prüfen", {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: "7px",
+      fontSize: "10px",
       color: "#ffd7a3",
       align: "center",
-      lineSpacing: 7,
-      wordWrap: { width: 690 }
+      lineSpacing: 8
     })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -347,24 +348,8 @@
   }
 
   function createWorldV62() {
-    const errors = validateAssets(this);
-
-    if (errors.length) {
-      console.error(
-        `[Scene Art v${VERSION}] Asset-Vertrag verletzt:\n${errors.join("\n")}`
-      );
-
-      // Never make the game unplayable because an art file was uploaded into
-      // the wrong folder or GitHub Pages has not deployed it yet. v61/v62
-      // deliberately keeps the old procedural world as an emergency fallback.
-      if (typeof this.__originalCreateWorldBeforeV62 === "function") {
-        console.warn(
-          `[Scene Art v${VERSION}] Fallback auf die spielbare Legacy-Milchbuck-Welt.`
-        );
-        return this.__originalCreateWorldBeforeV62.call(this);
-      }
-
-      showAssetFailure(this, errors);
+    if (!validateAssets(this)) {
+      showAssetFailure(this);
       return;
     }
 
