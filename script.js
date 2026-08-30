@@ -14,12 +14,81 @@ const sceneTapArea = document.getElementById("scene-tap-area");
 const speechText = document.getElementById("speech-text");
 
 const DEVELOPER_GATE_ENABLED = true;
-const SCENE_ART_FOUNDATION_SRC = "scene-art-v61.js?v=61";
+const SCENE_ART_FOUNDATIONS = Object.freeze([
+  Object.freeze({
+    version: "v61",
+    src: "scene-art-v61.js?v=61",
+    flag: "__SIMON_SCENE_ART_V61__"
+  }),
+  Object.freeze({
+    version: "v62",
+    src: "scene-art-v62.js?v=62",
+    flag: "__SIMON_SCENE_ART_V62__"
+  })
+]);
 
 let sceneArtFoundationPromise = null;
 
+function loadSceneArtFoundation(definition) {
+  if (window[definition.flag]) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve, reject) => {
+    const selector = `script[data-scene-art-foundation="${definition.version}"]`;
+    const existing = document.querySelector(selector);
+
+    if (existing) {
+      if (window[definition.flag]) {
+        resolve(true);
+        return;
+      }
+
+      existing.addEventListener(
+        "load",
+        () => resolve(Boolean(window[definition.flag])),
+        { once: true }
+      );
+      existing.addEventListener(
+        "error",
+        () => reject(new Error(`${definition.src} konnte nicht geladen werden.`)),
+        { once: true }
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = definition.src;
+    script.dataset.sceneArtFoundation = definition.version;
+    script.async = true;
+
+    script.addEventListener(
+      "load",
+      () => {
+        if (!window[definition.flag]) {
+          reject(new Error(`${definition.version} wurde geladen, aber nicht initialisiert.`));
+          return;
+        }
+        resolve(true);
+      },
+      { once: true }
+    );
+    script.addEventListener(
+      "error",
+      () => reject(new Error(`${definition.src} konnte nicht geladen werden.`)),
+      { once: true }
+    );
+
+    document.head.appendChild(script);
+  });
+}
+
 function ensureSceneArtFoundation() {
-  if (window.__SIMON_SCENE_ART_V61__) {
+  const ready = SCENE_ART_FOUNDATIONS.every(
+    (definition) => Boolean(window[definition.flag])
+  );
+
+  if (ready) {
     return Promise.resolve(true);
   }
 
@@ -27,51 +96,20 @@ function ensureSceneArtFoundation() {
     return sceneArtFoundationPromise;
   }
 
-  sceneArtFoundationPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector(
-      'script[data-scene-art-foundation="v61"]'
-    );
-
-    if (existing) {
-      existing.addEventListener(
-        "load",
-        () => resolve(Boolean(window.__SIMON_SCENE_ART_V61__)),
-        { once: true }
-      );
-      existing.addEventListener(
-        "error",
-        () => reject(new Error("scene-art-v61.js konnte nicht geladen werden.")),
-        { once: true }
-      );
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = SCENE_ART_FOUNDATION_SRC;
-    script.dataset.sceneArtFoundation = "v61";
-    script.async = true;
-
-    script.addEventListener(
-      "load",
-      () => resolve(Boolean(window.__SIMON_SCENE_ART_V61__)),
-      { once: true }
-    );
-    script.addEventListener(
-      "error",
-      () => reject(new Error("scene-art-v61.js konnte nicht geladen werden.")),
-      { once: true }
-    );
-
-    document.head.appendChild(script);
-  });
+  sceneArtFoundationPromise = SCENE_ART_FOUNDATIONS.reduce(
+    (promise, definition) => promise.then(() => loadSceneArtFoundation(definition)),
+    Promise.resolve(true)
+  ).then(() => SCENE_ART_FOUNDATIONS.every(
+    (definition) => Boolean(window[definition.flag])
+  ));
 
   return sceneArtFoundationPromise;
 }
 
-// Start loading the visual foundation immediately. Gameplay launch below still
-// waits for this promise, so even an instant tap cannot boot the old art path.
+// Load the established v61 registry/store foundation first, then the v62
+// Milchbuck art migration. Gameplay launch waits for both.
 ensureSceneArtFoundation().catch((error) => {
-  console.error("[Scene Art v61]", error);
+  console.error("[Scene Art v62]", error);
 });
 
 const dialogue = [
@@ -134,8 +172,12 @@ function launchGame(options = {}, { fromDialogue = false } = {}) {
 
     ensureSceneArtFoundation()
       .then((loaded) => {
-        if (!loaded || !window.__SIMON_SCENE_ART_V61__) {
-          throw new Error("Scene Art v61 wurde geladen, aber nicht initialisiert.");
+        if (
+          !loaded ||
+          !window.__SIMON_SCENE_ART_V61__ ||
+          !window.__SIMON_SCENE_ART_V62__
+        ) {
+          throw new Error("Scene Art v61/v62 wurde nicht vollständig initialisiert.");
         }
 
         if (typeof window.startSimonGame === "function") {
@@ -145,7 +187,7 @@ function launchGame(options = {}, { fromDialogue = false } = {}) {
         }
       })
       .catch((error) => {
-        console.error("[Scene Art v61] Spielstart abgebrochen:", error);
+        console.error("[Scene Art v62] Spielstart abgebrochen:", error);
         transitionLocked = false;
         hideAllFlowScreens();
         showScreen(startScreen);
