@@ -1,0 +1,33 @@
+OPTIONALER REPO-CLEANUP NACH ERFOLGREICHEM V66-TEST
+===================================================
+
+Diese Dateien werden von der neuen index.html nicht mehr geladen und sind für
+Milchbuck v66 obsolet. Du kannst sie nach einem erfolgreichen Test auf GitHub
+löschen, musst es für die Funktion aber nicht sofort tun:
+
+milchbuck-polish-v63.js
+milchbuck-polish-v64.js
+milchbuck-polish-v65.js
+hive-location-v57.js
+hive-location-v64.js
+hive-location-v65.js
+world-stability-v57.js
+world-stability-v64.js
+world-stability-v65.js
+
+Warum nicht automatisch gelöscht?
+Der vereinbarte Workflow ist ZIP-only: ChatGPT verändert dein GitHub nicht.
+Nicht geladene Dateien haben keinerlei Runtime-Effekt; das Löschen ist nur
+Repository-Hygiene.
+
+NICHT löschen:
+hive-expansion.js
+flight-intro.js
+game.js
+script.js
+simon-ui-v30.js
+simon-ui-v32.js
+simon-ui-v37.js
+
+Die UI-Dateien sehen nach Versionskette aus, enthalten aber unterschiedliche
+Funktionen und sind daher in v66 bewusst nicht blind zusammengelegt worden.
