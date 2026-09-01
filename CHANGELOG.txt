@@ -1,11 +1,16 @@
-MILCHBUCK V19 – CHANGELOG
-=========================
+SIMONS ABENTEUER — CURRENT CHANGELOG
+====================================
 
-- Nur MilchbuckScene; BahnhofquaiScene/Bahnhofstrasse wird nicht angefasst.
-- Feste Render-Slots für BG, MID, Ground, Props, Gameplay, FG, Interaction, UI.
-- Bestehende Objekte werden registriert, aber NICHT visuell neu sortiert.
-- Registry wird auch nach Rückfahrt mit der Tram erneut aufgebaut.
-- Neue Vollbild-Layer müssen exakt 3000 x 390 px sein.
-- Keine automatische Streckung / setDisplaySize für Vollbild-Artwork.
-- Hilfsfunktionen zum späteren Einsetzen und Ein-/Ausblenden einzelner Layer.
-- Kein Eingriff in game.js, Physik, Collision, Trigger oder Bahnhofstrasse.
+2026-09-01 — Repository Cleanup nach v74
+-----------------------------------------
+- Aktueller v74-Spielstack bleibt funktional unverändert.
+- 61 nicht mehr geladene alte Code-/Asset-Versionen aus `main` entfernt.
+- Identische Inder-Assets v33–v36 entfernt; v37 bleibt kanonisch.
+- Nicht verwendete experimentelle Simon-v62-Run/Drink/Dance-Sheets entfernt; das Spiel nutzt wieder die etablierten Simon-Animationen.
+- Alte Versions-READMEs/Testnotizen aus dem Root entfernt; Git-Historie bleibt erhalten.
+- Sicherheitsbranch vor Cleanup: `backup-pre-cleanup-v74`.
+- `README.md` auf die aktuelle Architektur aktualisiert.
+
+WICHTIG
+-------
+`simon-ui-v30.js`, `simon-ui-v32.js` und `simon-ui-v37.js` sind keine bloßen Backups voneinander, sondern kumulative Funktionsmodule und bleiben deshalb gemeinsam geladen.
