@@ -168,3 +168,23 @@ WEITERHIN ERHALTEN
 - flirt-system-v46 unverändert
 - simon-ui-v37 unverändert
 - developer-mode-v60 unverändert
+
+
+============================================================
+V70 WORLD POLISH / STABILITY
+============================================================
+
+Neu in diesem Paket:
+- world-polish-v70.js
+- index.html lädt zusätzlich world-polish-v70.js?v=70
+
+V70 macht Folgendes:
+- stärkere Berge/Häuser-Hintergründe in Milchbuck und Bahnhofstrasse
+- mehr Midground hinter den Tramstationen
+- breitere Gehwege / weniger reine Asphaltwirkung
+- verfeinerter Bahnhofstrasse-Polybahnzugang mit kleinerem Eingang, Fluss/Brücke und nobleren Fassaden rechts
+- Polybahn-Transit mit sichtbarem Boden/Trassee unter den Schienen
+- Polyterrasse-Himmel/Skyline besser an übrigen Zürich-Look angeglichen
+- Salersteig/Oerlikon mit klarerem Boden, Park- und Tramdetail
+- robustere Rückkehr aus Simon-Zimmer und WG
+- generischer Scene-start-Retry als Absicherung gegen Hänger beim Szenenwechsel
