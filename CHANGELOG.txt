@@ -1,9 +1,22 @@
 SIMONS ABENTEUER — CURRENT CHANGELOG
 ====================================
 
+2026-09-02 — Foundation / Loading / WG Fix v75
+-----------------------------------------------
+- `scene-art-v61.js` wiederhergestellt: die Datei wird von `script.js` für den Spielstart vorausgesetzt und war beim Cleanup versehentlich gelöscht worden.
+- Foundation wird jetzt zusätzlich statisch mit Cache-Buster `?v=75` vor `script.js` geladen; der Start fällt dadurch nicht mehr nach der Anfangsszene auf den Startscreen zurück.
+- Milchbuck-Erstaufbau wird kurz verdeckt und anschließend als fertige Szene eingeblendet statt sichtbar Blau -> Einzelobjekte -> Gesamtwelt aufzubauen.
+- Alter Inder v37 wieder kanonisch: `inder-shop-v37.png` + `inder-sprites-v37.png`; beide werden vorgeladen, bevor der Laden sichtbar wird.
+- Neues `inder-master-v62.png` entfernt.
+- Amsif verwendet wieder ausschließlich den prozeduralen Platzhalter; `amsif-master-v62.png` und die alte große NPC-Runtime wurden entfernt.
+- `npc-essential-v75.js` enthält nur noch Anton, Esthi und Gandhi als Production-Sprite-Ersetzungen.
+- Milchmann-v15-Spritesheet wird bereits im normalen Scene-Preload eingeplant; zusätzlicher Fallback stellt den Sprite-Milchmann sicher, falls `game-polish-v15.js` auf einem langsamen Browser zu spät installiert.
+- Polybahn-Eingang auf x=920 links vom Locker (Locker x=996) gesetzt und auf dieselbe Straßen-/Gehwegebene gebracht; alte v67-Brücken-/Seitengassenreste werden entfernt und nicht neu aufgebaut.
+- WG -> Simon-Zimmer verwendet technisch `launch` statt das pausierte WG mit `start` zu beenden.
+- Zimmer -> WG und WG -> Oerlikon stoppen die Kind-Szene erst NACH dem erfolgreichen Resume des Elternteils.
+
 2026-09-01 — Repository Cleanup nach v74
 -----------------------------------------
-- Aktueller v74-Spielstack bleibt funktional unverändert.
 - 61 nicht mehr geladene alte Code-/Asset-Versionen aus `main` entfernt.
 - Identische Inder-Assets v33–v36 entfernt; v37 bleibt kanonisch.
 - Nicht verwendete experimentelle Simon-v62-Run/Drink/Dance-Sheets entfernt; das Spiel nutzt wieder die etablierten Simon-Animationen.
