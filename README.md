@@ -18,8 +18,17 @@ Der produktive Einstieg ist `index.html`. Die dort geladenen Dateien sind die ka
 - `cashier-story-v54.js` – Orell-Füssli-Kassiererin
 - `milchbuck-v66.js` – aktuelles Milchbuck-Layout
 - `zurich-outdoor-v67.js` – gemeinsame Zürich-Outdoor-Darstellung
-- `npc-sprites-v69.js` – aktuelle NPC-Sprite-Erweiterungen
-- `clean-scene-fix-v74.js` – aktuelle Stabilitäts-/Darstellungsfixes
+- `npc-essential-v75.js` – nur die weiterhin gewünschten Produktionssprites (Anton, Esthi, Gandhi)
+- `clean-scene-fix-v74.js` – Enrique, ETH/Polybahn- und Dialog-Stabilitätslogik
+- `scene-art-v61.js` (Foundation-Revision 75) – Start-/Preload-Foundation, alter Inder v37, Milkman-Preload, Polybahn-Position und WG/Room-Transition-Fix
+
+## Aktuelle Asset-Entscheidungen
+
+- Simon: etablierte ursprüngliche Animationen
+- Milchmann: `milkman-spritesheet-v15.png`
+- Der Inder: alte v37-Artworks `inder-shop-v37.png` + `inder-sprites-v37.png`
+- Amsif: prozeduraler Platzhalter; kein separates Amsif-Spritesheet mehr
+- Enrique: `enrique-master-v62.png`, eingebettet in den echten Zofingia-Container durch v74
 
 ## Deployment
 
@@ -33,4 +42,3 @@ Nicht geladene historische JS-Versionen und identische Asset-Duplikate werden au
 
 - `ART-DESIGN.md`
 - `MILCHBUCK-ART-BRIEF.md`
-
